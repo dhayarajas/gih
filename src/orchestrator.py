@@ -1,0 +1,551 @@
+"""
+Ghost Identity Hunter - Investigation Orchestrator
+
+PURPOSE:
+--------
+This module implements the core investigation orchestration engine that coordinates
+OSINT data collection across multiple modules using a breadth-first search (BFS)
+pipeline with depth-limited artifact discovery.
+
+FUNCTIONALITY:
+--------------
+- BFS-based artifact discovery with configurable depth limits
+- Coordination of 6 OSINT modules (phone, email, username, image, breach, correlation)
+- SQLite database persistence for investigation state
+- Automatic artifact linking and relationship discovery
+- Risk indicator collection and aggregation
+- Investigation lifecycle management (create, execute, complete)
+
+ALGORITHM:
+---------
+1. Initialize BFS queue with seed artifacts (phone, email, username, image)
+2. Process artifacts in FIFO order, dispatching to appropriate OSINT modules
+3. Discover new artifacts from module results and add to queue (if within depth limit)
+4. Link source artifacts to discovered artifacts with confidence scores
+5. Repeat until queue empty or max depth reached
+6. Run correlation analysis on collected artifacts
+7. Generate investigation summary with statistics and risk indicators
+
+CONFIGURATION:
+-------------
+- MAX_DEPTH: Maximum recursion depth (default: 2) to prevent infinite loops
+- InvestigationConfig: Controls module enablement and behavior
+- Rate limiting and timeout handling for external API calls
+
+USAGE EXAMPLES:
+--------------
+# Basic investigation
+result = run_investigation(conn, seeds, config, title="Email Investigation")
+
+# Custom configuration
+config = InvestigationConfig(max_depth=3, check_breaches=False)
+result = run_investigation(conn, seeds, config)
+
+DEPENDENCIES:
+-------------
+- collections.deque: BFS queue implementation
+- sqlite3: Database persistence
+- src.modules: OSINT collection modules
+- src.storage.database: Database operations
+- src.modules.correlation: Identity correlation analysis
+
+AUTHOR:
+-------
+Ghost Identity Hunter Team
+CSCD Group 2 - Capstone Project
+
+VERSION:
+--------
+2.0 - Production Ready Implementation
+"""
+
+import json
+import logging
+import sqlite3
+from collections import deque
+from dataclasses import dataclass, field
+from typing import Optional
+
+from src.modules import phone_osint, email_osint, username_search, image_search, breach_check, correlation
+from src.storage import database as db
+
+logger = logging.getLogger(__name__)
+
+MAX_DEPTH = 2  # Maximum recursion depth for artifact discovery
+
+
+@dataclass
+class InvestigationConfig:
+    """Configuration for an investigation run."""
+
+    max_depth: int = MAX_DEPTH
+    check_breaches: bool = True
+    search_usernames: bool = True
+    check_images: bool = True
+    verbose: bool = False
+
+
+@dataclass
+class InvestigationResult:
+    """Summary result of a completed investigation."""
+
+    investigation_id: str
+    seed_artifacts: list[dict] = field(default_factory=list)
+    total_artifacts: int = 0
+    total_links: int = 0
+    total_platforms: int = 0
+    risk_indicators: list[str] = field(default_factory=list)
+
+    def to_dict(self) -> dict:
+        return {
+            "investigation_id": self.investigation_id,
+            "seed_artifacts": self.seed_artifacts,
+            "total_artifacts": self.total_artifacts,
+            "total_links": self.total_links,
+            "total_platforms": self.total_platforms,
+            "risk_indicators": self.risk_indicators,
+        }
+
+
+def run_investigation(
+    conn: sqlite3.Connection,
+    seeds: list[dict],
+    config: Optional[InvestigationConfig] = None,
+    title: Optional[str] = None,
+) -> InvestigationResult:
+    """
+    Run an investigation starting from seed artifacts.
+
+    Implements BFS pipeline:
+    1. Start with seed artifacts (phone, email, username, image)
+    2. Run appropriate OSINT module for each artifact
+    3. Discover new artifacts from results
+    4. Add discovered artifacts to queue (up to max_depth)
+    5. Link source → discovered artifacts
+    6. Repeat until queue is empty or depth limit reached
+
+    Args:
+        conn: Database connection
+        seeds: List of seed artifacts [{"type": "phone", "value": "+1..."}, ...]
+        config: Investigation configuration
+        title: Optional investigation title
+
+    Returns:
+        InvestigationResult with summary statistics
+    """
+    config = config or InvestigationConfig()
+
+    logger.info("Starting investigation with %d seed artifact(s)", len(seeds))
+    logger.debug("Investigation config: max_depth=%d, breach_checks=%s, username_search=%s", 
+                config.max_depth, config.check_breaches, config.search_usernames)
+    
+    if title:
+        logger.info("Investigation title: %s", title)
+
+    # Create investigation
+    inv_id = db.create_investigation(conn, title=title)
+    result = InvestigationResult(investigation_id=inv_id, seed_artifacts=seeds)
+    
+    logger.info("Created investigation: %s", inv_id)
+
+    # Initialize BFS queue with seed artifacts
+    queue: deque[dict] = deque()
+    seen: set[str] = set()
+
+    logger.debug("Initializing BFS queue with seed artifacts")
+    for i, seed in enumerate(seeds):
+        artifact_id = db.add_artifact(
+            conn,
+            investigation_id=inv_id,
+            artifact_type=seed["type"],
+            value=seed["value"],
+            source="seed",
+            depth=0,
+        )
+        key = f"{seed['type']}:{seed['value']}"
+        seen.add(key)
+        queue.append({
+            "artifact_id": artifact_id,
+            "type": seed["type"],
+            "value": seed["value"],
+            "depth": 0,
+        })
+        logger.debug("Added seed %d: %s=%s (ID: %s)", i+1, seed["type"], seed["value"], artifact_id)
+
+    logger.info("Starting BFS processing with %d artifacts in queue", len(queue))
+
+    # BFS loop
+    processed_count = 0
+    while queue:
+        current = queue.popleft()
+        current_depth = current["depth"]
+        current_id = current["artifact_id"]
+        processed_count += 1
+
+        logger.info(
+            "Processing: %s=%s (depth=%d, queue_size=%d)",
+            current["type"], current["value"], current_depth, len(queue)
+        )
+
+        # Run appropriate OSINT module
+        discovered = _process_artifact(conn, inv_id, current, config)
+        
+        logger.debug("Discovered %d new artifacts from %s=%s", 
+                    len(discovered), current["type"], current["value"])
+
+        # Add discovered artifacts to queue (if within depth limit)
+        if current_depth < config.max_depth:
+            added_count = 0
+            for artifact in discovered:
+                key = f"{artifact['type']}:{artifact['value']}"
+                if key in seen:
+                    logger.debug("Skipping duplicate artifact: %s", key)
+                    continue
+                seen.add(key)
+
+                # Store new artifact
+                new_id = db.add_artifact(
+                    conn,
+                    investigation_id=inv_id,
+                    artifact_type=artifact["type"],
+                    value=artifact["value"],
+                    source=artifact.get("source", "discovered"),
+                    confidence=artifact.get("confidence", 0.8),
+                    metadata=artifact.get("metadata"),
+                    depth=current_depth + 1,
+                )
+
+                # Create link from source to discovered
+                db.add_link(
+                    conn,
+                    investigation_id=inv_id,
+                    source_artifact=current_id,
+                    target_artifact=new_id,
+                    link_type=artifact.get("link_type", "discovered_from"),
+                    confidence=artifact.get("confidence", 0.8),
+                    evidence=artifact.get("source", ""),
+                )
+
+                # Add to queue for further investigation
+                queue.append({
+                    "artifact_id": new_id,
+                    "type": artifact["type"],
+                    "value": artifact["value"],
+                    "depth": current_depth + 1,
+                })
+                added_count += 1
+                
+                logger.debug("Added artifact: %s=%s (confidence=%.2f, link=%s)", 
+                           artifact["type"], artifact["value"], 
+                           artifact.get("confidence", 0.8),
+                           artifact.get("link_type", "discovered_from"))
+            
+            logger.debug("Added %d new artifacts to queue from %s=%s", 
+                        added_count, current["type"], current["value"])
+        else:
+            logger.debug("Depth limit reached (%d), not adding discovered artifacts", config.max_depth)
+
+    logger.info("BFS processing complete. Processed %d artifacts", processed_count)
+    
+    # Finalize
+    logger.debug("Finalizing investigation %s", inv_id)
+    db.complete_investigation(conn, inv_id)
+
+    # Compute summary
+    logger.debug("Computing investigation summary statistics")
+    all_artifacts = db.get_artifacts(conn, inv_id)
+    all_links = db.get_links(conn, inv_id)
+    all_presences = db.get_platform_presences(conn, inv_id)
+
+    result.total_artifacts = len(all_artifacts)
+    result.total_links = len(all_links)
+    result.total_platforms = len(all_presences)
+    
+    logger.info("Summary: %d artifacts, %d links, %d platform presences", 
+               result.total_artifacts, result.total_links, result.total_platforms)
+    
+    # Run correlation analysis
+    logger.debug("Running correlation analysis on %d artifacts and %d links", 
+                len(all_artifacts), len(all_links))
+    correlation_analysis = correlation.analyze_correlation(all_artifacts, all_links)
+    
+    logger.info("Correlation analysis: %d connected components, largest component size: %d", 
+               correlation_analysis.connected_components, correlation_analysis.largest_component_size)
+    
+    # Store correlation analysis metadata
+    from datetime import datetime, timezone
+    now = datetime.now(timezone.utc).isoformat()
+    conn.execute(
+        "INSERT INTO investigation_metadata (investigation_id, key, value, created_at) VALUES (?, ?, ?, ?)",
+        (inv_id, "correlation_analysis", correlation_analysis.to_json(), now)
+    )
+    conn.commit()
+    logger.debug("Stored correlation analysis metadata")
+
+    # Collect risk indicators
+    logger.debug("Collecting risk indicators from artifacts")
+    for artifact in all_artifacts:
+        if artifact.get("metadata"):
+            try:
+                meta = json.loads(artifact["metadata"])
+                if isinstance(meta, dict) and "risk_indicators" in meta:
+                    result.risk_indicators.extend(meta["risk_indicators"])
+            except (json.JSONDecodeError, KeyError):
+                pass
+
+    # Remove duplicates from risk indicators
+    result.risk_indicators = list(set(result.risk_indicators))
+    
+    if result.risk_indicators:
+        logger.info("Found %d unique risk indicators: %s", 
+                   len(result.risk_indicators), ", ".join(result.risk_indicators[:5]))
+        if len(result.risk_indicators) > 5:
+            logger.debug("Additional risk indicators: %s", 
+                        ", ".join(result.risk_indicators[5:]))
+
+    logger.info(
+        "Investigation %s complete: %d artifacts, %d links, %d platforms, %d risk indicators",
+        inv_id, result.total_artifacts, result.total_links, result.total_platforms, len(result.risk_indicators)
+    )
+    return result
+
+
+def _process_artifact(
+    conn: sqlite3.Connection,
+    inv_id: str,
+    artifact: dict,
+    config: InvestigationConfig,
+) -> list[dict]:
+    """Process a single artifact through the appropriate OSINT module."""
+    discovered = []
+    artifact_type = artifact["type"]
+    value = artifact["value"]
+
+    logger.debug("Dispatching artifact to OSINT module: %s=%s", artifact_type, value)
+
+    if artifact_type == "phone":
+        logger.debug("Processing phone number with phone_osint module")
+        discovered.extend(_process_phone(conn, inv_id, artifact, value, config))
+    elif artifact_type == "email":
+        logger.debug("Processing email address with email_osint module")
+        discovered.extend(_process_email(conn, inv_id, artifact, value, config))
+    elif artifact_type == "username":
+        logger.debug("Processing username with username_search module")
+        discovered.extend(_process_username(conn, inv_id, artifact, value, config))
+    elif artifact_type == "image":
+        logger.debug("Processing image with image_search module")
+        discovered.extend(_process_image(conn, inv_id, artifact, value, config))
+    else:
+        logger.warning("Unknown artifact type: %s", artifact_type)
+
+    logger.debug("OSINT module returned %d discovered artifacts", len(discovered))
+    return discovered
+
+
+def _process_phone(
+    conn: sqlite3.Connection,
+    inv_id: str,
+    artifact: dict,
+    value: str,
+    config: InvestigationConfig,
+) -> list[dict]:
+    """Process a phone number artifact."""
+    discovered = []
+    try:
+        logger.debug("Analyzing phone number: %s", value)
+        analysis = phone_osint.analyze_phone(value)
+
+        logger.debug("Phone analysis complete: valid=%s, carrier=%s, line_type=%s", 
+                    analysis.valid, analysis.carrier_name, analysis.line_type)
+
+        # Store analysis metadata
+        metadata = analysis.to_json()
+        conn.execute(
+            "UPDATE artifacts SET metadata = ? WHERE artifact_id = ?",
+            (metadata, artifact["artifact_id"]),
+        )
+        conn.commit()
+        logger.debug("Stored phone analysis metadata for artifact %s", artifact["artifact_id"])
+
+        # Extract discovered artifacts
+        phone_artifacts = phone_osint.get_discovered_artifacts(analysis)
+        discovered.extend(phone_artifacts)
+        logger.debug("Extracted %d artifacts from phone analysis", len(phone_artifacts))
+
+        # Add risk indicators
+        if analysis.risk_indicators:
+            logger.debug("Found %d phone risk indicators: %s", 
+                        len(analysis.risk_indicators), ", ".join(analysis.risk_indicators))
+            for indicator in analysis.risk_indicators:
+                discovered.append({
+                    "type": "risk_indicator",
+                    "value": indicator,
+                    "source": "phone_osint",
+                    "confidence": 0.9,
+                    "link_type": "has_risk",
+                })
+
+    except Exception as e:
+        logger.error("Phone OSINT failed for %s: %s", value, e)
+
+    return discovered
+
+
+def _process_email(
+    conn: sqlite3.Connection,
+    inv_id: str,
+    artifact: dict,
+    value: str,
+    config: InvestigationConfig,
+) -> list[dict]:
+    """Process an email artifact."""
+    discovered = []
+    try:
+        logger.debug("Analyzing email address: %s", value)
+        analysis = email_osint.analyze_email(value)
+
+        logger.debug("Email analysis complete: valid=%s, disposable=%s, domain=%s", 
+                    analysis.valid_format, analysis.is_disposable, analysis.domain)
+
+        # Store analysis metadata
+        metadata = analysis.to_json()
+        conn.execute(
+            "UPDATE artifacts SET metadata = ? WHERE artifact_id = ?",
+            (metadata, artifact["artifact_id"]),
+        )
+        conn.commit()
+        logger.debug("Stored email analysis metadata for artifact %s", artifact["artifact_id"])
+
+        # Record platform presences
+        if analysis.platforms_found:
+            logger.debug("Recording %d platform presences for email %s", 
+                        len(analysis.platforms_found), value)
+            for platform in analysis.platforms_found:
+                db.add_platform_presence(
+                    conn,
+                    investigation_id=inv_id,
+                    artifact_id=artifact["artifact_id"],
+                    platform_name=platform.get("platform", "unknown"),
+                    profile_url=platform.get("profile_url"),
+                    username=platform.get("username"),
+                )
+
+        # Extract discovered artifacts
+        email_artifacts = email_osint.get_discovered_artifacts(analysis)
+        discovered.extend(email_artifacts)
+        logger.debug("Extracted %d artifacts from email analysis", len(email_artifacts))
+
+        # Breach check
+        if config.check_breaches:
+            logger.debug("Running breach check for email: %s", value)
+            breach_result = breach_check.check_email_breaches(value)
+            
+            if breach_result.breaches:
+                logger.info("Found %d breaches for email %s: %s", 
+                           len(breach_result.breaches), value,
+                           ", ".join([b.name for b in breach_result.breaches[:3]]))
+            else:
+                logger.debug("No breaches found for email: %s", value)
+            
+            if breach_result.error:
+                logger.warning("Breach check warning: %s", breach_result.error)
+                
+            breach_artifacts = breach_check.get_discovered_artifacts(breach_result)
+            for ba in breach_artifacts:
+                ba["link_type"] = "found_in_breach"
+            discovered.extend(breach_artifacts)
+
+        # Try username from email local part
+        local_part = value.split("@")[0]
+        if config.search_usernames and len(local_part) >= 3:
+            logger.debug("Extracted username from email local part: %s", local_part)
+            discovered.append({
+                "type": "username",
+                "value": local_part,
+                "source": "email_local_part",
+                "confidence": 0.5,
+                "link_type": "possible_username",
+            })
+
+    except Exception as e:
+        logger.error("Email OSINT failed for %s: %s", value, e)
+
+    return discovered
+
+
+def _process_username(
+    conn: sqlite3.Connection,
+    inv_id: str,
+    artifact: dict,
+    value: str,
+    config: InvestigationConfig,
+) -> list[dict]:
+    """Process a username artifact."""
+    discovered = []
+    try:
+        if not config.search_usernames:
+            return discovered
+
+        search_result = username_search.search_username(value)
+
+        # Store search result metadata
+        metadata = search_result.to_json()
+        conn.execute(
+            "UPDATE artifacts SET metadata = ? WHERE artifact_id = ?",
+            (metadata, artifact["artifact_id"]),
+        )
+        conn.commit()
+
+        # Record platform presences
+        for platform in search_result.platforms_found:
+            db.add_platform_presence(
+                conn,
+                investigation_id=inv_id,
+                artifact_id=artifact["artifact_id"],
+                platform_name=platform.platform_name,
+                profile_url=platform.profile_url,
+                username=platform.username,
+                display_name=platform.display_name,
+                bio=platform.bio,
+                follower_count=platform.follower_count,
+            )
+
+        # Extract platform presences as new artifacts
+        discovered.extend(username_search.get_discovered_artifacts(search_result))
+
+    except Exception as e:
+        logger.error("Username search failed for %s: %s", value, e)
+
+    return discovered
+
+
+def _process_image(
+    conn: sqlite3.Connection,
+    inv_id: str,
+    artifact: dict,
+    value: str,
+    config: InvestigationConfig,
+) -> list[dict]:
+    """Process an image artifact."""
+    discovered = []
+    try:
+        if not config.check_images:
+            return discovered
+
+        analysis = image_search.analyze_image(value)
+
+        # Store analysis metadata
+        metadata = analysis.to_json()
+        conn.execute(
+            "UPDATE artifacts SET metadata = ? WHERE artifact_id = ?",
+            (metadata, artifact["artifact_id"]),
+        )
+        conn.commit()
+
+        # Extract discovered artifacts
+        discovered.extend(image_search.get_discovered_artifacts(analysis))
+
+    except Exception as e:
+        logger.error("Image analysis failed for %s: %s", value, e)
+
+    return discovered

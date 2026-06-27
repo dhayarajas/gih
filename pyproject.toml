@@ -1,0 +1,39 @@
+[project]
+name = "ghost-identity-hunter"
+version = "0.1.0"
+description = "OSINT investigation tool that links fragmented digital identity artifacts into unified attribution profiles"
+requires-python = ">=3.10"
+dependencies = [
+    "click>=8.1.0",
+    "networkx>=3.0",
+    "phonenumbers>=8.13.0",
+    "requests>=2.31.0",
+    "beautifulsoup4>=4.12.0",
+    "python-whois>=0.9.0",
+    "Pillow>=10.0.0",
+    "pyvis>=0.3.2",
+    "Jinja2>=3.1.0",
+    "tabulate>=0.9.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "pytest-cov>=4.0",
+    "ruff>=0.1.0",
+]
+
+[project.scripts]
+ghost-hunter = "src.cli:cli"
+
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"

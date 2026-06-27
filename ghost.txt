@@ -1,0 +1,39 @@
+# Investigate an email
+python -m src.cli investigate --email "suspect@example.com"
+
+# Investigate a phone number
+python -m src.cli investigate --phone "+1-555-0123"
+
+# Investigate a username
+python -m src.cli investigate --username "john_doe"
+
+# Multiple seeds at once
+python -m src.cli investigate -p "+1-555-0123" -e "suspect@example.com" -u "john_doe"
+
+# Investigate a profile image
+python -m src.cli investigate --image "/path/to/profile.jpg"
+
+# Skip network-dependent checks (offline mode)
+python -m src.cli investigate -e "test@example.com" --no-breach --no-username-search
+
+
+# Generate HTML report
+python -m src.cli report --id <INV-ID>
+
+# Generate JSON report
+python -m src.cli report --id <INV-ID> --format json
+
+# Generate both
+python -m src.cli report --id <INV-ID> --format both
+
+# Interactive identity graph (HTML)
+python -m src.cli graph --id <INV-ID>
+
+# Run correlation analysis
+python -m src.cli correlate --id <INV-ID>
+
+python -m src.cli list
+
+pytest tests/ -v
+
+
