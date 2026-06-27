@@ -18,7 +18,8 @@ An OSINT investigation tool that links fragmented digital identity artifacts (bu
 ## Installation
 
 ```bash
-cd ghost_identity_hunter
+git clone https://github.com/dhayarajas/gih.git
+cd gih
 pip install -e ".[dev]"
 ```
 

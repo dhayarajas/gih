@@ -11,7 +11,8 @@
 #### Option 1: Using Docker Compose (Recommended)
 ```bash
 # Clone and navigate to the project
-cd ghost_identity_hunter
+git clone https://github.com/dhayarajas/gih.git
+cd gih
 
 # Build and start the container
 docker-compose up --build
