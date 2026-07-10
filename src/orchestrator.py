@@ -15,6 +15,7 @@ FUNCTIONALITY:
 - Automatic artifact linking and relationship discovery
 - Risk indicator collection and aggregation
 - Investigation lifecycle management (create, execute, complete)
+- Graceful handling of missing external OSINT tools
 
 ALGORITHM:
 ---------
@@ -31,6 +32,7 @@ CONFIGURATION:
 - MAX_DEPTH: Maximum recursion depth (default: 2) to prevent infinite loops
 - InvestigationConfig: Controls module enablement and behavior
 - Rate limiting and timeout handling for external API calls
+- Tool availability checking for external OSINT tools
 
 USAGE EXAMPLES:
 --------------
@@ -48,6 +50,7 @@ DEPENDENCIES:
 - src.modules: OSINT collection modules
 - src.storage.database: Database operations
 - src.modules.correlation: Identity correlation analysis
+- src.utils.tool_checker: External tool availability checking
 
 AUTHOR:
 -------
@@ -68,6 +71,7 @@ from typing import Optional
 
 from src.modules import phone_osint, email_osint, username_search, image_search, breach_check, correlation
 from src.storage import database as db
+from src.utils.tool_checker import get_tool_checker, check_tool_availability
 
 logger = logging.getLogger(__name__)
 
@@ -83,6 +87,8 @@ class InvestigationConfig:
     search_usernames: bool = True
     check_images: bool = True
     verbose: bool = False
+    check_external_tools: bool = True  # Check external OSINT tool availability
+    skip_missing_tools: bool = True  # Skip analysis if tool not available
 
 
 @dataclass
@@ -141,6 +147,21 @@ def run_investigation(
     
     if title:
         logger.info("Investigation title: %s", title)
+
+    # Check external tool availability if enabled
+    if config.check_external_tools:
+        logger.debug("Checking external OSINT tool availability...")
+        tool_checker = get_tool_checker()
+        available_tools = tool_checker.get_available_tools()
+        missing_tools = tool_checker.get_missing_tools()
+        
+        logger.info(f"Available external tools: {len(available_tools)}")
+        logger.info(f"Missing external tools: {len(missing_tools)}")
+        
+        if config.verbose and missing_tools:
+            logger.debug(f"Missing tools: {', '.join(missing_tools[:5])}")
+            if len(missing_tools) > 5:
+                logger.debug(f"Additional missing tools: {len(missing_tools) - 5}")
 
     # Create investigation
     inv_id = db.create_investigation(conn, title=title)
