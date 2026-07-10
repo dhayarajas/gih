@@ -1,0 +1,86 @@
+# Ghost Identity Hunter - Kali Linux Docker Image
+# This Dockerfile creates a containerized Ghost Identity Hunter environment
+# with Kali Linux and pre-installed OSINT tools
+
+FROM kalilinux/kali-rolling:latest
+
+# Set environment variables
+ENV DEBIAN_FRONTEND=noninteractive
+ENV PYTHONUNBUFFERED=1
+ENV GHOST_HUNTER_DB_PATH=/home/ghosthunter/.ghost_hunter/investigations.db
+ENV PYTHONPATH=/app
+
+# Install system dependencies and OSINT tools
+RUN apt-get update && apt-get upgrade -y && \
+    apt-get install -y \
+    # Python and build tools
+    python3 python3-pip python3-venv git curl wget \
+    build-essential python3-dev \
+    # Core network tools
+    nmap curl wget whois dnsutils netcat-openbsd \
+    # Advanced network tools
+    masscan nikto sqlmap \
+    # DNS and domain tools
+    dnsenum dnsrecon fierce \
+    # Web tools
+    gobuster dirsearch wfuzz \
+    # Image and metadata tools
+    exiftool \
+    # Other utilities
+    vim nano htop tmux \
+    # Clean up
+    && apt-get autoremove -y \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Python dependencies for OSINT tools
+RUN pip3 install --no-cache-dir \
+    sherlock \
+    theHarvester \
+    maigret \
+    social-analyzer \
+    holehe \
+    emailharvester \
+    subfinder \
+    amass \
+    shodan \
+    ghunt \
+    photon \
+    metagoofil \
+    wappalyzer \
+    requests \
+    beautifulsoup4 \
+    lxml
+
+# Install additional OSINT tools from source
+RUN git clone https://github.com/aboul3la/Sublist3r.git /opt/Sublist3r && \
+    cd /opt/Sublist3r && \
+    pip3 install -r requirements.txt && \
+    cd / && rm -rf /opt/Sublist3r
+
+# Create non-root user for security
+RUN useradd -m -s /bin/bash ghosthunter && \
+    mkdir -p /home/ghosthunter/.ghost_hunter && \
+    chown -R ghosthunter:ghosthunter /home/ghosthunter
+
+# Set working directory
+WORKDIR /app
+
+# Copy application files
+COPY . /app/
+
+# Install Ghost Identity Hunter dependencies
+RUN pip3 install --no-cache-dir -e .
+
+# Create directories for investigations and reports
+RUN mkdir -p /app/investigations /app/reports && \
+    chown -R ghosthunter:ghosthunter /app/investigations /app/reports
+
+# Switch to non-root user
+USER ghosthunter
+
+# Expose volume for persistent data
+VOLUME ["/home/ghosthunter/.ghost_hunter", "/app/investigations", "/app/reports"]
+
+# Set default command
+CMD ["python", "-m", "src.cli", "--help"]

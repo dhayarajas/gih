@@ -17,6 +17,12 @@ This guide provides step-by-step instructions for deploying Ghost Identity Hunte
 - **Resource Management**: Dedicated resources for intensive investigations
 - **Backup**: Easy to snapshot and restore VM states
 
+### **Docker Alternative**
+For maximum portability and ease of deployment, consider using Docker containers:
+- **Standard Docker**: Basic deployment with core tools
+- **Kali Linux Docker**: Full OSINT tool suite in container
+- See [KALI_DOCKER_DEPLOYMENT.md](KALI_DOCKER_DEPLOYMENT.md) for Docker deployment
+
 ## VM Requirements
 
 ### **Hardware Requirements**
@@ -54,13 +60,30 @@ wget https://releases.ubuntu.com/22.04/ubuntu-22.04.3-live-server-amd64.iso
 # Install Ubuntu with standard configuration
 ```
 
-### **Option 3: Docker-Based Deployment**
+### **Option 3: Docker-Based Deployment (Recommended)**
 Use Docker containers for maximum portability and reproducibility.
 
+#### **Standard Docker Deployment**
 ```bash
-# Use existing Docker setup from DOCKER_SETUP_GUIDE.html
-# Extend with additional tool containers
+# Use existing Docker setup
+docker-compose up --build
 ```
+
+#### **Kali Linux Docker Deployment**
+```bash
+# Use Kali Linux base image with full OSINT tool suite
+docker-compose -f docker-compose.kali.yml build
+docker-compose -f docker-compose.kali.yml up -d
+
+# See KALI_DOCKER_DEPLOYMENT.md for detailed instructions
+```
+
+**Benefits of Docker Deployment:**
+- Pre-configured environment with all dependencies
+- Isolated investigation environment
+- Easy deployment and scaling
+- Consistent results across systems
+- Simple backup and restore
 
 ## OSINT Tools Installation
 

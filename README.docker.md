@@ -8,7 +8,7 @@
 
 ### Build and Run
 
-#### Option 1: Using Docker Compose (Recommended)
+#### Option 1: Standard Docker Compose (Recommended)
 ```bash
 # Clone and navigate to the project
 git clone https://github.com/dhayarajas/gih.git
@@ -21,7 +21,22 @@ docker-compose up --build
 docker-compose up -d --build
 ```
 
-#### Option 2: Using Docker directly
+#### Option 2: Kali Linux Docker (Full OSINT Suite)
+```bash
+# Clone and navigate to the project
+git clone https://github.com/dhayarajas/gih.git
+cd gih
+
+# Build Kali Linux image with full OSINT tool suite
+docker-compose -f docker-compose.kali.yml build
+
+# Start container
+docker-compose -f docker-compose.kali.yml up -d
+
+# See KALI_DOCKER_DEPLOYMENT.md for detailed instructions
+```
+
+#### Option 3: Using Docker directly
 ```bash
 # Build the image
 docker build -t ghost-identity-hunter:latest .
@@ -38,7 +53,7 @@ docker run -it --rm \
 ### Running Investigations
 ```bash
 # Using docker-compose
-docker-compose exec ghost-hunter python cli.py investigate \
+docker-compose exec ghost-hunter python -m src.cli investigate \
   --phone "+1234567890" \
   --email "user@example.com" \
   --username "target_user"
@@ -50,17 +65,50 @@ docker run -it --rm \
   ghost-identity-hunter:latest investigate \
   --phone "+1234567890" \
   --email "user@example.com"
+
+# With external OSINT tools (Kali Docker only)
+docker-compose -f docker-compose.kali.yml exec ghost-hunter-kali \
+  python -m src.cli investigate \
+  --email "target@example.com" \
+  --use-external-tools \
+  --verbose
+```
+
+### Check Available Tools
+```bash
+# Check which external OSINT tools are available (Kali Docker only)
+docker-compose -f docker-compose.kali.yml exec ghost-hunter-kali \
+  python -m src.cli investigate --check-tools
 ```
 
 ### Listing Investigations
 ```bash
-docker-compose exec ghost-hunter python cli.py list
+docker-compose exec ghost-hunter python -m src.cli list
 ```
 
 ### Generating Reports
 ```bash
-docker-compose exec ghost-hunter python cli.py report <investigation_id>
+docker-compose exec ghost-hunter python -m src.cli report <investigation_id>
 ```
+
+## External OSINT Tools Integration
+
+### Standard Docker
+The standard Docker deployment includes built-in OSINT modules but does not include external tools like Sherlock, Nmap, etc. These tools can be added by customizing the Dockerfile.
+
+### Kali Linux Docker
+The Kali Linux Docker deployment includes 25+ pre-installed OSINT tools:
+- **Username Search**: Sherlock, Maigret, Social Analyzer
+- **Email Investigation**: Holehe, EmailHarvester, theHarvester
+- **Domain & DNS**: Whois, Dig, Amass, Subfinder, Sublist3r
+- **Network Scanning**: Nmap, Masscan, WhatWeb, Wappalyzer
+- **OSINT Frameworks**: Recon-ng, SpiderFoot, OSRFramework
+- **Specialized Tools**: Shodan, GHunt, Photon, Metagoofil
+- **Image & Metadata**: ExifTool
+- **Historical Data**: Wayback Machine
+- **Blockchain & Geolocation**: Etherscan, GeoNames
+
+The system automatically detects available tools and gracefully skips any that are not installed.
 
 ## Data Persistence
 
