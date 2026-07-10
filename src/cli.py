@@ -112,6 +112,11 @@ def cli(ctx: click.Context, verbose: bool, db_path: Optional[str]) -> None:
 @click.option("--use-external-tools", is_flag=True, default=True, help="Use external OSINT tools if available (default: enabled)")
 @click.option("--no-external-tools", is_flag=True, help="Skip external OSINT tools")
 @click.option("--check-tools", is_flag=True, help="Check available external OSINT tools and exit")
+@click.option("--use-neo4j", is_flag=True, help="Use Neo4j for graph correlation (requires Neo4j database)")
+@click.option("--neo4j-uri", default="bolt://localhost:7687", help="Neo4j connection URI (default: bolt://localhost:7687)")
+@click.option("--neo4j-user", default="neo4j", help="Neo4j username (default: neo4j)")
+@click.option("--neo4j-password", default="password", help="Neo4j password (default: password)")
+@click.option("--neo4j-database", default="neo4j", help="Neo4j database name (default: neo4j)")
 @click.pass_context
 def investigate(
     ctx: click.Context,
@@ -129,6 +134,11 @@ def investigate(
     use_external_tools: bool,
     no_external_tools: bool,
     check_tools: bool,
+    use_neo4j: bool,
+    neo4j_uri: str,
+    neo4j_user: str,
+    neo4j_password: str,
+    neo4j_database: str,
 ) -> None:
     """Start a new OSINT investigation from seed artifacts.
 
@@ -176,6 +186,11 @@ def investigate(
         verbose=ctx.obj["verbose"],
         check_external_tools=use_external_tools and not no_external_tools,
         skip_missing_tools=True,
+        use_neo4j=use_neo4j,
+        neo4j_uri=neo4j_uri,
+        neo4j_user=neo4j_user,
+        neo4j_password=neo4j_password,
+        neo4j_database=neo4j_database,
     )
 
     click.echo(f"Starting investigation with {len(seeds)} seed artifact(s)...")
@@ -183,6 +198,7 @@ def investigate(
     click.echo(f"  Breach checks: {'disabled' if no_breach else 'enabled'}")
     click.echo(f"  Username search: {'disabled' if no_username_search else 'enabled'}")
     click.echo(f"  External OSINT tools: {'enabled' if config.check_external_tools else 'disabled'}")
+    click.echo(f"  Graph correlation: {'Neo4j' if config.use_neo4j else 'NetworkX'}")
     click.echo(f"  Auto-report: {'disabled' if not auto_report else 'enabled'}")
     if auto_report:
         click.echo(f"  Report format: {report_format}")

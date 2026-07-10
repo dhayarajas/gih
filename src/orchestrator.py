@@ -70,6 +70,7 @@ from dataclasses import dataclass, field
 from typing import Optional
 
 from src.modules import phone_osint, email_osint, username_search, image_search, breach_check, correlation
+from src.modules.correlation_neo4j import Neo4jCorrelation
 from src.storage import database as db
 from src.utils.tool_checker import get_tool_checker, check_tool_availability
 from src.modules.external_tools import run_tool_analysis, get_tool_integrations
@@ -90,6 +91,11 @@ class InvestigationConfig:
     verbose: bool = False
     check_external_tools: bool = True  # Check external OSINT tool availability
     skip_missing_tools: bool = True  # Skip analysis if tool not available
+    use_neo4j: bool = False  # Use Neo4j for graph correlation
+    neo4j_uri: str = "bolt://localhost:7687"  # Neo4j connection URI
+    neo4j_user: str = "neo4j"  # Neo4j username
+    neo4j_password: str = "password"  # Neo4j password
+    neo4j_database: str = "neo4j"  # Neo4j database name
 
 
 @dataclass
@@ -289,7 +295,26 @@ def run_investigation(
     # Run correlation analysis
     logger.debug("Running correlation analysis on %d artifacts and %d links", 
                 len(all_artifacts), len(all_links))
-    correlation_analysis = correlation.analyze_correlation(all_artifacts, all_links)
+    
+    if config.use_neo4j:
+        # Use Neo4j for graph correlation
+        logger.info("Using Neo4j for correlation analysis")
+        try:
+            neo4j_correlation = Neo4jCorrelation(
+                uri=config.neo4j_uri,
+                user=config.neo4j_user,
+                password=config.neo4j_password,
+                database=config.neo4j_database
+            )
+            correlation_analysis = neo4j_correlation.analyze_correlation(inv_id, all_artifacts, all_links)
+            neo4j_correlation.close()
+            logger.info("Neo4j correlation analysis completed successfully")
+        except Exception as e:
+            logger.error(f"Neo4j correlation failed, falling back to NetworkX: {e}")
+            correlation_analysis = correlation.analyze_correlation(all_artifacts, all_links)
+    else:
+        # Use NetworkX for graph correlation
+        correlation_analysis = correlation.analyze_correlation(all_artifacts, all_links)
     
     logger.info("Correlation analysis: %d connected components, largest component size: %d", 
                correlation_analysis.connected_components, correlation_analysis.largest_component_size)

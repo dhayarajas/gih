@@ -23,6 +23,13 @@ An OSINT investigation tool that links fragmented digital identity artifacts (bu
 - **VM/Docker Ready** — Optimized for Kali Linux VM and Docker container deployment
 - **Unified Pipeline** — All tool outputs integrated into investigation workflow
 
+### **Neo4j Graph Database Integration**
+- **Persistent Graph Storage** — Graph data persists between investigations
+- **Scalable Analysis** — Handles millions of nodes/edges efficiently
+- **Advanced Analytics** — Built-in graph algorithms and Cypher query language
+- **Cross-Investigation Correlation** — Query graph data across multiple investigations
+- **Dual Backend Support** — NetworkX (default) or Neo4j with automatic fallback
+
 ## Installation
 
 ### **Standard Installation**
@@ -71,6 +78,15 @@ ghost-hunter investigate -e "test@example.com" --no-breach --no-username-search
 
 # Use external OSINT tools (if available)
 ghost-hunter investigate --email "target@example.com" --use-external-tools --verbose
+
+# Use Neo4j for graph correlation
+ghost-hunter investigate --email "target@example.com" --use-neo4j
+
+# Use Neo4j with custom configuration
+ghost-hunter investigate --email "target@example.com" --use-neo4j \
+  --neo4j-uri "bolt://localhost:7687" \
+  --neo4j-user "neo4j" \
+  --neo4j-password "your_password"
 ```
 
 ### **Check Available External Tools**
@@ -232,6 +248,7 @@ pytest tests/ -v
 - [README.md](README.md) — Main documentation
 - [VM_DEPLOYMENT_GUIDE.md](VM_DEPLOYMENT_GUIDE.md) — VM deployment instructions
 - [KALI_DOCKER_DEPLOYMENT.md](KALI_DOCKER_DEPLOYMENT.md) — Kali Linux Docker deployment
+- [NEO4J_SETUP_GUIDE.md](NEO4J_SETUP_GUIDE.md) — Neo4j integration guide
 - [DOCKER_SETUP_GUIDE.html](DOCKER_SETUP_GUIDE.html) — Docker setup guide
 - [README.docker.md](README.docker.md) — Docker-specific documentation
 
