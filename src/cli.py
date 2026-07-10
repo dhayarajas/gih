@@ -109,6 +109,9 @@ def cli(ctx: click.Context, verbose: bool, db_path: Optional[str]) -> None:
 @click.option("--auto-report", is_flag=True, default=True, help="Auto-generate report after investigation (default: enabled)")
 @click.option("--report-format", type=click.Choice(["html", "json", "both"]), default="html", help="Report format for auto-generation")
 @click.option("--report-output", default=None, help="Custom output path for auto-generated report")
+@click.option("--use-external-tools", is_flag=True, default=True, help="Use external OSINT tools if available (default: enabled)")
+@click.option("--no-external-tools", is_flag=True, help="Skip external OSINT tools")
+@click.option("--check-tools", is_flag=True, help="Check available external OSINT tools and exit")
 @click.pass_context
 def investigate(
     ctx: click.Context,
@@ -123,6 +126,9 @@ def investigate(
     auto_report: bool,
     report_format: str,
     report_output: Optional[str],
+    use_external_tools: bool,
+    no_external_tools: bool,
+    check_tools: bool,
 ) -> None:
     """Start a new OSINT investigation from seed artifacts.
 
@@ -132,9 +138,17 @@ def investigate(
         ghost-hunter investigate -p "+1-555-0123" -e "suspect@example.com" -u "john_doe"
     """
     # Validate input
-    if not phone and not email and not username and not image:
-        click.echo("Error: At least one seed artifact required (--phone, --email, --username, or --image)")
+    if not phone and not email and not username and not image and not check_tools:
+        click.echo("Error: At least one seed artifact required (--phone, --email, --username, or --image) or use --check-tools")
         sys.exit(1)
+
+    # Check external tools if requested
+    if check_tools:
+        from src.utils.tool_checker import get_tool_checker
+        tool_checker = get_tool_checker()
+        tool_checker.check_all_tools()
+        tool_checker.print_status()
+        return
 
     # Build seed list
     seeds = []
@@ -160,12 +174,15 @@ def investigate(
         check_breaches=not no_breach,
         search_usernames=not no_username_search,
         verbose=ctx.obj["verbose"],
+        check_external_tools=use_external_tools and not no_external_tools,
+        skip_missing_tools=True,
     )
 
     click.echo(f"Starting investigation with {len(seeds)} seed artifact(s)...")
     click.echo(f"  Depth limit: {depth}")
     click.echo(f"  Breach checks: {'disabled' if no_breach else 'enabled'}")
     click.echo(f"  Username search: {'disabled' if no_username_search else 'enabled'}")
+    click.echo(f"  External OSINT tools: {'enabled' if config.check_external_tools else 'disabled'}")
     click.echo(f"  Auto-report: {'disabled' if not auto_report else 'enabled'}")
     if auto_report:
         click.echo(f"  Report format: {report_format}")

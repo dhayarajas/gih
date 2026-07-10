@@ -42,88 +42,67 @@ class ToolChecker:
         self._initialize_common_tools()
     
     def _initialize_common_tools(self):
-        """Initialize common OSINT tools to check."""
+        """Initialize comprehensive OSINT tools to check."""
         common_tools = [
-            ToolInfo(
-                name="nmap",
-                command="nmap",
-                description="Network mapper and security scanner"
-            ),
-            ToolInfo(
-                name="whois",
-                command="whois",
-                description="Domain and IP ownership information"
-            ),
-            ToolInfo(
-                name="dig",
-                command="dig",
-                description="DNS lookup utility"
-            ),
-            ToolInfo(
-                name="nslookup",
-                command="nslookup",
-                description="DNS query utility"
-            ),
-            ToolInfo(
-                name="curl",
-                command="curl",
-                description="Command line tool for transferring data"
-            ),
-            ToolInfo(
-                name="wget",
-                command="wget",
-                description="Network downloader"
-            ),
-            ToolInfo(
-                name="theHarvester",
-                command="theHarvester",
-                description="E-mail, subdomain and people harvesting"
-            ),
-            ToolInfo(
-                name="sherlock",
-                command="sherlock",
-                description="Find usernames across social networks"
-            ),
-            ToolInfo(
-                name="maltego",
-                command="maltego",
-                description="Open source intelligence and graphical link analysis"
-            ),
-            ToolInfo(
-                name="recon-ng",
-                command="recon-ng",
-                description="Web reconnaissance framework"
-            ),
-            ToolInfo(
-                name="shodan",
-                command="shodan",
-                description="Search engine for Internet-connected devices"
-            ),
-            ToolInfo(
-                name="sublist3r",
-                command="sublist3r",
-                description="Fast subdomains enumeration tool"
-            ),
-            ToolInfo(
-                name="amass",
-                command="amass",
-                description="Attack surface discovery and enumeration"
-            ),
-            ToolInfo(
-                name="masscan",
-                command="masscan",
-                description="Mass IP port scanner"
-            ),
-            ToolInfo(
-                name="nikto",
-                command="nikto",
-                description="Web server scanner"
-            ),
-            ToolInfo(
-                name="sqlmap",
-                command="sqlmap",
-                description="Automatic SQL injection tool"
-            ),
+            # Username Search Tools
+            ToolInfo(name="sherlock", command="sherlock", description="Find usernames across social networks"),
+            ToolInfo(name="maigret", command="maigret", description="Username search across multiple platforms"),
+            ToolInfo(name="social_analyzer", command="social-analyzer", description="Social media username analysis"),
+            
+            # Email Investigation Tools
+            ToolInfo(name="holehe", command="holehe", description="Email investigation and account discovery"),
+            ToolInfo(name="emailharvester", command="EmailHarvester", description="Email harvesting from domains"),
+            ToolInfo(name="theharvester", command="theHarvester", description="Email, subdomain and people harvesting"),
+            
+            # Domain and DNS Tools
+            ToolInfo(name="whois", command="whois", description="Domain and IP ownership information"),
+            ToolInfo(name="dig", command="dig", description="DNS lookup utility"),
+            ToolInfo(name="amass", command="amass", description="Attack surface discovery and enumeration"),
+            ToolInfo(name="subfinder", command="subfinder", description="Fast subdomain enumeration"),
+            ToolInfo(name="sublist3r", command="sublist3r", description="Fast subdomains enumeration tool"),
+            
+            # Network Scanning Tools
+            ToolInfo(name="nmap", command="nmap", description="Network mapper and security scanner"),
+            ToolInfo(name="masscan", command="masscan", description="Mass IP port scanner"),
+            ToolInfo(name="whatweb", command="whatweb", description="Web technology identification"),
+            ToolInfo(name="wappalyzer", command="wappalyzer", description="Web technology detection"),
+            
+            # OSINT Frameworks
+            ToolInfo(name="recon-ng", command="recon-ng", description="Web reconnaissance framework"),
+            ToolInfo(name="spiderfoot", command="spiderfoot", description="Open source intelligence automation"),
+            ToolInfo(name="osrframework", command="osrframework", description="Open Sources Research Framework"),
+            
+            # Specialized Investigation Tools
+            ToolInfo(name="shodan", command="shodan", description="Search engine for Internet-connected devices"),
+            ToolInfo(name="ghunt", command="ghunt", description="Google account investigation tool"),
+            ToolInfo(name="photon", command="photon", description="Web crawler for OSINT"),
+            ToolInfo(name="metagoofil", command="metagoofil", description="Metadata extraction from documents"),
+            
+            # Image and Metadata Tools
+            ToolInfo(name="exiftool", command="exiftool", description="Read and write file metadata"),
+            
+            # Historical and Archive Tools
+            ToolInfo(name="wayback_machine", command="wayback_machine", description="Historical web data access"),
+            
+            # Blockchain and Crypto Tools
+            ToolInfo(name="etherscan", command="etherscan", description="Blockchain investigation tool"),
+            
+            # Geolocation Tools
+            ToolInfo(name="geonames", command="geonames", description="Geographical database and search"),
+            
+            # Basic Network Tools
+            ToolInfo(name="curl", command="curl", description="Command line tool for transferring data"),
+            ToolInfo(name="wget", command="wget", description="Network downloader"),
+            ToolInfo(name="nslookup", command="nslookup", description="DNS query utility"),
+            
+            # Security Tools
+            ToolInfo(name="nikto", command="nikto", description="Web server scanner"),
+            ToolInfo(name="sqlmap", command="sqlmap", description="Automatic SQL injection tool"),
+            
+            # Browser-based Tools (for reference, may not be directly integrable)
+            ToolInfo(name="tor_browser", command="tor-browser", description="Anonymous web browser"),
+            ToolInfo(name="flagfox", command="flagfox", description="Browser extension for geolocation"),
+            ToolInfo(name="user_agent_switcher", command="user-agent-switcher", description="Browser extension for UA switching"),
         ]
         
         for tool in common_tools:

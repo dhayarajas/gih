@@ -72,6 +72,7 @@ from typing import Optional
 from src.modules import phone_osint, email_osint, username_search, image_search, breach_check, correlation
 from src.storage import database as db
 from src.utils.tool_checker import get_tool_checker, check_tool_availability
+from src.modules.external_tools import run_tool_analysis, get_tool_integrations
 
 logger = logging.getLogger(__name__)
 
@@ -360,6 +361,14 @@ def _process_artifact(
         logger.warning("Unknown artifact type: %s", artifact_type)
 
     logger.debug("OSINT module returned %d discovered artifacts", len(discovered))
+    
+    # Process with external OSINT tools if enabled
+    if config.check_external_tools:
+        logger.debug("Processing artifact with external OSINT tools")
+        external_discovered = _process_external_tools(conn, inv_id, artifact, config)
+        discovered.extend(external_discovered)
+        logger.debug("External tools returned %d additional artifacts", len(external_discovered))
+    
     return discovered
 
 
@@ -537,6 +546,148 @@ def _process_username(
     except Exception as e:
         logger.error("Username search failed for %s: %s", value, e)
 
+    return discovered
+
+
+def _process_external_tools(
+    conn: sqlite3.Connection,
+    inv_id: str,
+    artifact: dict,
+    config: InvestigationConfig,
+) -> list[dict]:
+    """Process artifact using external OSINT tools when available."""
+    discovered = []
+    artifact_type = artifact["type"]
+    value = artifact["value"]
+    
+    if not config.check_external_tools:
+        return discovered
+    
+    logger.debug("Processing artifact with external OSINT tools: %s=%s", artifact_type, value)
+    
+    try:
+        # Username-based external tools
+        if artifact_type == "username":
+            # Run Sherlock for comprehensive username search
+            if check_tool_availability("sherlock"):
+                logger.debug("Running Sherlock username search for: %s", value)
+                sherlock_result = run_tool_analysis("sherlock", "username_search", value)
+                
+                if sherlock_result.success and sherlock_result.artifacts_discovered:
+                    discovered.extend(sherlock_result.artifacts_discovered)
+                    logger.info("Sherlock found %d artifacts for username %s", 
+                               len(sherlock_result.artifacts_discovered), value)
+                else:
+                    logger.debug("Sherlock skipped or failed for %s", value)
+        
+        # Domain-based external tools
+        elif artifact_type == "domain":
+            # Run theHarvester for email and subdomain discovery
+            if check_tool_availability("theharvester"):
+                logger.debug("Running theHarvester for domain: %s", value)
+                harvest_result = run_tool_analysis("theharvester", "email_harvest", value)
+                
+                if harvest_result.success and harvest_result.artifacts_discovered:
+                    discovered.extend(harvest_result.artifacts_discovered)
+                    logger.info("theHarvester found %d emails for domain %s", 
+                               len(harvest_result.artifacts_discovered), value)
+                
+                # Also harvest subdomains
+                subdomain_result = run_tool_analysis("theharvester", "subdomain_harvest", value)
+                if subdomain_result.success and subdomain_result.artifacts_discovered:
+                    discovered.extend(subdomain_result.artifacts_discovered)
+                    logger.info("theHarvester found %d subdomains for domain %s", 
+                               len(subdomain_result.artifacts_discovered), value)
+            
+            # Run Amass for subdomain enumeration
+            if check_tool_availability("amass"):
+                logger.debug("Running Amass subdomain enumeration for: %s", value)
+                amass_result = run_tool_analysis("amass", "subdomain_enum", value)
+                
+                if amass_result.success and amass_result.artifacts_discovered:
+                    discovered.extend(amass_result.artifacts_discovered)
+                    logger.info("Amass found %d subdomains for domain %s", 
+                               len(amass_result.artifacts_discovered), value)
+            
+            # Run Whois for domain information
+            if check_tool_availability("whois"):
+                logger.debug("Running Whois lookup for: %s", value)
+                whois_result = run_tool_analysis("whois", "domain_lookup", value)
+                
+                if whois_result.success and whois_result.artifacts_discovered:
+                    discovered.extend(whois_result.artifacts_discovered)
+                    logger.info("Whois found %d artifacts for domain %s", 
+                               len(whois_result.artifacts_discovered), value)
+            
+            # Run Dig for DNS records
+            if check_tool_availability("dig"):
+                logger.debug("Running Dig DNS lookup for: %s", value)
+                dig_result = run_tool_analysis("dig", "dns_lookup", value)
+                
+                if dig_result.success and dig_result.artifacts_discovered:
+                    discovered.extend(dig_result.artifacts_discovered)
+                    logger.info("Dig found %d DNS records for domain %s", 
+                               len(dig_result.artifacts_discovered), value)
+            
+            # Run Wayback Machine for historical data
+            wayback_result = run_tool_analysis("wayback_machine", "historical_urls", value)
+            if wayback_result.success and wayback_result.artifacts_discovered:
+                discovered.extend(wayback_result.artifacts_discovered)
+                logger.info("Wayback Machine found %d historical URLs for %s", 
+                           len(wayback_result.artifacts_discovered), value)
+        
+        # IP-based external tools
+        elif artifact_type == "ip_address":
+            # Run Shodan for host information
+            if check_tool_availability("shodan"):
+                logger.debug("Running Shodan search for: %s", value)
+                shodan_result = run_tool_analysis("shodan", "host_search", value)
+                
+                if shodan_result.success and shodan_result.artifacts_discovered:
+                    discovered.extend(shodan_result.artifacts_discovered)
+                    logger.info("Shodan found %d artifacts for IP %s", 
+                               len(shodan_result.artifacts_discovered), value)
+            
+            # Run Nmap for port scanning
+            if check_tool_availability("nmap"):
+                logger.debug("Running Nmap scan for: %s", value)
+                nmap_result = run_tool_analysis("nmap", "host_scan", value)
+                
+                if nmap_result.success and nmap_result.artifacts_discovered:
+                    discovered.extend(nmap_result.artifacts_discovered)
+                    logger.info("Nmap found %d open ports on %s", 
+                               len(nmap_result.artifacts_discovered), value)
+        
+        # Image-based external tools
+        elif artifact_type == "image":
+            # Run ExifTool for metadata extraction
+            if check_tool_availability("exiftool"):
+                logger.debug("Running ExifTool on image: %s", value)
+                exif_result = run_tool_analysis("exiftool", "metadata_extract", value)
+                
+                if exif_result.success and exif_result.artifacts_discovered:
+                    discovered.extend(exif_result.artifacts_discovered)
+                    logger.info("ExifTool found %d artifacts in image %s", 
+                               len(exif_result.artifacts_discovered), value)
+        
+        # Email-based external tools
+        elif artifact_type == "email":
+            # Extract domain from email for domain-based analysis
+            if "@" in value:
+                domain = value.split("@")[1]
+                domain_artifact = {
+                    "type": "domain",
+                    "value": domain,
+                    "source": "email_domain_extraction",
+                    "confidence": 0.7,
+                    "link_type": "domain_of_email"
+                }
+                discovered.append(domain_artifact)
+                logger.debug("Extracted domain from email: %s", domain)
+    
+    except Exception as e:
+        logger.error("External tools processing failed for %s: %s", value, e)
+    
     return discovered
 
 
