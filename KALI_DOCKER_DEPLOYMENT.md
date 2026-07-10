@@ -3,6 +3,69 @@
 ## Overview
 This guide provides step-by-step instructions for deploying Ghost Identity Hunter as a Docker container in Kali Linux, leveraging Kali's pre-installed OSINT tools and the containerized environment for isolated investigations.
 
+## Pre-Installed OSINT Tools
+
+The Kali Linux Docker image includes the following 25+ OSINT tools:
+
+### **Username Search Tools**
+- **Sherlock** — Find usernames across 300+ social networks
+- **Maigret** — Username search across multiple platforms
+- **Social Analyzer** — Social media username analysis
+
+### **Email Investigation Tools**
+- **Holehe** — Email investigation and account discovery
+- **EmailHarvester** — Email harvesting from domains
+- **theHarvester** — Email, subdomain and people harvesting
+
+### **Domain & DNS Tools**
+- **Whois** — Domain and IP ownership information
+- **Dig** — DNS lookup utility
+- **Amass** — Attack surface discovery and enumeration
+- **Subfinder** — Fast subdomain enumeration
+- **Sublist3r** — Fast subdomains enumeration tool
+- **Dnsenum** — DNS enumeration tool
+- **Dnsrecon** — DNS reconnaissance tool
+- **Fierce** — DNS reconnaissance tool
+
+### **Network Scanning Tools**
+- **Nmap** — Network mapper and security scanner
+- **Masscan** — Mass IP port scanner
+- **WhatWeb** — Web technology identification
+- **Wappalyzer** — Web technology detection
+- **Nikto** — Web server scanner
+- **Sqlmap** — SQL injection tool
+
+### **OSINT Frameworks**
+- **Recon-ng** — Web reconnaissance framework
+- **SpiderFoot** — Open source intelligence automation
+- **OSRFramework** — Open Sources Research Framework
+
+### **Specialized Tools**
+- **Shodan** — Search engine for Internet-connected devices
+- **GHunt** — Google account investigation tool
+- **Photon** — Web crawler for OSINT
+- **Metagoofil** — Metadata extraction from documents
+
+### **Image & Metadata Tools**
+- **ExifTool** — Read and write file metadata
+
+### **Historical Data**
+- **Wayback Machine** — Historical web data access (CLI tool)
+
+### **Blockchain & Geolocation**
+- **Etherscan** — Blockchain investigation tool
+- **GeoNames** — Geographical database and search (via geopy)
+
+### **Web Tools**
+- **Gobuster** — Directory brute-forcing tool
+- **Dirsearch** — Web path scanner
+- **Wfuzz** — Web application fuzzer
+
+### **Additional Utilities**
+- **Neo4j** — Graph database for advanced correlation analysis
+- **NetworkX** — Graph library for correlation (fallback)
+- **Pyvis** — Interactive graph visualization
+
 ## Prerequisites
 
 ### **System Requirements**

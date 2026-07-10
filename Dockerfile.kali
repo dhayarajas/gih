@@ -21,11 +21,13 @@ RUN apt-get update && apt-get upgrade -y && \
     # Advanced network tools
     masscan nikto sqlmap \
     # DNS and domain tools
-    dnsenum dnsrecon fierce \
+    dnsenum dnsrecon fierce dig \
     # Web tools
-    gobuster dirsearch wfuzz \
+    gobuster dirsearch wfuzz whatweb \
     # Image and metadata tools
     exiftool \
+    # OSINT frameworks
+    recon-ng \
     # Other utilities
     vim nano htop tmux \
     # Clean up
@@ -35,28 +37,53 @@ RUN apt-get update && apt-get upgrade -y && \
 
 # Install Python dependencies for OSINT tools
 RUN pip3 install --no-cache-dir \
+    # Username search tools
     sherlock \
-    theHarvester \
     maigret \
     social-analyzer \
+    # Email investigation tools
     holehe \
     emailharvester \
+    theHarvester \
+    # Domain and DNS tools
     subfinder \
     amass \
+    # Network and web tools
     shodan \
+    wappalyzer \
+    # Specialized tools
     ghunt \
     photon \
     metagoofil \
-    wappalyzer \
+    # OSINT framework
+    osrframework \
+    # Additional dependencies
     requests \
     beautifulsoup4 \
-    lxml
+    lxml \
+    neo4j
 
 # Install additional OSINT tools from source
 RUN git clone https://github.com/aboul3la/Sublist3r.git /opt/Sublist3r && \
     cd /opt/Sublist3r && \
     pip3 install -r requirements.txt && \
     cd / && rm -rf /opt/Sublist3r
+
+# Install SpiderFoot OSINT framework
+RUN git clone https://github.com/smicallef/spiderfoot.git /opt/spiderfoot && \
+    cd /opt/spiderfoot && \
+    pip3 install -r requirements.txt && \
+    pip3 install -e . && \
+    cd / && rm -rf /opt/spiderfoot
+
+# Install Wayback Machine CLI tool
+RUN pip3 install --no-cache-dir wayback-machine-cli
+
+# Install Etherscan for blockchain investigation
+RUN pip3 install --no-cache-dir etherscan
+
+# Install GeoNames for geolocation
+RUN pip3 install --no-cache-dir geopy
 
 # Create non-root user for security
 RUN useradd -m -s /bin/bash ghosthunter && \
