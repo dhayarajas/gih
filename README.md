@@ -58,6 +58,41 @@ See [KALI_DOCKER_DEPLOYMENT.md](KALI_DOCKER_DEPLOYMENT.md) for detailed Kali Lin
 
 ## Usage
 
+### **Quick Start with Standalone Scripts**
+
+#### **Linux/Mac**
+```bash
+# Make the script executable (first time only)
+chmod +x run.sh
+
+# Run investigations
+./run.sh investigate --email "suspect@example.com"
+./run.sh investigate -p "+1-555-0123" -e "suspect@example.com" -u "john_doe"
+
+# Other commands
+./run.sh list
+./run.sh check-tools
+```
+
+#### **Windows**
+```bash
+# Run investigations
+run.bat investigate --email "suspect@example.com"
+run.bat investigate -p "+1-555-0123" -e "suspect@example.com" -u "john_doe"
+
+# Other commands
+run.bat list
+run.bat check-tools
+```
+
+#### **Python Script (Cross-Platform)**
+```bash
+# Run with Python
+python run.py investigate --email "suspect@example.com"
+python run.py list
+python run.py check-tools
+```
+
 ### **Start an Investigation**
 
 ```bash
