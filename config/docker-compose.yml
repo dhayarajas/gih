@@ -1,11 +1,11 @@
 services:
   ghost-hunter:
-    build: .
+    build: ..
     image: ghost-identity-hunter:latest
     container_name: ghost-hunter
     volumes:
       - ghost_hunter_data:/home/ghosthunter/.ghost_hunter
-      - ./investigations:/app/investigations
+      - ../investigations:/app/investigations
     environment:
       - PYTHONPATH=/app
       - GHOST_HUNTER_DB_PATH=/home/ghosthunter/.ghost_hunter/investigations.db

@@ -55,11 +55,11 @@ git clone https://github.com/dhayarajas/gih.git
 cd gih
 
 # Build and start container
-docker-compose up --build
+docker-compose -f config/docker-compose.yml up --build
 
 # Or use Kali Linux base image
-docker-compose -f docker-compose.kali.yml build
-docker-compose -f docker-compose.kali.yml up -d
+docker-compose -f config/docker-compose.kali.yml build
+docker-compose -f config/docker-compose.kali.yml up -d
 ```
 
 ### **Kali Linux VM Deployment**
@@ -72,34 +72,34 @@ See [KALI_DOCKER_DEPLOYMENT.md](KALI_DOCKER_DEPLOYMENT.md) for detailed Kali Lin
 #### **Linux/Mac**
 ```bash
 # Make the script executable (first time only)
-chmod +x run.sh
+chmod +x scripts/run.sh
 
 # Run investigations
-./run.sh investigate --email "suspect@example.com"
-./run.sh investigate -p "+1-555-0123" -e "suspect@example.com" -u "john_doe"
+./scripts/run.sh investigate --email "suspect@example.com"
+./scripts/run.sh investigate -p "+1-555-0123" -e "suspect@example.com" -u "john_doe"
 
 # Other commands
-./run.sh list
-./run.sh check-tools
+./scripts/run.sh list
+./scripts/run.sh check-tools
 ```
 
 #### **Windows**
 ```bash
 # Run investigations
-run.bat investigate --email "suspect@example.com"
-run.bat investigate -p "+1-555-0123" -e "suspect@example.com" -u "john_doe"
+scripts\run.bat investigate --email "suspect@example.com"
+scripts\run.bat investigate -p "+1-555-0123" -e "suspect@example.com" -u "john_doe"
 
 # Other commands
-run.bat list
-run.bat check-tools
+scripts\run.bat list
+scripts\run.bat check-tools
 ```
 
 #### **Python Script (Cross-Platform)**
 ```bash
 # Run with Python
-python run.py investigate --email "suspect@example.com"
-python run.py list
-python run.py check-tools
+python scripts/run.py investigate --email "suspect@example.com"
+python scripts/run.py list
+python scripts/run.py check-tools
 ```
 
 ### **Start an Investigation**

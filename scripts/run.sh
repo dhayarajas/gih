@@ -13,7 +13,7 @@ NC='\033[0m' # No Color
 
 # Project directory
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-cd "$SCRIPT_DIR"
+cd "$SCRIPT_DIR/.."
 
 # Check if virtual environment exists
 if [ ! -d "venv" ]; then

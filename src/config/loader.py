@@ -28,10 +28,12 @@ class ConfigLoader:
         if config_path is None:
             # Try default locations
             default_paths = [
+                "./config/config.yaml",
+                "./config/config.yml",
                 "./config.yaml",
                 "./config.yml",
-                "../config.yaml",
-                str(Path(__file__).parent.parent.parent / "config.yaml"),
+                str(Path(__file__).parent.parent / "config" / "config.yaml"),
+                str(Path(__file__).parent.parent / "config.yaml"),
                 os.path.expanduser("~/.ghosthunter/config.yaml"),
             ]
             

@@ -100,22 +100,22 @@ cd gih
 ### **Step 2: Build Docker Image**
 ```bash
 # Build the Kali Linux Docker image
-docker-compose -f docker-compose.kali.yml build
+docker-compose -f config/docker-compose.kali.yml build
 ```
 
 ### **Step 3: Start Container**
 ```bash
 # Start the container in detached mode
-docker-compose -f docker-compose.kali.yml up -d
+docker-compose -f config/docker-compose.kali.yml up -d
 
 # Or run interactively
-docker-compose -f docker-compose.kali.yml up
+docker-compose -f config/docker-compose.kali.yml up
 ```
 
 ### **Step 4: Check Tool Availability**
 ```bash
 # Enter the container
-docker-compose -f docker-compose.kali.yml exec ghost-hunter-kali bash
+docker-compose -f config/docker-compose.kali.yml exec ghost-hunter-kali bash
 
 # Check available OSINT tools
 python -m src.cli investigate --check-tools
@@ -127,7 +127,7 @@ exit
 ### **Step 5: Run Investigation**
 ```bash
 # Run investigation from host
-docker-compose -f docker-compose.kali.yml exec ghost-hunter-kali \
+docker-compose -f config/docker-compose.kali.yml exec ghost-hunter-kali \
   python -m src.cli investigate --email "target@example.com" --verbose
 ```
 
@@ -168,14 +168,14 @@ git clone https://github.com/dhayarajas/gih.git
 cd gih
 
 # Verify files exist
-ls -la Dockerfile.kali docker-compose.kali.yml
+ls -la Dockerfile.kali config/docker-compose.kali.yml
 ```
 
 ### **Step 3: Build Docker Image**
 
 ```bash
 # Build with Docker Compose (recommended)
-docker-compose -f docker-compose.kali.yml build
+docker-compose -f config/docker-compose.kali.yml build
 
 # Or build with Docker directly
 docker build -f Dockerfile.kali -t ghost-identity-hunter:kalilinux .
@@ -196,12 +196,12 @@ docker build -f Dockerfile.kali -t ghost-identity-hunter:kalilinux .
 #### **Review Configuration**
 ```bash
 # View docker-compose configuration
-cat docker-compose.kali.yml
+cat config/docker-compose.kali.yml
 ```
 
 #### **Customize Resources (Optional)**
 ```yaml
-# Edit docker-compose.kali.yml to adjust resource limits
+# Edit config/docker-compose.kali.yml to adjust resource limits
 deploy:
   resources:
     limits:
@@ -223,19 +223,19 @@ volumes:
 #### **Start in Detached Mode**
 ```bash
 # Start container in background
-docker-compose -f docker-compose.kali.yml up -d
+docker-compose -f config/docker-compose.kali.yml up -d
 
 # Check container status
-docker-compose -f docker-compose.kali.yml ps
+docker-compose -f config/docker-compose.kali.yml ps
 
 # View container logs
-docker-compose -f docker-compose.kali.yml logs -f
+docker-compose -f config/docker-compose.kali.yml logs -f
 ```
 
 #### **Start Interactively**
 ```bash
 # Start with interactive shell
-docker-compose -f docker-compose.kali.yml up
+docker-compose -f config/docker-compose.kali.yml up
 
 # This will show logs and allow you to stop with Ctrl+C
 ```
@@ -245,7 +245,7 @@ docker-compose -f docker-compose.kali.yml up
 #### **Enter Running Container**
 ```bash
 # Enter container shell
-docker-compose -f docker-compose.kali.yml exec ghost-hunter-kali bash
+docker-compose -f config/docker-compose.kali.yml exec ghost-hunter-kali bash
 
 # Or use docker directly
 docker exec -it ghost-hunter-kali bash
@@ -268,7 +268,7 @@ python -m src.cli investigate --check-tools
 ### **Basic Investigation**
 ```bash
 # From host machine
-docker-compose -f docker-compose.kali.yml exec ghost-hunter-kali \
+docker-compose -f config/docker-compose.kali.yml exec ghost-hunter-kali \
   python -m src.cli investigate --email "target@example.com"
 
 # From inside container
@@ -277,7 +277,7 @@ python -m src.cli investigate --email "target@example.com"
 
 ### **Multi-Artifact Investigation**
 ```bash
-docker-compose -f docker-compose.kali.yml exec ghost-hunter-kali \
+docker-compose -f config/docker-compose.kali.yml exec ghost-hunter-kali \
   python -m src.cli investigate \
   --email "target@example.com" \
   --phone "+1234567890" \
@@ -288,7 +288,7 @@ docker-compose -f docker-compose.kali.yml exec ghost-hunter-kali \
 ### **With External OSINT Tools**
 ```bash
 # External tools enabled by default
-docker-compose -f docker-compose.kali.yml exec ghost-hunter-kali \
+docker-compose -f config/docker-compose.kali.yml exec ghost-hunter-kali \
   python -m src.cli investigate \
   --email "target@example.com" \
   --use-external-tools \
@@ -297,7 +297,7 @@ docker-compose -f docker-compose.kali.yml exec ghost-hunter-kali \
 
 ### **Domain Investigation**
 ```bash
-docker-compose -f docker-compose.kali.yml exec ghost-hunter-kali \
+docker-compose -f config/docker-compose.kali.yml exec ghost-hunter-kali \
   python -m src.cli investigate \
   --username "target" \
   --use-external-tools \
@@ -309,34 +309,34 @@ docker-compose -f docker-compose.kali.yml exec ghost-hunter-kali \
 ### **Start/Stop/Restart**
 ```bash
 # Start container
-docker-compose -f docker-compose.kali.yml start
+docker-compose -f config/docker-compose.kali.yml start
 
 # Stop container
-docker-compose -f docker-compose.kali.yml stop
+docker-compose -f config/docker-compose.kali.yml stop
 
 # Restart container
-docker-compose -f docker-compose.kali.yml restart
+docker-compose -f config/docker-compose.kali.yml restart
 
 # Stop and remove containers
-docker-compose -f docker-compose.kali.yml down
+docker-compose -f config/docker-compose.kali.yml down
 ```
 
 ### **View Logs**
 ```bash
 # View all logs
-docker-compose -f docker-compose.kali.yml logs
+docker-compose -f config/docker-compose.kali.yml logs
 
 # Follow logs in real-time
-docker-compose -f docker-compose.kali.yml logs -f
+docker-compose -f config/docker-compose.kali.yml logs -f
 
 # View specific service logs
-docker-compose -f docker-compose.kali.yml logs ghost-hunter-kali
+docker-compose -f config/docker-compose.kali.yml logs ghost-hunter-kali
 ```
 
 ### **Container Status**
 ```bash
 # Check container status
-docker-compose -f docker-compose.kali.yml ps
+docker-compose -f config/docker-compose.kali.yml ps
 
 # View container details
 docker inspect ghost-hunter-kali
@@ -348,10 +348,10 @@ docker stats ghost-hunter-kali
 ### **Access Shell**
 ```bash
 # Enter container shell
-docker-compose -f docker-compose.kali.yml exec ghost-hunter-kali bash
+docker-compose -f config/docker-compose.kali.yml exec ghost-hunter-kali bash
 
 # Run single command
-docker-compose -f docker-compose.kali.yml exec ghost-hunter-kali python -m src.cli list
+docker-compose -f config/docker-compose.kali.yml exec ghost-hunter-kali python -m src.cli list
 ```
 
 ## Data Management
@@ -392,7 +392,7 @@ docker cp ghost-hunter-kali:/app/investigations ./local_investigations
 ls -la reports/
 
 # Generate report for specific investigation
-docker-compose -f docker-compose.kali.yml exec ghost-hunter-kali \
+docker-compose -f config/docker-compose.kali.yml exec ghost-hunter-kali \
   python -m src.cli report --id INV-XXXXXXXX --format both
 ```
 
@@ -402,26 +402,26 @@ docker-compose -f docker-compose.kali.yml exec ghost-hunter-kali \
 ```bash
 # Clear Docker cache and rebuild
 docker system prune -a
-docker-compose -f docker-compose.kali.yml build --no-cache
+docker-compose -f config/docker-compose.kali.yml build --no-cache
 ```
 
 ### **Container Won't Start**
 ```bash
 # Check container logs
-docker-compose -f docker-compose.kali.yml logs
+docker-compose -f config/docker-compose.kali.yml logs
 
 # Check for port conflicts
-docker-compose -f docker-compose.kali.yml config
+docker-compose -f config/docker-compose.kali.yml config
 
 # Remove and recreate container
-docker-compose -f docker-compose.kali.yml down
-docker-compose -f docker-compose.kali.yml up -d
+docker-compose -f config/docker-compose.kali.yml down
+docker-compose -f config/docker-compose.kali.yml up -d
 ```
 
 ### **Permission Issues**
 ```bash
 # Fix volume permissions
-docker-compose -f docker-compose.kali.yml exec ghost-hunter-kali \
+docker-compose -f config/docker-compose.kali.yml exec ghost-hunter-kali \
   chown -R ghosthunter:ghosthunter /home/ghosthunter/.ghost_hunter
 
 # Fix host directory permissions
@@ -431,25 +431,25 @@ sudo chown -R $USER:$USER investigations reports
 ### **Tool Not Found**
 ```bash
 # Enter container and check tool
-docker-compose -f docker-compose.kali.yml exec ghost-hunter-kali bash
+docker-compose -f config/docker-compose.kali.yml exec ghost-hunter-kali bash
 which sherlock
 which nmap
 
 # Rebuild container if tools missing
-docker-compose -f docker-compose.kali.yml down
-docker-compose -f docker-compose.kali.yml build --no-cache
-docker-compose -f docker-compose.kali.yml up -d
+docker-compose -f config/docker-compose.kali.yml down
+docker-compose -f config/docker-compose.kali.yml build --no-cache
+docker-compose -f config/docker-compose.kali.yml up -d
 ```
 
 ### **Memory Issues**
 ```bash
-# Increase memory limit in docker-compose.kali.yml
+# Increase memory limit in config/docker-compose.kali.yml
 # Then restart container
-docker-compose -f docker-compose.kali.yml down
-docker-compose -f docker-compose.kali.yml up -d
+docker-compose -f config/docker-compose.kali.yml down
+docker-compose -f config/docker-compose.kali.yml up -d
 
 # Or run with increased limits
-docker-compose -f docker-compose.kali.yml up -d --scale ghost-hunter-kali=1
+docker-compose -f config/docker-compose.kali.yml up -d --scale ghost-hunter-kali=1
 ```
 
 ## Advanced Configuration
@@ -457,7 +457,7 @@ docker-compose -f docker-compose.kali.yml up -d --scale ghost-hunter-kali=1
 ### **Custom Tool Installation**
 ```bash
 # Enter container
-docker-compose -f docker-compose.kali.yml exec ghost-hunter-kali bash
+docker-compose -f config/docker-compose.kali.yml exec ghost-hunter-kali bash
 
 # Install additional tools
 sudo apt update
@@ -482,14 +482,14 @@ SHODAN_API_KEY=your_shodan_api_key
 HIBP_API_KEY=your_hibp_api_key
 EOF
 
-# Mount config in docker-compose.kali.yml
+# Mount config in config/docker-compose.kali.yml
 volumes:
   - ./config:/app/config:ro
 ```
 
 ### **Network Configuration**
 ```bash
-# Add custom network in docker-compose.kali.yml
+# Add custom network in config/docker-compose.kali.yml
 networks:
   ghost_hunter_net:
     driver: bridge

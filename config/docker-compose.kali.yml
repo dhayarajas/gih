@@ -3,7 +3,7 @@ version: '3.8'
 services:
   ghost-hunter-kali:
     build:
-      context: .
+      context: ..
       dockerfile: Dockerfile.kali
     image: ghost-identity-hunter:kalilinux
     container_name: ghost-hunter-kali
@@ -24,8 +24,8 @@ services:
       # Database and configuration
       - ghost_hunter_data:/home/ghosthunter/.ghost_hunter
       # Investigation results and reports
-      - ./investigations:/app/investigations
-      - ./reports:/app/reports
+      - ../investigations:/app/investigations
+      - ../reports:/app/reports
       # Optional: Mount custom tool configurations
       # - ./config:/app/config
     

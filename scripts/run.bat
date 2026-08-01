@@ -6,7 +6,7 @@ setlocal enabledelayedexpansion
 
 REM Project directory
 set SCRIPT_DIR=%~dp0
-cd /d "%SCRIPT_DIR%"
+cd /d "%SCRIPT_DIR%.."
 
 REM Check if virtual environment exists
 if not exist "venv\" (
