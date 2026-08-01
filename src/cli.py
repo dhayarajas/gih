@@ -64,7 +64,9 @@ from pathlib import Path
 from typing import Optional
 
 import click
+from tabulate import tabulate
 
+from src.modules.external_tools import get_tool_coverage
 from src.orchestrator import run_investigation, InvestigationConfig
 from src.correlation.linker import correlate_identities
 from src.correlation.scorer import compute_identity_risk_score, classify_risk_level
@@ -121,11 +123,35 @@ def cli(ctx: click.Context, verbose: bool, db_path: Optional[str]) -> None:
     ctx.obj["db_path"] = Path(db_path) if db_path else None
 
 
+def _print_tool_coverage() -> None:
+    """Print the availability and integration status of every declared OSINT tool."""
+    coverage = get_tool_coverage()
+    rows = [
+        [
+            name,
+            "yes" if info["available"] else "no",
+            "yes" if info["integrated"] else "no",
+            ", ".join(info["artifact_types"]) or "-",
+            info["reason"] or "-",
+        ]
+        for name, info in sorted(coverage.items())
+    ]
+
+    click.echo("\nTool coverage (integration status):")
+    click.echo(tabulate(rows, headers=["Tool", "Available", "Integrated", "Artifact types", "Note"]))
+
+    integrated = sum(1 for info in coverage.values() if info["integrated"])
+    usable = sum(1 for info in coverage.values() if info["integrated"] and info["available"])
+    click.echo(f"\nIntegrated: {integrated}/{len(coverage)}  |  Integrated and available now: {usable}")
+
+
 @cli.command()
 @click.option("--phone", "-p", multiple=True, help="Phone number to investigate")
 @click.option("--email", "-e", multiple=True, help="Email address to investigate")
 @click.option("--username", "-u", multiple=True, help="Username to investigate")
 @click.option("--image", "-i", multiple=True, help="Image file path to investigate")
+@click.option("--domain", "-d", multiple=True, help="Domain to investigate")
+@click.option("--ip", multiple=True, help="IP address to investigate")
 @click.option("--title", "-t", default=None, help="Investigation title")
 @click.option("--depth", default=2, help="Max investigation depth (default: 2)")
 @click.option("--no-breach", is_flag=True, help="Skip breach checks")
@@ -153,6 +179,8 @@ def investigate(
     email: tuple,
     username: tuple,
     image: tuple,
+    domain: tuple,
+    ip: tuple,
     title: Optional[str],
     depth: int,
     no_breach: bool,
@@ -182,8 +210,11 @@ def investigate(
         ghost-hunter investigate -p "+1-555-0123" -e "suspect@example.com" -u "john_doe"
     """
     # Validate input
-    if not phone and not email and not username and not image and not check_tools:
-        click.echo("Error: At least one seed artifact required (--phone, --email, --username, or --image) or use --check-tools")
+    if not phone and not email and not username and not image and not domain and not ip and not check_tools:
+        click.echo(
+            "Error: At least one seed artifact required "
+            "(--phone, --email, --username, --image, --domain, or --ip) or use --check-tools"
+        )
         sys.exit(1)
 
     # Check external tools if requested
@@ -192,6 +223,7 @@ def investigate(
         tool_checker = get_tool_checker()
         tool_checker.check_all_tools()
         tool_checker.print_status()
+        _print_tool_coverage()
         return
 
     # Build seed list
@@ -207,6 +239,10 @@ def investigate(
             click.echo(f"Warning: Image file not found: {i}")
             continue
         seeds.append({"type": "image", "value": str(Path(i).resolve())})
+    for d in domain:
+        seeds.append({"type": "domain", "value": d})
+    for address in ip:
+        seeds.append({"type": "ip_address", "value": address})
 
     if not seeds:
         click.echo("Error: No valid seed artifacts provided")

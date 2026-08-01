@@ -346,8 +346,64 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                 {% if identity.usernames %}
                 <p><strong>Usernames:</strong> {{ identity.usernames | join(', ') }}</p>
                 {% endif %}
+                {% if identity.platforms %}
+                <p><strong>Accounts Found:</strong> {{ identity.platforms | length }}
+                   ({{ identity.platforms | map(attribute='platform') | join(', ') }})</p>
+                {% endif %}
+                {% if identity.domains %}
+                <p><strong>Domains:</strong> {{ identity.domains | join(', ') }}</p>
+                {% endif %}
+                {% if identity.subdomains %}
+                <p><strong>Subdomains:</strong> {{ identity.subdomains | join(', ') }}</p>
+                {% endif %}
+                {% if identity.ip_addresses %}
+                <p><strong>IP Addresses:</strong> {{ identity.ip_addresses | join(', ') }}</p>
+                {% endif %}
+                {% if identity.open_ports %}
+                <p><strong>Open Ports:</strong> {{ identity.open_ports | join(', ') }}</p>
+                {% endif %}
+                {% if identity.hosts %}
+                <p><strong>Hosts:</strong> {{ identity.hosts | join(', ') }}</p>
+                {% endif %}
+                {% if identity.dns_records %}
+                <p><strong>DNS Records:</strong> {{ identity.dns_records | join(', ') }}</p>
+                {% endif %}
+                {% if identity.web_technologies %}
+                <p><strong>Web Technologies:</strong> {{ identity.web_technologies | join(', ') }}</p>
+                {% endif %}
+                {% if identity.geolocations %}
+                <p><strong>Geolocation:</strong> {{ identity.geolocations | join(', ') }}</p>
+                {% endif %}
+                {% if identity.device_info %}
+                <p><strong>Device / Capture Metadata:</strong> {{ identity.device_info | join(', ') }}</p>
+                {% endif %}
+                {% if identity.historical_urls %}
+                <p><strong>Historical URLs:</strong> {{ identity.historical_urls | length }} archived
+                   (e.g. {{ identity.historical_urls[:3] | join(', ') }})</p>
+                {% endif %}
             </div>
         </div>
+        {% if identity.tool_findings %}
+        <details style="margin-top: 1rem;">
+            <summary><strong>External Tool Findings ({{ identity.tool_findings | length }})</strong>
+                     &mdash; tools: {{ identity.tools_used | join(', ') }}</summary>
+            <table>
+                <thead>
+                    <tr><th>Tool</th><th>Artifact Type</th><th>Value</th><th>Confidence</th></tr>
+                </thead>
+                <tbody>
+                    {% for finding in identity.tool_findings %}
+                    <tr>
+                        <td>{{ finding.source }}</td>
+                        <td><span class="badge">{{ finding.type }}</span></td>
+                        <td>{{ finding.value[:80] }}{% if finding.value | length > 80 %}...{% endif %}</td>
+                        <td>{{ "%.0f%%" | format((finding.confidence or 0) * 100) }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </details>
+        {% endif %}
     </div>
     {% endfor %}
 
@@ -595,6 +651,25 @@ EXECUTIVE_TEMPLATE = """<!DOCTYPE html>
             </tbody>
         </table>
 
+        <h2>Infrastructure Attributed to Each Identity</h2>
+        <table>
+            <thead>
+                <tr><th>Identity</th><th>Accounts</th><th>Domains</th><th>IPs</th><th>Open Ports</th><th>Tools</th></tr>
+            </thead>
+            <tbody>
+                {% for identity in correlation.identities %}
+                <tr>
+                    <td>{{ identity.name or 'Unknown Identity' }}</td>
+                    <td>{{ identity.platforms | length }}</td>
+                    <td>{{ (identity.domains | length) + (identity.subdomains | length) }}</td>
+                    <td>{{ identity.ip_addresses | length }}</td>
+                    <td>{{ identity.open_ports | length }}</td>
+                    <td>{{ identity.tools_used | join(', ') or '-' }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
         <h2>Platform Presence</h2>
         <table>
             <thead>
@@ -671,6 +746,33 @@ TECHNICAL_TEMPLATE = """<!DOCTYPE html>
             </table>
         </div>
         
+        <h2>External Tool Findings by Identity</h2>
+        {% for identity in correlation.identities %}
+        <div class="card">
+            <p><strong>{{ identity.profile_id }}</strong> ({{ identity.name }}) &mdash;
+               tools: {{ identity.tools_used | join(', ') or 'none' }}</p>
+            {% if identity.tool_findings %}
+            <table>
+                <thead>
+                    <tr><th>Tool</th><th>Artifact Type</th><th>Value</th><th>Confidence</th></tr>
+                </thead>
+                <tbody>
+                    {% for finding in identity.tool_findings %}
+                    <tr>
+                        <td>{{ finding.source }}</td>
+                        <td>{{ finding.type }}</td>
+                        <td>{{ finding.value }}</td>
+                        <td>{{ "%.2f" | format(finding.confidence or 0) }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <p>No external tool output correlated to this identity.</p>
+            {% endif %}
+        </div>
+        {% endfor %}
+
         <h2>Links</h2>
         <div class="card">
             <table>
@@ -767,6 +869,25 @@ LEGAL_TEMPLATE = """<!DOCTYPE html>
                     <td>{{ risk_levels[loop.index0] | upper }}</td>
                     <td>{{ identity.artifacts | length }} correlated artifacts</td>
                 </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+        <h2>Evidence Attributed to Each Identity</h2>
+        <table>
+            <thead>
+                <tr><th>Identity</th><th>Evidence Item</th><th>Type</th><th>Collection Tool</th></tr>
+            </thead>
+            <tbody>
+                {% for identity in correlation.identities %}
+                {% for finding in identity.tool_findings %}
+                <tr>
+                    <td>{{ identity.name or 'Unknown Identity' }}</td>
+                    <td>{{ finding.value }}</td>
+                    <td>{{ finding.type }}</td>
+                    <td>{{ finding.source }}</td>
+                </tr>
+                {% endfor %}
                 {% endfor %}
             </tbody>
         </table>

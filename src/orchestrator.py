@@ -278,9 +278,7 @@ def run_investigation(
                         seen.add(key)
 
                         # Store new artifact
-                        metadata_value = artifact.get("metadata")
-                        if metadata_value and isinstance(metadata_value, dict):
-                            metadata_value = json.dumps(metadata_value)
+                        metadata_value = _artifact_metadata(artifact)
                         
                         new_id = db.add_artifact(
                             conn,
@@ -342,9 +340,7 @@ def run_investigation(
                     if current_depth < config.max_depth:
                         for artifact in discovered:
                             key = f"{artifact['type']}:{artifact['value']}"
-                            metadata_value = artifact.get("metadata")
-                            if metadata_value and isinstance(metadata_value, dict):
-                                metadata_value = json.dumps(metadata_value)
+                            metadata_value = _artifact_metadata(artifact)
                             
                             new_id = db.add_artifact(
                                 db_conn,
@@ -546,6 +542,28 @@ def _get_artifacts_stream(
             "depth": row[4],
             "metadata": row[5],
         }
+
+
+# Keys that are columns on the artifacts table rather than metadata.
+_ARTIFACT_RESERVED_KEYS = {"type", "value", "source", "confidence", "link_type", "metadata", "depth"}
+
+
+def _artifact_metadata(artifact: dict) -> str | None:
+    """
+    Serialize an artifact's metadata.
+
+    Tool integrations attach descriptive keys (platform, service, timestamp, data)
+    directly to the artifact dict; they are folded into metadata so nothing the
+    tool parsed is lost on the way into the database.
+    """
+    metadata = artifact.get("metadata")
+    if not isinstance(metadata, dict):
+        metadata = {} if metadata is None else {"value": metadata}
+
+    extras = {k: v for k, v in artifact.items() if k not in _ARTIFACT_RESERVED_KEYS}
+    merged = {**extras, **metadata}
+
+    return json.dumps(merged, default=str) if merged else None
 
 
 def _process_artifact(
@@ -858,21 +876,37 @@ def _process_external_tools(
         return discovered
     
     logger.debug("Processing artifact with external OSINT tools: %s=%s", artifact_type, value)
-    
+
+    # Enumeration tools are only worth running on seed-level artifacts; running them
+    # again on every discovered subdomain explodes the BFS frontier.
+    depth = artifact.get("depth") or 0
+    run_enumeration_tools = depth < 1 or artifact_type != "subdomain"
+
+    def run(tool_name: str, analysis_type: str, target: str) -> list[dict]:
+        """Run one tool and return its parsed artifacts."""
+        if not check_tool_availability(tool_name):
+            logger.debug("%s not available, skipping %s", tool_name, target)
+            return []
+
+        try:
+            result = run_tool_analysis(tool_name, analysis_type, target)
+        except Exception as e:
+            logger.error("%s raised while analysing %s: %s", tool_name, target, e)
+            return []
+
+        if not result.success:
+            logger.debug("%s failed for %s: %s", tool_name, target, result.error_message)
+            return []
+
+        logger.info("%s produced %d artifacts for %s",
+                    tool_name, len(result.artifacts_discovered), target)
+        return result.artifacts_discovered
+
     try:
         # Username-based external tools
         if artifact_type == "username":
-            # Run Sherlock for comprehensive username search
-            if check_tool_availability("sherlock"):
-                logger.debug("Running Sherlock username search for: %s", value)
-                sherlock_result = run_tool_analysis("sherlock", "username_search", value)
-                
-                if sherlock_result.success and sherlock_result.artifacts_discovered:
-                    discovered.extend(sherlock_result.artifacts_discovered)
-                    logger.info("Sherlock found %d artifacts for username %s", 
-                               len(sherlock_result.artifacts_discovered), value)
-                else:
-                    logger.debug("Sherlock skipped or failed for %s", value)
+            discovered.extend(run("sherlock", "username_search", value))
+            discovered.extend(run("maigret", "username_search", value))
             
             # Run Google Dorks for advanced username discovery
             if check_google_dorks_availability(config.google_api_key):
@@ -893,97 +927,34 @@ def _process_external_tools(
                     logger.debug("Google Dorks found no results for %s", value)
         
         # Domain-based external tools
-        elif artifact_type == "domain":
-            # Run theHarvester for email and subdomain discovery
-            if check_tool_availability("theharvester"):
-                logger.debug("Running theHarvester for domain: %s", value)
-                harvest_result = run_tool_analysis("theharvester", "email_harvest", value)
-                
-                if harvest_result.success and harvest_result.artifacts_discovered:
-                    discovered.extend(harvest_result.artifacts_discovered)
-                    logger.info("theHarvester found %d emails for domain %s", 
-                               len(harvest_result.artifacts_discovered), value)
-                
-                # Also harvest subdomains
-                subdomain_result = run_tool_analysis("theharvester", "subdomain_harvest", value)
-                if subdomain_result.success and subdomain_result.artifacts_discovered:
-                    discovered.extend(subdomain_result.artifacts_discovered)
-                    logger.info("theHarvester found %d subdomains for domain %s", 
-                               len(subdomain_result.artifacts_discovered), value)
-            
-            # Run Amass for subdomain enumeration
-            if check_tool_availability("amass"):
-                logger.debug("Running Amass subdomain enumeration for: %s", value)
-                amass_result = run_tool_analysis("amass", "subdomain_enum", value)
-                
-                if amass_result.success and amass_result.artifacts_discovered:
-                    discovered.extend(amass_result.artifacts_discovered)
-                    logger.info("Amass found %d subdomains for domain %s", 
-                               len(amass_result.artifacts_discovered), value)
-            
-            # Run Whois for domain information
-            if check_tool_availability("whois"):
-                logger.debug("Running Whois lookup for: %s", value)
-                whois_result = run_tool_analysis("whois", "domain_lookup", value)
-                
-                if whois_result.success and whois_result.artifacts_discovered:
-                    discovered.extend(whois_result.artifacts_discovered)
-                    logger.info("Whois found %d artifacts for domain %s", 
-                               len(whois_result.artifacts_discovered), value)
-            
-            # Run Dig for DNS records
-            if check_tool_availability("dig"):
-                logger.debug("Running Dig DNS lookup for: %s", value)
-                dig_result = run_tool_analysis("dig", "dns_lookup", value)
-                
-                if dig_result.success and dig_result.artifacts_discovered:
-                    discovered.extend(dig_result.artifacts_discovered)
-                    logger.info("Dig found %d DNS records for domain %s", 
-                               len(dig_result.artifacts_discovered), value)
-            
-            # Run Wayback Machine for historical data
-            wayback_result = run_tool_analysis("wayback_machine", "historical_urls", value)
-            if wayback_result.success and wayback_result.artifacts_discovered:
-                discovered.extend(wayback_result.artifacts_discovered)
-                logger.info("Wayback Machine found %d historical URLs for %s", 
-                           len(wayback_result.artifacts_discovered), value)
+        elif artifact_type in ("domain", "subdomain"):
+            discovered.extend(run("whois", "domain_lookup", value))
+            discovered.extend(run("dig", "dns_lookup", value))
+            discovered.extend(run("whatweb", "tech_fingerprint", value))
+
+            if run_enumeration_tools:
+                discovered.extend(run("theharvester", "email_harvest", value))
+                discovered.extend(run("theharvester", "subdomain_harvest", value))
+                discovered.extend(run("subfinder", "subdomain_enum", value))
+                discovered.extend(run("sublist3r", "subdomain_enum", value))
+                discovered.extend(run("amass", "subdomain_enum", value))
+                discovered.extend(run("wayback_machine", "historical_urls", value))
         
         # IP-based external tools
-        elif artifact_type == "ip_address":
-            # Run Shodan for host information
-            if check_tool_availability("shodan"):
-                logger.debug("Running Shodan search for: %s", value)
-                shodan_result = run_tool_analysis("shodan", "host_search", value)
-                
-                if shodan_result.success and shodan_result.artifacts_discovered:
-                    discovered.extend(shodan_result.artifacts_discovered)
-                    logger.info("Shodan found %d artifacts for IP %s", 
-                               len(shodan_result.artifacts_discovered), value)
-            
-            # Run Nmap for port scanning
-            if check_tool_availability("nmap"):
-                logger.debug("Running Nmap scan for: %s", value)
-                nmap_result = run_tool_analysis("nmap", "host_scan", value)
-                
-                if nmap_result.success and nmap_result.artifacts_discovered:
-                    discovered.extend(nmap_result.artifacts_discovered)
-                    logger.info("Nmap found %d open ports on %s", 
-                               len(nmap_result.artifacts_discovered), value)
+        elif artifact_type in ("ip_address", "ip"):
+            # Port scanning is expensive; keep it near the seeds
+            if depth < 2:
+                discovered.extend(run("shodan", "host_search", value))
+                discovered.extend(run("nmap", "host_scan", value))
         
         # Image-based external tools
         elif artifact_type == "image":
-            # Run ExifTool for metadata extraction
-            if check_tool_availability("exiftool"):
-                logger.debug("Running ExifTool on image: %s", value)
-                exif_result = run_tool_analysis("exiftool", "metadata_extract", value)
-                
-                if exif_result.success and exif_result.artifacts_discovered:
-                    discovered.extend(exif_result.artifacts_discovered)
-                    logger.info("ExifTool found %d artifacts in image %s", 
-                               len(exif_result.artifacts_discovered), value)
+            discovered.extend(run("exiftool", "metadata_extract", value))
         
         # Email-based external tools
         elif artifact_type == "email":
+            discovered.extend(run("holehe", "email_check", value))
+
             # Extract domain from email for domain-based analysis
             if "@" in value:
                 domain = value.split("@")[1]
@@ -999,8 +970,53 @@ def _process_external_tools(
     
     except Exception as e:
         logger.error("External tools processing failed for %s: %s", value, e)
-    
+
+    _record_platform_presences(conn, inv_id, artifact, discovered)
+
     return discovered
+
+
+def _record_platform_presences(
+    conn: sqlite3.Connection,
+    inv_id: str,
+    artifact: dict,
+    discovered: list[dict],
+) -> None:
+    """
+    Persist account discoveries (sherlock/maigret/holehe) as platform_presence rows.
+
+    Without this the Platform Presence Matrix only shows presences found by the
+    built-in username module and misses every external tool finding.
+    """
+    existing = {
+        (p.get("platform_name"), p.get("profile_url"))
+        for p in db.get_platform_presences(conn, inv_id)
+    }
+
+    for found in discovered:
+        if found.get("type") not in ("username_presence", "email_presence"):
+            continue
+
+        platform = found.get("platform")
+        if not platform:
+            continue
+
+        profile_url = found["value"] if found["value"].startswith("http") else None
+        if (platform, profile_url) in existing:
+            continue
+        existing.add((platform, profile_url))
+
+        try:
+            db.add_platform_presence(
+                conn,
+                investigation_id=inv_id,
+                artifact_id=artifact.get("artifact_id"),
+                platform_name=platform,
+                profile_url=profile_url,
+                username=found.get("username") or artifact["value"],
+            )
+        except Exception as e:
+            logger.error("Failed to record platform presence for %s: %s", platform, e)
 
 
 def _process_with_plugins(
