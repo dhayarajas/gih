@@ -284,6 +284,57 @@ def _search_social_media_images(full_name: str) -> List[ImageResult]:
     return results
 
 
+def extract_profile_image_from_url(profile_url: str) -> Optional[str]:
+    """
+    Extract a single profile/avatar image URL from a platform profile page.
+
+    Reuses the same scraping heuristics as ``_search_social_media_images`` but
+    operates on an already-known profile URL (e.g. a ``platform_presence``
+    record's ``profile_url``) instead of guessing platform URLs from a name.
+
+    Args:
+        profile_url: URL of the social/web profile page to scrape.
+
+    Returns:
+        Absolute image URL if a profile picture is found, otherwise None.
+    """
+    if not profile_url or not profile_url.startswith("http"):
+        return None
+
+    try:
+        session = get_http_session()
+        resp = session.get(profile_url, timeout=10)
+
+        if resp.status_code != 200:
+            return None
+
+        from bs4 import BeautifulSoup
+        from urllib.parse import urljoin
+
+        soup = BeautifulSoup(resp.text, "html.parser")
+
+        # Primary heuristic: an <img> whose src/data-src references an avatar
+        # or profile picture (mirrors _search_social_media_images).
+        for img in soup.find_all("img"):
+            src = img.get("src", "") or img.get("data-src", "")
+            if src and ("avatar" in src.lower() or "profile" in src.lower()):
+                return urljoin(profile_url, src)
+
+        # Fallback: OpenGraph / Twitter card image meta tags.
+        for finder in (
+            lambda: soup.find("meta", property="og:image"),
+            lambda: soup.find("meta", attrs={"name": "twitter:image"}),
+        ):
+            meta = finder()
+            if meta and meta.get("content"):
+                return urljoin(profile_url, meta["content"])
+
+    except Exception as e:
+        logger.debug("Failed to extract profile image from %s: %s", profile_url, e)
+
+    return None
+
+
 def extract_face_encoding(image_url: str) -> Optional[np.ndarray]:
     """
     Extract face encoding from an image URL.

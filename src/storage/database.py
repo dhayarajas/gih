@@ -382,16 +382,17 @@ def add_platform_presence(
     display_name: Optional[str] = None,
     bio: Optional[str] = None,
     follower_count: Optional[int] = None,
+    profile_image_url: Optional[str] = None,
 ) -> str:
     """Record platform presence."""
     presence_id = f"PRS-{generate_id()}"
     conn.execute(
         "INSERT INTO platform_presence "
         "(presence_id, investigation_id, artifact_id, platform_name, profile_url, "
-        "username, display_name, bio, follower_count) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        "username, display_name, bio, follower_count, profile_image_url) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         (presence_id, investigation_id, artifact_id, platform_name, profile_url,
-         username, display_name, bio, follower_count),
+         username, display_name, bio, follower_count, profile_image_url),
     )
     conn.commit()
     return presence_id
