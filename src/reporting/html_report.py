@@ -501,6 +501,112 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     </div>
     {% endif %}
 
+    <!-- Geographic Data -->
+    {% if geographic_data.has_location_data %}
+    <h2>Geographic Analysis</h2>
+    <div class="card">
+        <p><strong>Locations Identified:</strong> {{ geographic_data.location_count }}</p>
+        <table>
+            <thead>
+                <tr><th>Type</th><th>Location/Platform</th><th>Source</th><th>Confidence</th></tr>
+            </thead>
+            <tbody>
+                {% for loc in geographic_data.locations %}
+                <tr>
+                    <td>{{ loc.type }}</td>
+                    <td>{{ loc.value }}</td>
+                    <td>{{ loc.source }}</td>
+                    <td>{{ "%.0f" | format(loc.confidence * 100) }}%</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+
+    <!-- Platform Heat Map -->
+    {% if platform_heatmap.has_platform_data %}
+    <h2>Platform Distribution Heat Map</h2>
+    <div class="card">
+        <p><strong>Total Platforms:</strong> {{ platform_heatmap.total_platforms }}</p>
+        <table>
+            <thead>
+                <tr><th>Platform</th><th>Presence Count</th><th>Distribution</th><th>Heat Bar</th></tr>
+            </thead>
+            <tbody>
+                {% for platform in platform_heatmap.platforms %}
+                <tr>
+                    <td>{{ platform.platform }}</td>
+                    <td>{{ platform.count }}</td>
+                    <td>{{ platform.percentage }}%</td>
+                    <td>
+                        <div style="background: #333; border-radius: 4px; width: 100px; height: 20px; overflow: hidden;">
+                            <div style="background: linear-gradient(90deg, #4ECDC4, #FF6B6B); height: 100%; width: {{ platform.percentage }}%;"></div>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+
+    <!-- Correlation Strength -->
+    {% if correlation_strength.has_correlation_data %}
+    <h2>Correlation Strength Analysis</h2>
+    <div class="card">
+        <p><strong>Total Connections:</strong> {{ correlation_strength.total_links }} |
+           <strong>Average Confidence:</strong> {{ "%.1f" | format(correlation_strength.average_confidence * 100) }}%</p>
+        <table>
+            <thead>
+                <tr><th>Strength Level</th><th>Count</th><th>Distribution</th><th>Visual</th></tr>
+            </thead>
+            <tbody>
+                {% for level in ['very_strong', 'strong', 'moderate', 'weak', 'very_weak'] %}
+                <tr>
+                    <td><span class="badge badge-risk">{{ level | replace('_', ' ') | title }}</span></td>
+                    <td>{{ correlation_strength.strength_distribution[level] }}</td>
+                    <td>{{ correlation_strength.strength_percentages[level] }}%</td>
+                    <td>
+                        <div style="background: #333; border-radius: 4px; width: 100px; height: 20px; overflow: hidden;">
+                            <div style="background: {% if level == 'very_strong' %}#FF0000{% elif level == 'strong' %}#FF6B6B{% elif level == 'moderate' %}#FFA500{% elif level == 'weak' %}#4ECDC4{% else %}#888888{% endif %}; height: 100%; width: {{ correlation_strength.strength_percentages[level] }}%;"></div>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+
+    <!-- Verification Status -->
+    {% if verification_status.has_verification_data %}
+    <h2>Verification Status Tracking</h2>
+    <div class="card">
+        <p><strong>Total Artifacts:</strong> {{ verification_status.total_artifacts }} |
+           <strong>Verification Rate:</strong> {{ verification_status.verification_rate }}%</p>
+        <table>
+            <thead>
+                <tr><th>Status</th><th>Count</th><th>Distribution</th><th>Visual</th></tr>
+            </thead>
+            <tbody>
+                {% for status in ['verified', 'likely', 'possible', 'unverified', 'needs_review'] %}
+                <tr>
+                    <td><span class="badge badge-risk">{{ status | replace('_', ' ') | title }}</span></td>
+                    <td>{{ verification_status.status_distribution[status] }}</td>
+                    <td>{{ verification_status.status_percentages[status] }}%</td>
+                    <td>
+                        <div style="background: #333; border-radius: 4px; width: 100px; height: 20px; overflow: hidden;">
+                            <div style="background: {% if status == 'verified' %}#4ECDC4{% elif status == 'likely' %}#45B7D1{% elif status == 'possible' %}#FFA500{% elif status == 'needs_review' %}#FF6B6B{% else %}#888888{% endif %}; height: 100%; width: {{ verification_status.status_percentages[status] }}%;"></div>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+
     <!-- Summary Statistics -->
     <h2>Summary Statistics</h2>
     <div class="stats-grid">
@@ -691,6 +797,18 @@ def generate_html_report(
     # Generate priority queue for artifact ranking
     priority_queue = _generate_priority_queue(artifacts, links, correlation)
 
+    # Generate geographic data
+    geographic_data = _generate_geographic_data(artifacts, presences)
+
+    # Generate platform heat map data
+    platform_heatmap = _generate_platform_heatmap(presences)
+
+    # Generate correlation strength indicators
+    correlation_strength = _generate_correlation_strength(links)
+
+    # Generate verification status tracking
+    verification_status = _generate_verification_status(artifacts)
+
     # Render template
     env = Environment(loader=BaseLoader())
     template = env.from_string(HTML_TEMPLATE)
@@ -708,6 +826,10 @@ def generate_html_report(
         graph_html=graph_html,
         recommendations=recommendations,
         priority_queue=priority_queue,
+        geographic_data=geographic_data,
+        platform_heatmap=platform_heatmap,
+        correlation_strength=correlation_strength,
+        verification_status=verification_status,
         generated_at=datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC"),
     )
 
@@ -982,6 +1104,141 @@ def _generate_priority_queue(artifacts: list, links: list, correlation) -> list:
     scored_artifacts.sort(key=lambda x: x['score'], reverse=True)
     
     return scored_artifacts[:20]  # Return top 20 priority artifacts
+
+
+def _generate_geographic_data(artifacts: list, presences: list) -> dict:
+    """Generate geographic data from artifacts and platform presences."""
+    locations = []
+    
+    # Extract location data from artifacts
+    for artifact in artifacts:
+        if artifact.get('artifact_type') == 'location':
+            locations.append({
+                'type': 'artifact',
+                'value': artifact.get('value', ''),
+                'source': artifact.get('source', 'unknown'),
+                'confidence': artifact.get('confidence', 0)
+            })
+    
+    # Extract location data from platform presences (if available)
+    for presence in presences:
+        # Check for location in bio or other fields
+        bio = presence.get('bio', '').lower()
+        if any(loc in bio for loc in ['usa', 'us', 'uk', 'india', 'germany', 'france', 'canada', 'australia']):
+            locations.append({
+                'type': 'platform',
+                'value': presence.get('platform_name', ''),
+                'source': 'platform_bio',
+                'confidence': 0.5
+            })
+    
+    return {
+        'has_location_data': len(locations) > 0,
+        'location_count': len(locations),
+        'locations': locations[:10]  # Limit to top 10
+    }
+
+
+def _generate_platform_heatmap(presences: list) -> dict:
+    """Generate platform heat map data showing platform distribution."""
+    if not presences:
+        return {'has_platform_data': False, 'platforms': []}
+    
+    platform_counts = {}
+    for presence in presences:
+        platform = presence.get('platform_name', 'unknown')
+        platform_counts[platform] = platform_counts.get(platform, 0) + 1
+    
+    # Calculate percentages
+    total = sum(platform_counts.values()) or 1
+    platform_data = []
+    for platform, count in sorted(platform_counts.items(), key=lambda x: x[1], reverse=True):
+        platform_data.append({
+            'platform': platform,
+            'count': count,
+            'percentage': round(count / total * 100, 1)
+        })
+    
+    return {
+        'has_platform_data': len(platform_data) > 0,
+        'total_platforms': len(platform_data),
+        'platforms': platform_data[:15]  # Limit to top 15
+    }
+
+
+def _generate_correlation_strength(links: list) -> dict:
+    """Generate correlation strength indicators for artifact connections."""
+    if not links:
+        return {'has_correlation_data': False, 'strength_distribution': {}}
+    
+    strength_distribution = {
+        'very_strong': 0,  # >= 0.9
+        'strong': 0,        # >= 0.7
+        'moderate': 0,     # >= 0.5
+        'weak': 0,          # >= 0.3
+        'very_weak': 0      # < 0.3
+    }
+    
+    for link in links:
+        confidence = link.get('confidence', 0)
+        if confidence >= 0.9:
+            strength_distribution['very_strong'] += 1
+        elif confidence >= 0.7:
+            strength_distribution['strong'] += 1
+        elif confidence >= 0.5:
+            strength_distribution['moderate'] += 1
+        elif confidence >= 0.3:
+            strength_distribution['weak'] += 1
+        else:
+            strength_distribution['very_weak'] += 1
+    
+    total = sum(strength_distribution.values()) or 1
+    
+    return {
+        'has_correlation_data': True,
+        'total_links': len(links),
+        'strength_distribution': strength_distribution,
+        'strength_percentages': {k: round(v/total * 100, 1) for k, v in strength_distribution.items()},
+        'average_confidence': round(sum(link.get('confidence', 0) for link in links) / len(links), 2) if links else 0
+    }
+
+
+def _generate_verification_status(artifacts: list) -> dict:
+    """Generate verification status tracking for artifacts."""
+    if not artifacts:
+        return {'has_verification_data': False, 'status_distribution': {}}
+    
+    status_distribution = {
+        'verified': 0,      # confidence >= 0.8
+        'likely': 0,        # confidence >= 0.6
+        'possible': 0,      # confidence >= 0.4
+        'unverified': 0,    # confidence < 0.4
+        'needs_review': 0   # confidence between 0.4 and 0.6
+    }
+    
+    for artifact in artifacts:
+        confidence = artifact.get('confidence', 0)
+        if confidence >= 0.8:
+            status_distribution['verified'] += 1
+        elif confidence >= 0.6:
+            status_distribution['likely'] += 1
+        elif confidence >= 0.4:
+            status_distribution['possible'] += 1
+        else:
+            status_distribution['unverified'] += 1
+    
+    # Calculate needs_review (possible artifacts that need manual verification)
+    status_distribution['needs_review'] = status_distribution['possible']
+    
+    total = sum(status_distribution.values()) or 1
+    
+    return {
+        'has_verification_data': True,
+        'total_artifacts': len(artifacts),
+        'status_distribution': status_distribution,
+        'status_percentages': {k: round(v/total * 100, 1) for k, v in status_distribution.items()},
+        'verification_rate': round(status_distribution['verified'] / total * 100, 1) if total > 0 else 0
+    }
 
 
 def generate_json_report(
