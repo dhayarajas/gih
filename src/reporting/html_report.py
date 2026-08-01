@@ -607,6 +607,43 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     </div>
     {% endif %}
 
+    <!-- Anomaly Detection -->
+    {% if anomaly_detection.has_anomalies %}
+    <h2>Anomaly Detection</h2>
+    <div class="card">
+        <p><strong>Anomalies Detected:</strong> {{ anomaly_detection.anomaly_count }}</p>
+        <table>
+            <thead>
+                <tr><th>Type</th><th>Artifact</th><th>Reason</th></tr>
+            </thead>
+            <tbody>
+                {% for anomaly in anomaly_detection.anomalies %}
+                <tr>
+                    <td><span class="badge badge-risk">{{ anomaly.type | replace('_', ' ') | title }}</span></td>
+                    <td>{{ anomaly.artifact.value[:50] }}{% if anomaly.artifact.value | length > 50 %}...{% endif %}</td>
+                    <td style="font-size: 0.9rem; color: #888;">{{ anomaly.reason }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+
+    <!-- Auto-Escalation Alerts -->
+    {% if auto_escalation.has_escalations %}
+    <h2>Auto-Escalation Alerts</h2>
+    {% for escalation in auto_escalation.escalations %}
+    <div class="card" style="border-left: 4px solid {% if escalation.severity == 'critical' %}#FF0000{% elif escalation.severity == 'high' %}#FF6B6B{% elif escalation.severity == 'medium' %}#FFA500{% else %}#4ECDC4{% endif %}; border-right: 4px solid {% if escalation.severity == 'critical' %}#FF0000{% elif escalation.severity == 'high' %}#FF6B6B{% elif escalation.severity == 'medium' %}#FFA500{% else %}#4ECDC4{% endif %};">
+        <h3>
+            <span class="badge badge-risk">{{ escalation.severity | upper }}</span>
+            {{ escalation.type | replace('_', ' ') | title }}
+        </h3>
+        <p><strong>{{ escalation.message }}</strong></p>
+        <p style="color: #888; font-size: 0.9rem;">Recommended Action: {{ escalation.action }}</p>
+    </div>
+    {% endfor %}
+    {% endif %}
+
     <!-- Summary Statistics -->
     <h2>Summary Statistics</h2>
     <div class="stats-grid">
@@ -809,6 +846,12 @@ def generate_html_report(
     # Generate verification status tracking
     verification_status = _generate_verification_status(artifacts)
 
+    # Generate anomaly detection
+    anomaly_detection = _generate_anomaly_detection(artifacts, links)
+
+    # Generate auto-escalation alerts
+    auto_escalation = _generate_auto_escalation(artifacts, links, risk_levels, correlation)
+
     # Render template
     env = Environment(loader=BaseLoader())
     template = env.from_string(HTML_TEMPLATE)
@@ -830,6 +873,8 @@ def generate_html_report(
         platform_heatmap=platform_heatmap,
         correlation_strength=correlation_strength,
         verification_status=verification_status,
+        anomaly_detection=anomaly_detection,
+        auto_escalation=auto_escalation,
         generated_at=datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC"),
     )
 
@@ -1238,6 +1283,111 @@ def _generate_verification_status(artifacts: list) -> dict:
         'status_distribution': status_distribution,
         'status_percentages': {k: round(v/total * 100, 1) for k, v in status_distribution.items()},
         'verification_rate': round(status_distribution['verified'] / total * 100, 1) if total > 0 else 0
+    }
+
+
+def _generate_anomaly_detection(artifacts: list, links: list) -> dict:
+    """Generate anomaly detection for unusual artifacts."""
+    if not artifacts:
+        return {'has_anomalies': False, 'anomalies': []}
+    
+    anomalies = []
+    
+    # Calculate average confidence
+    avg_confidence = sum(a.get('confidence', 0) for a in artifacts) / len(artifacts) if artifacts else 0
+    
+    # Detect artifacts with unusually low confidence
+    for artifact in artifacts:
+        confidence = artifact.get('confidence', 0)
+        if confidence < avg_confidence * 0.5 and confidence < 0.3:
+            anomalies.append({
+                'type': 'low_confidence',
+                'artifact': artifact,
+                'reason': f'Confidence ({confidence:.0%}) significantly below average ({avg_confidence:.0%})'
+            })
+    
+    # Detect artifacts with unusual depth (too deep or too shallow)
+    depths = [a.get('depth', 0) for a in artifacts]
+    avg_depth = sum(depths) / len(depths) if depths else 0
+    for artifact in artifacts:
+        depth = artifact.get('depth', 0)
+        if depth > avg_depth * 3 and depth > 2:
+            anomalies.append({
+                'type': 'deep_artifact',
+                'artifact': artifact,
+                'reason': f'Depth ({depth}) unusually deep compared to average ({avg_depth:.1f})'
+            })
+    
+    # Detect orphaned artifacts (no connections)
+    artifact_ids = {a.get('artifact_id') for a in artifacts}
+    connected_ids = set()
+    for link in links:
+        connected_ids.add(link.get('source_artifact'))
+        connected_ids.add(link.get('target_artifact'))
+    
+    orphaned = artifact_ids - connected_ids
+    for artifact in artifacts:
+        if artifact.get('artifact_id') in orphaned:
+            anomalies.append({
+                'type': 'orphaned',
+                'artifact': artifact,
+                'reason': 'No connections to other artifacts'
+            })
+    
+    return {
+        'has_anomalies': len(anomalies) > 0,
+        'anomaly_count': len(anomalies),
+        'anomalies': anomalies[:15]  # Limit to top 15
+    }
+
+
+def _generate_auto_escalation(artifacts: list, links: list, risk_levels: list, correlation) -> dict:
+    """Generate auto-escalation alerts for high-risk findings."""
+    escalations = []
+    
+    # Critical risk identities
+    critical_count = sum(1 for level in risk_levels if level == 'critical')
+    if critical_count > 0:
+        escalations.append({
+            'severity': 'critical',
+            'type': 'high_risk_identity',
+            'message': f'{critical_count} critical-risk identity profile(s) detected',
+            'action': 'Immediate investigation and verification required'
+        })
+    
+    # High-risk artifacts (breach data, risk indicators)
+    high_risk_artifacts = [a for a in artifacts if a.get('artifact_type') in ['breach_data', 'risk_indicator']]
+    if len(high_risk_artifacts) > 0:
+        escalations.append({
+            'severity': 'high',
+            'type': 'risk_indicators',
+            'message': f'{len(high_risk_artifacts)} high-risk artifact(s) found',
+            'action': 'Review breach data and risk indicators for potential impact'
+        })
+    
+    # Strong correlations (multiple identities with high confidence)
+    high_confidence_identities = [id for id in correlation.identities if id.confidence >= 0.8]
+    if len(high_confidence_identities) > 1:
+        escalations.append({
+            'severity': 'medium',
+            'type': 'strong_correlation',
+            'message': f'{len(high_confidence_identities)} high-confidence identity profiles linked',
+            'action': 'Investigate potential identity theft or impersonation'
+        })
+    
+    # Large number of connections (potential bot or fake account)
+    if len(links) > 50:
+        escalations.append({
+            'severity': 'medium',
+            'type': 'excessive_connections',
+            'message': f'{len(links)} artifact connections detected',
+            'action': 'Review for potential automated or synthetic identity patterns'
+        })
+    
+    return {
+        'has_escalations': len(escalations) > 0,
+        'escalation_count': len(escalations),
+        'escalations': escalations
     }
 
 
