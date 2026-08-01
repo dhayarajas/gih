@@ -112,7 +112,7 @@ def cli(ctx: click.Context, verbose: bool, db_path: Optional[str]) -> None:
 @click.option("--report-output", default=None, help="Custom output path for auto-generated report")
 @click.option("--use-external-tools", is_flag=True, default=True, help="Use external OSINT tools if available (default: enabled)")
 @click.option("--no-external-tools", is_flag=True, help="Skip external OSINT tools")
-@click.option("--check-tools", is_flag=True, help="Check available external OSINT tools and exit")
+@click.option("--check-tools", is_flag=True, help="Check available external tools")
 @click.option("--use-neo4j", is_flag=True, help="Use Neo4j for graph correlation (requires Neo4j database)")
 @click.option("--neo4j-uri", default="bolt://localhost:7687", help="Neo4j connection URI (default: bolt://localhost:7687)")
 @click.option("--neo4j-user", default="neo4j", help="Neo4j username (default: neo4j)")
@@ -122,6 +122,7 @@ def cli(ctx: click.Context, verbose: bool, db_path: Optional[str]) -> None:
 @click.option("--google-api-key", default=lambda: os.environ.get("GOOGLE_API_KEY"), help="Google Custom Search API key (optional, can be set via GOOGLE_API_KEY env var)")
 @click.option("--google-cx", default=lambda: os.environ.get("GOOGLE_CX"), help="Google Custom Search Engine ID (optional, can be set via GOOGLE_CX env var)")
 @click.option("--use-google-api", is_flag=True, help="Use Google API instead of web scraping (requires API key)")
+@click.option("--search-engine", default="auto", type=click.Choice(["auto", "duckduckgo", "google", "bing"], case_sensitive=False), help="Search engine for Google Dorks (auto, duckduckgo, google, bing)")
 @click.pass_context
 def investigate(
     ctx: click.Context,
@@ -148,6 +149,7 @@ def investigate(
     google_api_key: Optional[str],
     google_cx: Optional[str],
     use_google_api: bool,
+    search_engine: str,
 ) -> None:
     """Start a new OSINT investigation from seed artifacts.
 
@@ -204,6 +206,7 @@ def investigate(
         google_api_key=google_api_key,
         google_cx=google_cx,
         use_google_api=use_google_api,
+        search_engine=search_engine,
     )
 
     click.echo(f"Starting investigation with {len(seeds)} seed artifact(s)...")
@@ -213,6 +216,8 @@ def investigate(
     click.echo(f"  External OSINT tools: {'enabled' if config.check_external_tools else 'disabled'}")
     click.echo(f"  Graph correlation: {'Neo4j' if config.use_neo4j else 'NetworkX'}")
     click.echo(f"  Google Dorks: {'enabled' if config.use_google_dorks else 'disabled'}")
+    if config.use_google_dorks:
+        click.echo(f"  Search engine: {config.search_engine}")
     click.echo(f"  Auto-report: {'disabled' if not auto_report else 'enabled'}")
     if auto_report:
         click.echo(f"  Report format: {report_format}")

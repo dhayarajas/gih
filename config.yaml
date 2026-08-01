@@ -1,0 +1,108 @@
+# Ghost Identity Hunter Configuration File
+# This file controls plugin and tool settings for OSINT investigations
+
+# Plugin Configuration
+plugins:
+  # Built-in plugins (always available)
+  username_search:
+    enabled: true
+    priority: 1
+    timeout: 30
+    max_retries: 3
+  
+  email_breach:
+    enabled: true
+    priority: 1
+    timeout: 30
+    max_retries: 3
+    api_key: null  # Optional: HaveIBeenPwned API key
+  
+  phone_validation:
+    enabled: true
+    priority: 1
+    timeout: 30
+    max_retries: 3
+  
+  # External tool plugins (require tool installation)
+  sherlock:
+    enabled: false  # Disabled by default - requires installation
+    priority: 2
+    timeout: 60
+    max_retries: 2
+    custom_params:
+      output_format: "json"
+  
+  theharvester:
+    enabled: false  # Disabled by default - requires installation
+    priority: 2
+    timeout: 60
+    max_retries: 2
+    custom_params:
+      sources: ["google", "bing"]
+  
+  shodan:
+    enabled: false  # Disabled by default - requires API key
+    priority: 3
+    timeout: 30
+    max_retries: 2
+    api_key: null  # Required: Shodan API key
+  
+  whois:
+    enabled: false  # Disabled by default - requires installation
+    priority: 2
+    timeout: 30
+    max_retries: 2
+  
+  dig:
+    enabled: false  # Disabled by default - requires installation
+    priority: 2
+    timeout: 15
+    max_retries: 2
+  
+  google_dorks:
+    enabled: true
+    priority: 2
+    timeout: 30
+    max_retries: 3
+    custom_params:
+      search_engine: "auto"  # auto, duckduckgo, google, bing
+      max_patterns: 3
+      google_api_key: null  # Optional: Google Custom Search API key
+      google_cx: null  # Optional: Google Custom Search Engine ID
+
+# Global Plugin Settings
+plugin_settings:
+  parallel_execution: true
+  max_parallel_workers: 5
+  enable_caching: true
+  cache_duration_hours: 24
+  rate_limit_seconds: 1.0
+  log_plugin_output: false
+
+# Investigation Settings
+investigation:
+  max_depth: 2
+  check_breaches: true
+  search_usernames: true
+  check_images: true
+  check_external_tools: true
+  skip_missing_tools: true
+  use_neo4j: false
+  neo4j_uri: "bolt://localhost:7687"
+  neo4j_user: "neo4j"
+  neo4j_password: "password"
+  neo4j_database: "neo4j"
+
+# Reporting Settings
+reporting:
+  auto_generate: true
+  default_format: "html"  # html, json, both
+  output_directory: "./reports"
+  include_plugin_details: true
+  include_execution_stats: true
+
+# Database Settings
+database:
+  path: "./investigations.db"
+  backup_enabled: true
+  backup_interval_hours: 24

@@ -72,8 +72,19 @@
 
 \maketitle
 
-\begin{tcolorbox}[colback=alertbg,colframe=googleyellow,title=Important Note]
-This guide explains how to set up Google Custom Search API credentials for use with Ghost Identity Hunter's Google Dorks feature. The Google Custom Search API requires a billing account for API access.
+\begin{tcolorbox}[colback=googlered!10,colframe=googlered,title=CRITICAL NOTICE - Google Custom Search JSON API Shutdown]
+\textbf{As of January 20, 2026, Google has shut down the Custom Search JSON API for all new sign-ups.}
+
+If your Custom Search Engine was created after January 20, 2026, the Custom Search JSON API service is \textbf{not available}. This guide is provided for reference only for users who created their search engines before this date.
+
+For more information, see: \url{https://programmablesearchengine.googleblog.com/2026/01/updates-to-our-web-search-products.html}
+
+\textbf{Alternatives:}
+\begin{itemize}
+    \item Use Ghost Identity Hunter without Google Dorks (core OSINT features work perfectly)
+    \item Use Google Dorks with web scraping (limited to ~10-20 requests before rate limiting)
+    \item Consider alternative OSINT tools and data sources
+\end{itemize}
 \end{tcolorbox}
 
 \tableofcontents
@@ -81,7 +92,9 @@ This guide explains how to set up Google Custom Search API credentials for use w
 
 \section{Overview}
 
-Google Custom Search API allows Ghost Identity Hunter to perform advanced username discovery using Google Dorks without rate limiting. This guide covers:
+\textbf{NOTE: This guide is for reference only.} Google Custom Search API has been shut down for new sign-ups as of January 20, 2026. If you created your Custom Search Engine before this date, this guide may still be useful. Otherwise, please use the alternatives listed above.
+
+Google Custom Search API previously allowed Ghost Identity Hunter to perform advanced username discovery using Google Dorks without rate limiting. This guide covers the historical setup process:
 
 \begin{itemize}
     \item Creating a Google Cloud project
@@ -94,14 +107,19 @@ Google Custom Search API allows Ghost Identity Hunter to perform advanced userna
 
 \section{Prerequisites}
 
-Before starting, ensure you have:
+\textbf{IMPORTANT: This setup only works if you created your Custom Search Engine before January 20, 2026.}
+
+Before starting (if eligible), ensure you have:
 
 \begin{itemize}
     \item A Google account
     \item Access to Google Cloud Console
+    \item A Custom Search Engine created before January 20, 2026
     \item A billing account (required for API access)
     \item Basic familiarity with web interfaces
 \end{itemize}
+
+\textbf{If you created your search engine after January 20, 2026, this setup will not work. Please use the alternatives listed in the notice above.}
 
 \section{Step 1: Create Google Cloud Project}
 

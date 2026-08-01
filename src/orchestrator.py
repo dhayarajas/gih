@@ -75,6 +75,7 @@ from src.modules.google_dorks import run_google_dorks_search, check_google_dorks
 from src.storage import database as db
 from src.utils.tool_checker import get_tool_checker, check_tool_availability
 from src.modules.external_tools import run_tool_analysis, get_tool_integrations
+from src.plugins import PluginManager, PluginRegistry, Artifact as PluginArtifact, PluginConfig
 
 logger = logging.getLogger(__name__)
 
@@ -101,6 +102,7 @@ class InvestigationConfig:
     google_api_key: Optional[str] = None  # Google Custom Search API key
     google_cx: Optional[str] = None  # Google Custom Search Engine ID
     use_google_api: bool = False  # Use Google API instead of web scraping
+    search_engine: str = "auto"  # Search engine for Google Dorks (auto, duckduckgo, google, bing)
 
 
 @dataclass
@@ -175,6 +177,18 @@ def run_investigation(
             if len(missing_tools) > 5:
                 logger.debug(f"Additional missing tools: {len(missing_tools) - 5}")
 
+    # Initialize plugin system
+    logger.debug("Initializing plugin system...")
+    plugin_registry = PluginRegistry()
+    plugin_registry.discover_plugins()
+    
+    plugin_manager = PluginManager(plugin_registry)
+    available_plugins = plugin_registry.get_available_plugins()
+    
+    logger.info(f"Available plugins: {len(available_plugins)}")
+    if config.verbose:
+        logger.debug(f"Plugins: {', '.join(available_plugins)}")
+
     # Create investigation
     inv_id = db.create_investigation(conn, title=title)
     result = InvestigationResult(investigation_id=inv_id, seed_artifacts=seeds)
@@ -221,7 +235,7 @@ def run_investigation(
         )
 
         # Run appropriate OSINT module
-        discovered = _process_artifact(conn, inv_id, current, config)
+        discovered = _process_artifact(conn, inv_id, current, config, plugin_manager)
         
         logger.debug("Discovered %d new artifacts from %s=%s", 
                     len(discovered), current["type"], current["value"])
@@ -367,6 +381,7 @@ def _process_artifact(
     inv_id: str,
     artifact: dict,
     config: InvestigationConfig,
+    plugin_manager: PluginManager = None,
 ) -> list[dict]:
     """Process a single artifact through the appropriate OSINT module."""
     discovered = []
@@ -398,6 +413,13 @@ def _process_artifact(
         external_discovered = _process_external_tools(conn, inv_id, artifact, config)
         discovered.extend(external_discovered)
         logger.debug("External tools returned %d additional artifacts", len(external_discovered))
+    
+    # Process with plugin system if available
+    if plugin_manager:
+        logger.debug("Processing artifact with plugin system")
+        plugin_discovered = _process_with_plugins(conn, inv_id, artifact, config, plugin_manager)
+        discovered.extend(plugin_discovered)
+        logger.debug("Plugin system returned %d additional artifacts", len(plugin_discovered))
     
     return discovered
 
@@ -617,7 +639,8 @@ def _process_external_tools(
                     username=value,
                     api_key=config.google_api_key,
                     cx=config.google_cx,
-                    use_api=config.use_google_api
+                    use_api=config.use_google_api,
+                    search_engine=config.search_engine
                 )
                 
                 if google_dorks_result:
@@ -734,6 +757,54 @@ def _process_external_tools(
     
     except Exception as e:
         logger.error("External tools processing failed for %s: %s", value, e)
+    
+    return discovered
+
+
+def _process_with_plugins(
+    conn: sqlite3.Connection,
+    inv_id: str,
+    artifact: dict,
+    config: InvestigationConfig,
+    plugin_manager: PluginManager,
+) -> list[dict]:
+    """Process artifact using the plugin system."""
+    discovered = []
+    
+    try:
+        # Convert artifact to plugin format
+        plugin_artifact = PluginArtifact(
+            type=artifact["type"],
+            value=artifact["value"],
+            source="orchestrator",
+            confidence=1.0,
+            metadata={"artifact_id": artifact["artifact_id"]}
+        )
+        
+        # Execute compatible plugins
+        plugin_results = plugin_manager.execute_plugins_for_artifact(
+            artifact=plugin_artifact,
+            parallel=True,
+            max_workers=5
+        )
+        
+        # Extract findings from plugin results
+        for result in plugin_results:
+            if result.status.value == "success":
+                for plugin_artifact in result.artifacts:
+                    discovered.append({
+                        "type": plugin_artifact.type,
+                        "value": plugin_artifact.value,
+                        "source": f"plugin:{result.plugin_name}",
+                        "confidence": plugin_artifact.confidence,
+                        "metadata": plugin_artifact.metadata,
+                        "link_type": "discovered_from"
+                    })
+        
+        logger.info(f"Plugin system processed {len(plugin_results)} plugins, discovered {len(discovered)} artifacts")
+        
+    except Exception as e:
+        logger.error(f"Plugin system processing failed: {e}")
     
     return discovered
 
