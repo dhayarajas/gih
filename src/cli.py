@@ -252,17 +252,11 @@ def investigate(
                 
                 # Generate reports based on format
                 if report_format in ["html", "both"]:
-                    html_filename = report_output or f"{result.investigation_id}_report.html"
-                    html_path = generate_html_report(conn, result.investigation_id, output_path=html_filename)
+                    html_path = generate_html_report(conn, result.investigation_id, output_path=report_output)
                     click.echo(f"✓ HTML report saved: {html_path}")
                 
                 if report_format in ["json", "both"]:
-                    json_filename = report_output or f"{result.investigation_id}_report.json"
-                    if report_format == "both" and report_output:
-                        json_filename = report_output.replace('.html', '.json').replace('.json', '_report.json')
-                    elif report_format == "both":
-                        json_filename = f"{result.investigation_id}_report.json"
-                    json_path = generate_json_report(conn, result.investigation_id, output_path=json_filename)
+                    json_path = generate_json_report(conn, result.investigation_id, output_path=report_output)
                     click.echo(f"✓ JSON report saved: {json_path}")
                 
                 click.echo(f"\nReport generation complete!")
