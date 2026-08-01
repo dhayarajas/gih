@@ -72,88 +72,102 @@ VERSION:
 
 import json
 import logging
+import requests
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from typing import Optional
 
-import requests
+from src.utils.http_client import get_http_session
+
+from src.config.loader import get_config
 
 logger = logging.getLogger(__name__)
 
-# Platform registry: name, URL template, check method
-PLATFORMS = [
-    {
-        "name": "GitHub",
-        "url_template": "https://api.github.com/users/{username}",
-        "check_type": "api_status",
-        "expected_status": 200,
-    },
-    {
-        "name": "Reddit",
-        "url_template": "https://www.reddit.com/user/{username}/about.json",
-        "check_type": "api_json",
-        "expected_status": 200,
-    },
-    {
-        "name": "Twitter/X",
-        "url_template": "https://twitter.com/{username}",
-        "check_type": "web_status",
-        "expected_status": 200,
-    },
-    {
-        "name": "Instagram",
-        "url_template": "https://www.instagram.com/{username}/",
-        "check_type": "web_status",
-        "expected_status": 200,
-    },
-    {
-        "name": "LinkedIn",
-        "url_template": "https://www.linkedin.com/in/{username}/",
-        "check_type": "web_status",
-        "expected_status": 200,
-    },
-    {
-        "name": "Pinterest",
-        "url_template": "https://www.pinterest.com/{username}/",
-        "check_type": "web_status",
-        "expected_status": 200,
-    },
-    {
-        "name": "Medium",
-        "url_template": "https://medium.com/@{username}",
-        "check_type": "web_status",
-        "expected_status": 200,
-    },
-    {
-        "name": "GitLab",
-        "url_template": "https://gitlab.com/api/v4/users?username={username}",
-        "check_type": "api_json_array",
-        "expected_status": 200,
-    },
-    {
-        "name": "Keybase",
-        "url_template": "https://keybase.io/{username}",
-        "check_type": "web_status",
-        "expected_status": 200,
-    },
-    {
-        "name": "HackerNews",
-        "url_template": "https://hacker-news.firebaseio.com/v0/user/{username}.json",
-        "check_type": "api_json",
-        "expected_status": 200,
-    },
-    {
-        "name": "Mastodon (mastodon.social)",
-        "url_template": "https://mastodon.social/@{username}",
-        "check_type": "web_status",
-        "expected_status": 200,
-    },
-    {
-        "name": "Steam",
-        "url_template": "https://steamcommunity.com/id/{username}",
-        "check_type": "web_status",
-        "expected_status": 200,
-    },
-]
+
+def _get_username_search_config() -> dict:
+    """Get username search configuration from config.yaml."""
+    config = get_config()
+    return config.get("username_search", {
+        "max_parallel_workers": 10,
+        "platforms": [
+            {
+                "name": "GitHub",
+                "url_template": "https://api.github.com/users/{username}",
+                "check_type": "api_status",
+                "expected_status": 200,
+            },
+            {
+                "name": "GitLab",
+                "url_template": "https://gitlab.com/api/v4/users?username={username}",
+                "check_type": "api_json_array",
+                "expected_field": "username",
+            },
+            {
+                "name": "Reddit",
+                "url_template": "https://www.reddit.com/user/{username}/about.json",
+                "check_type": "api_json",
+                "expected_field": "name",
+            },
+            {
+                "name": "Twitter/X",
+                "url_template": "https://twitter.com/{username}",
+                "check_type": "web_status",
+                "expected_status": 200,
+            },
+            {
+                "name": "Instagram",
+                "url_template": "https://www.instagram.com/{username}/",
+                "check_type": "web_status",
+                "expected_status": 200,
+            },
+            {
+                "name": "LinkedIn",
+                "url_template": "https://www.linkedin.com/in/{username}/",
+                "check_type": "web_status",
+                "expected_status": 200,
+            },
+            {
+                "name": "Keybase",
+                "url_template": "https://keybase.io/{username}",
+                "check_type": "web_status",
+                "expected_status": 200,
+            },
+            {
+                "name": "HackerNews",
+                "url_template": "https://news.ycombinator.com/user?id={username}",
+                "check_type": "web_status",
+                "expected_status": 200,
+            },
+            {
+                "name": "Medium",
+                "url_template": "https://medium.com/@{username}",
+                "check_type": "web_status",
+                "expected_status": 200,
+            },
+            {
+                "name": "Pinterest",
+                "url_template": "https://www.pinterest.com/{username}/",
+                "check_type": "web_status",
+                "expected_status": 200,
+            },
+            {
+                "name": "Steam",
+                "url_template": "https://steamcommunity.com/id/{username}",
+                "check_type": "web_status",
+                "expected_status": 200,
+            },
+            {
+                "name": "Mastodon",
+                "url_template": "https://mastodon.social/@{username}",
+                "check_type": "web_status",
+                "expected_status": 200,
+            },
+        ],
+    })
+
+
+# Platform registry: loaded from config
+PLATFORMS = _get_username_search_config().get("platforms", [])
 
 
 @dataclass
@@ -217,12 +231,9 @@ def _check_platform(username: str, platform: dict) -> PlatformResult:
         username=username,
     )
 
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
-    }
-
     try:
-        resp = requests.get(url, headers=headers, timeout=10, allow_redirects=False)
+        session = get_http_session()
+        resp = session.get(url, timeout=10, allow_redirects=False)
 
         if platform["check_type"] == "api_status":
             if resp.status_code == platform["expected_status"]:
@@ -298,18 +309,33 @@ def search_username(username: str, platforms: Optional[list[dict]] = None) -> Us
     platforms_to_check = platforms or PLATFORMS
     result = UsernameSearchResult(username=username)
 
-    for platform in platforms_to_check:
-        result.total_checked += 1
-        platform_result = _check_platform(username, platform)
-
-        if platform_result.error:
-            result.platforms_error.append(platform["name"])
-            logger.debug("Error checking %s: %s", platform["name"], platform_result.error)
-        elif platform_result.found:
-            result.platforms_found.append(platform_result)
-            logger.info("Found %s on %s", username, platform["name"])
-        else:
-            result.platforms_not_found.append(platform["name"])
+    # Execute platform checks in parallel
+    config = _get_username_search_config()
+    max_workers = config["max_parallel_workers"]
+    
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = {
+            executor.submit(_check_platform, username, platform): platform
+            for platform in platforms_to_check
+        }
+        
+        for future in as_completed(futures):
+            platform = futures[future]
+            result.total_checked += 1
+            try:
+                platform_result = future.result()
+                
+                if platform_result.error:
+                    result.platforms_error.append(platform["name"])
+                    logger.debug("Error checking %s: %s", platform["name"], platform_result.error)
+                elif platform_result.found:
+                    result.platforms_found.append(platform_result)
+                    logger.info("Found %s on %s", username, platform["name"])
+                else:
+                    result.platforms_not_found.append(platform["name"])
+            except Exception as e:
+                result.platforms_error.append(platform["name"])
+                logger.error("Exception checking %s: %s", platform["name"], e)
 
     logger.info(
         "Username search complete: %s → found on %d/%d platforms",

@@ -137,3 +137,5 @@ reports/
 INV-*_report.html
 INV-*_report.json
 .DS_Store
+logs/
+

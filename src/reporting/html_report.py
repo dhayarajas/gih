@@ -20,7 +20,7 @@ FUNCTIONALITY:
 
 REPORT SECTIONS:
 ---------------
-1. Executive Summary: Investigation overview and key findings
+1. Summary: Investigation overview and key findings
 2. Identity Profiles: Correlated personas with confidence scores
 3. Platform Presence Matrix: Cross-platform account discovery
 4. Relationship Graph: Visual identity network representation
@@ -89,59 +89,140 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Ghost Identity Hunter - Investigation {{ investigation.investigation_id }}</title>
+    <title>OSINT Investigation Report - {{ investigation.investigation_id }}</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
-            font-family: 'Segoe UI', Tahoma, sans-serif;
-            background: #0f0f23;
-            color: #e0e0e0;
-            padding: 2rem;
+            font-family: 'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, sans-serif;
+            background: #f5f7fa;
+            color: #2c3e50;
+            padding: 0;
             line-height: 1.6;
         }
-        .container { max-width: 1200px; margin: 0 auto; }
-        h1 { color: #4ECDC4; margin-bottom: 0.5rem; font-size: 2rem; }
-        h2 { color: #45B7D1; margin: 2rem 0 1rem; border-bottom: 1px solid #333; padding-bottom: 0.5rem; }
-        h3 { color: #96CEB4; margin: 1.5rem 0 0.5rem; }
-        .meta { color: #888; font-size: 0.9rem; margin-bottom: 2rem; }
-        .card {
-            background: #1a1a2e;
-            border: 1px solid #333;
-            border-radius: 8px;
-            padding: 1.5rem;
-            margin-bottom: 1rem;
+        .container { max-width: 1400px; margin: 0 auto; padding: 2rem; }
+        
+        /* Professional Header */
+        .header {
+            background: linear-gradient(135deg, #1e3a5f 0%, #2c5282 100%);
+            color: white;
+            padding: 2rem;
+            margin: -2rem -2rem 2rem -2rem;
+            border-bottom: 4px solid #c53030;
         }
-        .badge {
+        .header h1 { color: white; margin: 0; font-size: 1.8rem; font-weight: 600; }
+        .header .meta { color: #cbd5e0; font-size: 0.9rem; margin-top: 0.5rem; }
+        .classification {
             display: inline-block;
-            padding: 0.2rem 0.6rem;
-            border-radius: 12px;
+            background: #c53030;
+            color: white;
+            padding: 0.25rem 0.75rem;
+            border-radius: 4px;
             font-size: 0.75rem;
             font-weight: bold;
-            margin: 0.1rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-top: 1rem;
         }
-        .badge-phone { background: #FF6B6B22; color: #FF6B6B; border: 1px solid #FF6B6B; }
-        .badge-email { background: #4ECDC422; color: #4ECDC4; border: 1px solid #4ECDC4; }
-        .badge-username { background: #45B7D122; color: #45B7D1; border: 1px solid #45B7D1; }
-        .badge-risk { background: #DC143C22; color: #DC143C; border: 1px solid #DC143C; }
-        .badge-platform { background: #FFEAA722; color: #FFEAA7; border: 1px solid #FFEAA7; }
-        .risk-critical { color: #FF0000; font-weight: bold; }
-        .risk-high { color: #FF6B6B; font-weight: bold; }
-        .risk-medium { color: #FFA500; }
-        .risk-low { color: #FFD700; }
-        .risk-minimal { color: #4ECDC4; }
+        
+        /* Content Styling */
+        h2 { 
+            color: #1e3a5f; 
+            border-bottom: 2px solid #3182ce; 
+            padding-bottom: 0.5rem; 
+            margin-top: 2rem; 
+            margin-bottom: 1rem;
+        }
+        
+        .section-blurb {
+            color: #4a5568;
+            font-size: 0.9rem;
+            margin-bottom: 1rem;
+            padding: 0.75rem;
+            background: #f7fafc;
+            border-left: 4px solid #3182ce;
+            border-radius: 4px;
+            line-height: 1.5;
+        }
+        
+        .subsection-blurb {
+            color: #718096;
+            font-size: 0.85rem;
+            margin-bottom: 0.75rem;
+            font-style: italic;
+        }
+        
+        h3 { 
+            color: #2d3748; 
+            margin-top: 1.5rem; 
+            margin-bottom: 0.75rem;
+        }
+        
+        .meta { color: #718096; font-size: 0.85rem; margin-bottom: 1rem; }
+        
+        /* Professional Cards */
+        .card {
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        
+        /* Professional Badges */
+        .badge {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            margin: 0.1rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .badge-phone { background: #fed7d7; color: #c53030; border: 1px solid #feb2b2; }
+        .badge-email { background: #bee3f8; color: #2b6cb0; border: 1px solid #90cdf4; }
+        .badge-username { background: #c6f6d5; color: #276749; border: 1px solid #9ae6b4; }
+        .badge-domain { background: #feebc8; color: #9c4221; border: 1px solid #fbd38d; }
+        .badge-ip { background: #e9d8fd; color: #553c9a; border: 1px solid #d6bcfa; }
+        .badge-platform { background: #e2e8f0; color: #4a5568; border: 1px solid #cbd5e0; }
+        .badge-risk { background: #c53030; color: white; border: 1px solid #9b2c2c; }
+        
+        /* Risk Levels */
+        .risk-critical { color: #c53030; font-weight: bold; background: #fed7d7; padding: 0.2rem 0.5rem; border-radius: 4px; }
+        .risk-high { color: #dd6b20; font-weight: bold; background: #feebc8; padding: 0.2rem 0.5rem; border-radius: 4px; }
+        .risk-medium { color: #d69e2e; background: #faf089; padding: 0.2rem 0.5rem; border-radius: 4px; }
+        .risk-low { color: #38a169; background: #c6f6d5; padding: 0.2rem 0.5rem; border-radius: 4px; }
+        .risk-minimal { color: #3182ce; background: #bee3f8; padding: 0.2rem 0.5rem; border-radius: 4px; }
+        
+        /* Professional Tables */
         table {
             width: 100%;
             border-collapse: collapse;
             margin: 1rem 0;
+            background: white;
         }
         th, td {
-            padding: 0.75rem;
+            padding: 0.75rem 1rem;
             text-align: left;
-            border-bottom: 1px solid #333;
+            border-bottom: 1px solid #e2e8f0;
         }
-        th { color: #4ECDC4; font-weight: 600; }
-        a { color: #45B7D1; text-decoration: none; }
-        a:hover { text-decoration: underline; }
+        th { 
+            background: #f7fafc; 
+            color: #2d3748; 
+            font-weight: 600;
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            border-bottom: 2px solid #cbd5e0;
+        }
+        tr:hover { background: #f7fafc; }
+        
+        /* Links */
+        a { color: #3182ce; text-decoration: none; font-weight: 500; }
+        a:hover { text-decoration: underline; color: #2c5282; }
+        
+        /* Stats Grid */
         .stats-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -149,219 +230,133 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             margin: 1rem 0;
         }
         .stat-card {
-            background: #16213e;
-            border-radius: 8px;
-            padding: 1rem;
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            padding: 1.25rem;
             text-align: center;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
         }
-        .stat-value { font-size: 2rem; font-weight: bold; color: #4ECDC4; }
-        .stat-label { font-size: 0.85rem; color: #888; }
-        .evidence-chain { font-family: monospace; font-size: 0.85rem; color: #aaa; }
+        .stat-value { font-size: 2rem; font-weight: 700; color: #1e3a5f; }
+        .stat-label { font-size: 0.8rem; color: #718096; text-transform: uppercase; letter-spacing: 0.5px; }
+        
+        /* Evidence Chain */
+        .evidence-chain { 
+            font-family: 'Courier New', monospace; 
+            font-size: 0.85rem; 
+            color: #4a5568; 
+            background: #f7fafc;
+            padding: 1rem;
+            border-radius: 4px;
+            border-left: 3px solid #3182ce;
+        }
+        
+        /* Collapsible Sections */
         .collapsible {
-            background: #1a1a2e;
-            border: 1px solid #333;
-            border-radius: 8px;
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
             margin-bottom: 1rem;
             overflow: hidden;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
         }
         .collapsible-header {
-            background: #16213e;
+            background: #f7fafc;
             padding: 1rem 1.5rem;
             cursor: pointer;
             display: flex;
             justify-content: space-between;
             align-items: center;
             user-select: none;
+            border-bottom: 1px solid #e2e8f0;
         }
-        .collapsible-header:hover {
-            background: #1a2a4a;
-        }
-        .collapsible-content {
+        .collapsible-header:hover { background: #edf2f7; }
+        .collapsible-header h4 { margin: 0; color: #2d3748; font-size: 0.95rem; font-weight: 600; }
+        .collapsible-content { padding: 1.5rem; display: none; }
+        .collapsible.active .collapsible-content { display: block; }
+        .collapsible-icon { color: #718096; font-size: 1.2rem; transition: transform 0.2s; }
+        .collapsible.active .collapsible-icon { transform: rotate(180deg); }
+        
+        /* Footer */
+        .footer {
+            background: #2d3748;
+            color: #cbd5e0;
             padding: 1.5rem;
-            display: none;
+            margin: 2rem -2rem -2rem -2rem;
+            text-align: center;
+            font-size: 0.85rem;
         }
-        .collapsible.active .collapsible-content {
-            display: block;
-        }
-        .collapsible-toggle {
-            font-size: 1.2rem;
-            transition: transform 0.3s;
-        }
-        .collapsible.active .collapsible-toggle {
-            transform: rotate(180deg);
-        }
-        .search-box {
-            background: #16213e;
-            border: 1px solid #333;
-            border-radius: 8px;
+        .footer a { color: #90cdf4; }
+        
+        /* Graph Container */
+        .graph-container {
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
             padding: 1rem;
-            margin-bottom: 2rem;
+            margin: 1rem 0;
+            min-height: 400px;
         }
-        .search-input {
-            width: 100%;
-            padding: 0.75rem;
-            background: #1a1a2e;
-            border: 1px solid #333;
-            border-radius: 4px;
-            color: #e0e0e0;
-            font-size: 1rem;
-        }
-        .search-input:focus {
-            outline: none;
-            border-color: #4ECDC4;
-        }
-        .highlight {
-            background-color: #FFD700;
-            color: #000;
-            padding: 2px 4px;
-            border-radius: 2px;
-        }
-        .export-buttons {
-            display: flex;
-            gap: 0.5rem;
-            flex-wrap: wrap;
-            margin-top: 0.5rem;
-        }
-        .export-btn {
-            background: #4ECDC4;
-            color: #0f0f23;
-            border: none;
-            padding: 0.5rem 1rem;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 0.9rem;
-            transition: background 0.3s;
-        }
-        .export-btn:hover {
-            background: #45B7D1;
-        }
+        
+        /* Priority Queue */
+        .priority-critical { border-left: 4px solid #c53030; }
+        .priority-high { border-left: 4px solid #dd6b20; }
+        .priority-medium { border-left: 4px solid #d69e2e; }
+        .priority-low { border-left: 4px solid #38a169; }
     </style>
-    <script>
-        function toggleCollapsible(element) {
-            element.classList.toggle('active');
-        }
-        
-        function searchReport() {
-            const searchTerm = document.getElementById('searchInput').value.toLowerCase();
-            const content = document.querySelector('.container');
-            
-            // Remove previous highlights
-            const highlights = document.querySelectorAll('.highlight');
-            highlights.forEach(h => {
-                const parent = h.parentNode;
-                parent.replaceChild(document.createTextNode(h.textContent), h);
-                parent.normalize();
-            });
-            
-            if (searchTerm.length < 2) return;
-            
-            // Find and highlight matches
-            const walker = document.createTreeWalker(content, NodeFilter.SHOW_TEXT, null, false);
-            const textNodes = [];
-            let node;
-            while (node = walker.nextNode()) {
-                if (node.textContent.toLowerCase().includes(searchTerm) && node.parentNode.tagName !== 'SCRIPT') {
-                    textNodes.push(node);
-                }
-            }
-            
-            textNodes.forEach(node => {
-                const text = node.textContent;
-                const regex = new RegExp(`(${searchTerm})`, 'gi');
-                const highlighted = text.replace(regex, '<span class="highlight">$1</span>');
-                
-                const span = document.createElement('span');
-                span.innerHTML = highlighted;
-                node.parentNode.replaceChild(span, node);
-            });
-            
-            // Expand collapsibles that contain matches
-            document.querySelectorAll('.collapsible').forEach(collapsible => {
-                if (collapsible.textContent.toLowerCase().includes(searchTerm)) {
-                    collapsible.classList.add('active');
-                }
-            });
-        }
-        
-        function exportToCSV() {
-            const investigationId = '{{ investigation.investigation_id }}';
-            const artifacts = {{ artifacts | tojson }};
-            
-            if (!artifacts || artifacts.length === 0) {
-                alert('No artifacts to export');
-                return;
-            }
-            
-            const headers = ['Type', 'Value', 'Source', 'Confidence', 'Depth', 'Discovered At'];
-            const rows = artifacts.map(a => [
-                a.artifact_type,
-                a.value,
-                a.source || '',
-                (a.confidence || 0).toFixed(2),
-                a.depth || 0,
-                a.discovered_at || ''
-            ]);
-            
-            const csvContent = [headers, ...rows].map(row => row.join(',')).join('\n');
-            const blob = new Blob([csvContent], { type: 'text/csv' });
-            const url = URL.createObjectURL(blob);
-            
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `${investigationId}_artifacts.csv`;
-            document?.body?.appendChild(a);
-            a.click();
-            document?.body?.removeChild(a);
-            URL.revokeObjectURL(url);
-        }
-        
-        function printReport() {
-            window.print();
-        }
-        
-        // Initialize all collapsibles
-        document.addEventListener('DOMContentLoaded', function() {
-            document.querySelectorAll('.collapsible-header').forEach(header => {
-                header.addEventListener('click', function() {
-                    toggleCollapsible(this.parentElement);
-                });
-            });
-            
-            // Add search functionality
-            const searchInput = document.getElementById('searchInput');
-            if (searchInput) {
-                searchInput.addEventListener('input', searchReport);
-                searchInput.addEventListener('keypress', function(e) {
-                    if (e.key === 'Enter') {
-                        searchReport();
-                    }
-                });
-            }
-        });
-    </script>
 </head>
 <body>
-<div class="container">
-    <h1>&#128373; Ghost Identity Hunter Report</h1>
-    <p class="meta">
-        Investigation: <strong>{{ investigation.investigation_id }}</strong> |
-        Created: {{ investigation.created_at }} |
-        Status: {{ investigation.status }}
-    </p>
+    <div class="container">
+        <!-- Professional Header -->
+        <div class="header">
+            <h1>Ghost Identity Hunter - OSINT Investigation Report</h1>
+            <div class="meta">
+                <strong>Investigation ID:</strong> {{ investigation.investigation_id }} | 
+                <strong>Title:</strong> {{ investigation.title or 'Untitled Investigation' }} | 
+                <strong>Status:</strong> {{ (investigation.status or 'Unknown') | title }} | 
+                <strong>Generated:</strong> {{ generated_at }}
+            </div>
+        </div>
 
-    <!-- Search Box -->
-    <div class="search-box">
-        <input type="text" id="searchInput" class="search-input" placeholder="Search report... (type to search, Enter to execute)">
-        <div class="export-buttons">
-            <button class="export-btn" onclick="exportToCSV()">Export Artifacts (CSV)</button>
-            <button class="export-btn" onclick="printReport()">Print / Save as PDF</button>
+    <!-- Identity Profiles -->
+    <h2>Identity Profiles</h2>
+    <p class="section-blurb">Correlated personas that link multiple artifacts to single identities, showing confidence scores, associated risk indicators, and profile images for understanding the target's digital footprint.</p>
+    {% for identity in correlation.identities %}
+    <div class="card">
+        <h3>Identity Profile #{{ loop.index }}</h3>
+        <div style="display: flex; gap: 1.5rem; align-items: flex-start;">
+            {% if identity.images and identity.images | length > 0 %}
+            <div style="flex-shrink: 0;">
+                <div style="width: 120px; height: 120px; border-radius: 8px; overflow: hidden; border: 2px solid #e2e8f0; background: #f7fafc;">
+                    <img src="{{ identity.images[0] }}" alt="Profile Image" style="width: 100%; height: 100%; object-fit: cover;" onerror="this.style.display='none'; this.parentElement.style.display='none';">
+                </div>
+            </div>
+            {% endif %}
+            <div style="flex: 1;">
+                <p><strong>Profile ID:</strong> {{ identity.profile_id }}</p>
+                <p><strong>Confidence:</strong> {{ "%.1f%%" | format(identity.confidence * 100) }}</p>
+                <p><strong>Artifacts:</strong> {{ identity.artifacts | length }}</p>
+                <p><strong>Risk Indicators:</strong> {{ identity.risk_indicators | join(', ') if identity.risk_indicators else 'None' }}</p>
+                {% if identity.phones %}
+                <p><strong>Phone Numbers:</strong> {{ identity.phones | join(', ') }}</p>
+                {% endif %}
+                {% if identity.emails %}
+                <p><strong>Emails:</strong> {{ identity.emails | join(', ') }}</p>
+                {% endif %}
+                {% if identity.usernames %}
+                <p><strong>Usernames:</strong> {{ identity.usernames | join(', ') }}</p>
+                {% endif %}
+            </div>
         </div>
     </div>
+    {% endfor %}
 
-    <!-- Executive Summary -->
-    <h2>Executive Summary</h2>
+    <!-- Summary -->
+    <h2>Summary</h2>
+    <p class="section-blurb">Investigation overview including timeline of discoveries, key findings, statistical metrics, confidence scores, and risk assessment matrix.</p>
     <div class="card">
         <h3>Investigation Timeline</h3>
+        <p class="subsection-blurb">Chronological sequence showing when each artifact was discovered during the investigation process.</p>
         <table>
             <thead>
                 <tr><th>Time</th><th>Type</th><th>Value</th><th>Source</th><th>Depth</th></tr>
@@ -382,422 +377,493 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
     <div class="card">
         <h3>Key Findings</h3>
-        {% for finding in key_findings %}
-        <div style="margin-bottom: 1rem;">
-            <strong>{{ finding.category }}</strong> ({{ finding.count }} items)
-            <ul>
-                {% for item in finding.items %}
-                <li>
-                    {% if finding.category == 'High-Confidence Artifacts' %}
-                    {{ item.value[:50] }}{% if item.value | length > 50 %}...{% endif %} ({{ "%.0f" | format((item.confidence or 0) * 100) }}% confidence)
-                    {% elif finding.category == 'Platform Presence' %}
-                    {{ item.platform }}
-                    {% elif finding.category == 'High-Risk Identity Profiles' %}
-                    {{ item.profile_id }} - {{ item.risk_level | upper }} risk ({{ item.artifact_count }} artifacts)
-                    {% endif %}
-                </li>
-                {% endfor %}
-            </ul>
+        <p class="subsection-blurb">Most significant discoveries from the investigation including high-value targets, security risks, and important connections.</p>
+        <ul>
+            {% for finding in key_findings %}
+            <li>{{ finding }}</li>
+            {% endfor %}
+        </ul>
+    </div>
+
+    <div class="card">
+        <h3>Summary Statistics</h3>
+        <p class="subsection-blurb">Aggregate metrics showing total artifacts, connections, identities, and platforms discovered during the investigation.</p>
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-value">{{ artifacts | length }}</div>
+                <div class="stat-label">Artifacts Found</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value">{{ links | length }}</div>
+                <div class="stat-label">Connections</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value">{{ correlation.identities | length }}</div>
+                <div class="stat-label">Identities</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value">{{ presences | length }}</div>
+                <div class="stat-label">Platforms</div>
+            </div>
         </div>
-        {% endfor %}
     </div>
 
     <div class="card">
         <h3>Confidence Metrics</h3>
-        <p><strong>Overall Confidence:</strong> {{ "%.0f" | format(confidence_metrics.overall * 100) }}%</p>
-        
-        {% if confidence_metrics.by_type %}
-        <h4>By Artifact Type</h4>
+        <p class="subsection-blurb">Overall reliability score of findings broken down by data type, indicating how trustworthy the discovered information is based on source reliability and verification.</p>
         <table>
             <thead>
-                <tr><th>Type</th><th>Average Confidence</th></tr>
+                <tr><th>Metric</th><th>Value</th></tr>
             </thead>
             <tbody>
+                <tr><td>Overall Confidence</td><td>{{ "%.1f%%" | format(confidence_metrics.overall * 100) }}</td></tr>
                 {% for type, conf in confidence_metrics.by_type.items() %}
-                <tr>
-                    <td>{{ type }}</td>
-                    <td>{{ "%.0f" | format(conf * 100) }}%</td>
-                </tr>
+                <tr><td>{{ type | title }}</td><td>{{ "%.1f%%" | format(conf * 100) }}</td></tr>
                 {% endfor %}
             </tbody>
         </table>
-        {% endif %}
-        
-        {% if confidence_metrics.by_source %}
-        <h4>By Data Source</h4>
-        <table>
-            <thead>
-                <tr><th>Source</th><th>Average Confidence</th></tr>
-            </thead>
-            <tbody>
-                {% for source, conf in confidence_metrics.by_source.items() %}
-                <tr>
-                    <td>{{ source }}</td>
-                    <td>{{ "%.0f" | format(conf * 100) }}%</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-        {% endif %}
     </div>
 
     <div class="card">
         <h3>Risk Assessment Matrix</h3>
-        <p><strong>Total Identity Profiles:</strong> {{ risk_matrix.total_identities }}</p>
-        
+        <p class="subsection-blurb">Categorizes findings by risk level (Critical, High, Medium, Low) with counts and percentages, providing immediate visual representation of threat exposure.</p>
         <table>
             <thead>
                 <tr><th>Risk Level</th><th>Count</th><th>Percentage</th></tr>
             </thead>
             <tbody>
-                {% for level in ['critical', 'high', 'medium', 'low', 'minimal'] %}
+                {% for level, count in risk_matrix.counts.items() %}
                 <tr>
-                    <td><span class="risk-{{ level }}">{{ level | upper }}</span></td>
-                    <td>{{ risk_matrix.counts.get(level, 0) }}</td>
-                    <td>{{ risk_matrix.distribution.get(level, 0) }}%</td>
+                    <td><span class="risk-{{ level }}">{{ level | title }}</span></td>
+                    <td>{{ count }}</td>
+                    <td>{{ risk_matrix.distribution[level] }}%</td>
                 </tr>
                 {% endfor %}
             </tbody>
         </table>
     </div>
 
-    <!-- Recommendations -->
-    {% if recommendations %}
-    <h2>Investigative Recommendations</h2>
-    {% for rec in recommendations %}
-    <div class="card" style="border-left: 4px solid {% if rec.priority == 'critical' %}#FF0000{% elif rec.priority == 'high' %}#FF6B6B{% elif rec.priority == 'medium' %}#FFA500{% else %}#4ECDC4{% endif %};">
-        <h3>
-            <span class="badge badge-risk">{{ rec.priority | upper }}</span>
-            {{ rec.category }}
-        </h3>
-        <p><strong>{{ rec.action }}</strong></p>
-        <p style="color: #888; font-size: 0.9rem;">{{ rec.details }}</p>
-    </div>
-    {% endfor %}
-    {% endif %}
-
-    <!-- Priority Queue -->
-    {% if priority_queue %}
-    <h2>Priority Artifact Queue</h2>
+    <!-- Platform Presence -->
+    <h2>Platform Presence</h2>
+    <p class="section-blurb">All discovered social media and online platform accounts with direct profile links for verification and understanding the target's online behavior and communication channels.</p>
     <div class="card">
-        <p>Artifacts ranked by investigation value and priority for follow-up.</p>
         <table>
             <thead>
-                <tr><th>Rank</th><th>Priority</th><th>Type</th><th>Value</th><th>Score</th><th>Factors</th></tr>
+                <tr><th>Platform</th><th>Profile URL</th><th>Username</th></tr>
             </thead>
             <tbody>
-                {% for item in priority_queue[:10] %}
+                {% for presence in presences %}
                 <tr>
-                    <td>{{ loop.index }}</td>
-                    <td><span class="badge badge-risk">{{ item.priority | upper }}</span></td>
-                    <td><span class="badge badge-{{ item.artifact.artifact_type }}">{{ item.artifact.artifact_type }}</span></td>
-                    <td>{{ item.artifact.value[:40] }}{% if item.artifact.value | length > 40 %}...{% endif %}</td>
-                    <td>{{ "%.0f" | format(item.score) }}</td>
-                    <td style="font-size: 0.8rem; color: #888;">{{ ', '.join(item.factors) }}</td>
+                    <td>{{ presence.platform_name }}</td>
+                    <td><a href="{{ presence.profile_url }}" target="_blank">{{ presence.profile_url }}</a></td>
+                    <td>{{ presence.username }}</td>
                 </tr>
                 {% endfor %}
             </tbody>
         </table>
     </div>
-    {% endif %}
 
-    <!-- Geographic Data -->
-    {% if geographic_data.has_location_data %}
-    <h2>Geographic Analysis</h2>
+    <!-- Relationship Graph -->
+    <h2>Relationship Graph</h2>
+    <p class="section-blurb">Visual network diagram showing connections between artifacts and identities, helping identify clusters, central nodes, and relationship patterns for understanding social connections and potential attack vectors.</p>
     <div class="card">
-        <p><strong>Locations Identified:</strong> {{ geographic_data.location_count }}</p>
-        <table>
-            <thead>
-                <tr><th>Type</th><th>Location/Platform</th><th>Source</th><th>Confidence</th></tr>
-            </thead>
-            <tbody>
-                {% for loc in geographic_data.locations %}
-                <tr>
-                    <td>{{ loc.type }}</td>
-                    <td>{{ loc.value }}</td>
-                    <td>{{ loc.source }}</td>
-                    <td>{{ "%.0f" | format(loc.confidence * 100) }}%</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
-    {% endif %}
-
-    <!-- Platform Heat Map -->
-    {% if platform_heatmap.has_platform_data %}
-    <h2>Platform Distribution Heat Map</h2>
-    <div class="card">
-        <p><strong>Total Platforms:</strong> {{ platform_heatmap.total_platforms }}</p>
-        <table>
-            <thead>
-                <tr><th>Platform</th><th>Presence Count</th><th>Distribution</th><th>Heat Bar</th></tr>
-            </thead>
-            <tbody>
-                {% for platform in platform_heatmap.platforms %}
-                <tr>
-                    <td>{{ platform.platform }}</td>
-                    <td>{{ platform.count }}</td>
-                    <td>{{ platform.percentage }}%</td>
-                    <td>
-                        <div style="background: #333; border-radius: 4px; width: 100px; height: 20px; overflow: hidden;">
-                            <div style="background: linear-gradient(90deg, #4ECDC4, #FF6B6B); height: 100%; width: {{ platform.percentage }}%;"></div>
-                        </div>
-                    </td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
-    {% endif %}
-
-    <!-- Correlation Strength -->
-    {% if correlation_strength.has_correlation_data %}
-    <h2>Correlation Strength Analysis</h2>
-    <div class="card">
-        <p><strong>Total Connections:</strong> {{ correlation_strength.total_links }} |
-           <strong>Average Confidence:</strong> {{ "%.1f" | format(correlation_strength.average_confidence * 100) }}%</p>
-        <table>
-            <thead>
-                <tr><th>Strength Level</th><th>Count</th><th>Distribution</th><th>Visual</th></tr>
-            </thead>
-            <tbody>
-                {% for level in ['very_strong', 'strong', 'moderate', 'weak', 'very_weak'] %}
-                <tr>
-                    <td><span class="badge badge-risk">{{ level | replace('_', ' ') | title }}</span></td>
-                    <td>{{ correlation_strength.strength_distribution[level] }}</td>
-                    <td>{{ correlation_strength.strength_percentages[level] }}%</td>
-                    <td>
-                        <div style="background: #333; border-radius: 4px; width: 100px; height: 20px; overflow: hidden;">
-                            <div style="background: {% if level == 'very_strong' %}#FF0000{% elif level == 'strong' %}#FF6B6B{% elif level == 'moderate' %}#FFA500{% elif level == 'weak' %}#4ECDC4{% else %}#888888{% endif %}; height: 100%; width: {{ correlation_strength.strength_percentages[level] }}%;"></div>
-                        </div>
-                    </td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
-    {% endif %}
-
-    <!-- Verification Status -->
-    {% if verification_status.has_verification_data %}
-    <h2>Verification Status Tracking</h2>
-    <div class="card">
-        <p><strong>Total Artifacts:</strong> {{ verification_status.total_artifacts }} |
-           <strong>Verification Rate:</strong> {{ verification_status.verification_rate }}%</p>
-        <table>
-            <thead>
-                <tr><th>Status</th><th>Count</th><th>Distribution</th><th>Visual</th></tr>
-            </thead>
-            <tbody>
-                {% for status in ['verified', 'likely', 'possible', 'unverified', 'needs_review'] %}
-                <tr>
-                    <td><span class="badge badge-risk">{{ status | replace('_', ' ') | title }}</span></td>
-                    <td>{{ verification_status.status_distribution[status] }}</td>
-                    <td>{{ verification_status.status_percentages[status] }}%</td>
-                    <td>
-                        <div style="background: #333; border-radius: 4px; width: 100px; height: 20px; overflow: hidden;">
-                            <div style="background: {% if status == 'verified' %}#4ECDC4{% elif status == 'likely' %}#45B7D1{% elif status == 'possible' %}#FFA500{% elif status == 'needs_review' %}#FF6B6B{% else %}#888888{% endif %}; height: 100%; width: {{ verification_status.status_percentages[status] }}%;"></div>
-                        </div>
-                    </td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
-    {% endif %}
-
-    <!-- Anomaly Detection -->
-    {% if anomaly_detection.has_anomalies %}
-    <h2>Anomaly Detection</h2>
-    <div class="card">
-        <p><strong>Anomalies Detected:</strong> {{ anomaly_detection.anomaly_count }}</p>
-        <table>
-            <thead>
-                <tr><th>Type</th><th>Artifact</th><th>Reason</th></tr>
-            </thead>
-            <tbody>
-                {% for anomaly in anomaly_detection.anomalies %}
-                <tr>
-                    <td><span class="badge badge-risk">{{ anomaly.type | replace('_', ' ') | title }}</span></td>
-                    <td>{{ anomaly.artifact.value[:50] }}{% if anomaly.artifact.value | length > 50 %}...{% endif %}</td>
-                    <td style="font-size: 0.9rem; color: #888;">{{ anomaly.reason }}</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
-    {% endif %}
-
-    <!-- Auto-Escalation Alerts -->
-    {% if auto_escalation.has_escalations %}
-    <h2>Auto-Escalation Alerts</h2>
-    {% for escalation in auto_escalation.escalations %}
-    <div class="card" style="border-left: 4px solid {% if escalation.severity == 'critical' %}#FF0000{% elif escalation.severity == 'high' %}#FF6B6B{% elif escalation.severity == 'medium' %}#FFA500{% else %}#4ECDC4{% endif %}; border-right: 4px solid {% if escalation.severity == 'critical' %}#FF0000{% elif escalation.severity == 'high' %}#FF6B6B{% elif escalation.severity == 'medium' %}#FFA500{% else %}#4ECDC4{% endif %};">
-        <h3>
-            <span class="badge badge-risk">{{ escalation.severity | upper }}</span>
-            {{ escalation.type | replace('_', ' ') | title }}
-        </h3>
-        <p><strong>{{ escalation.message }}</strong></p>
-        <p style="color: #888; font-size: 0.9rem;">Recommended Action: {{ escalation.action }}</p>
-    </div>
-    {% endfor %}
-    {% endif %}
-
-    <!-- Summary Statistics -->
-    <h2>Summary Statistics</h2>
-    <div class="stats-grid">
-        <div class="stat-card">
-            <div class="stat-value">{{ artifacts | length }}</div>
-            <div class="stat-label">Artifacts Found</div>
-        </div>
-        <div class="stat-card">
-            <div class="stat-value">{{ links | length }}</div>
-            <div class="stat-label">Connections</div>
-        </div>
-        <div class="stat-card">
-            <div class="stat-value">{{ presences | length }}</div>
-            <div class="stat-label">Platform Presences</div>
-        </div>
-        <div class="stat-card">
-            <div class="stat-value">{{ correlation.identities | length }}</div>
-            <div class="stat-label">Identity Profiles</div>
-        </div>
-    </div>
-
-    <!-- Interactive Identity Graph -->
-    {% if graph_html %}
-    <h2>Interactive Identity Graph</h2>
-    <div class="card" style="padding: 0; overflow: hidden;">
-        <div style="height: 700px; width: 100%;">
+        <div class="graph-container">
             {{ graph_html | safe }}
         </div>
     </div>
-    {% endif %}
 
-    <!-- Identity Profiles -->
-    <h2>Identity Profiles</h2>
-    {% for identity in correlation.identities %}
-    <div class="collapsible">
-        <div class="collapsible-header">
-            <h3>{{ identity.profile_id }} ({{ identity.artifact_count }} artifacts)</h3>
-            <span class="collapsible-toggle">▼</span>
-        </div>
-        <div class="collapsible-content">
-            <p>Confidence: <strong>{{ "%.1f" | format(identity.confidence * 100) }}%</strong> |
-               Risk: <span class="risk-{{ risk_levels[loop.index0] }}">{{ risk_levels[loop.index0] | upper }}</span>
-            </p>
-
-            {% if identity.phones %}
-            <p><strong>Phones:</strong>
-                {% for p in identity.phones %}<span class="badge badge-phone">{{ p }}</span>{% endfor %}
-            </p>
-            {% endif %}
-
-            {% if identity.emails %}
-            <p><strong>Emails:</strong>
-                {% for e in identity.emails %}<span class="badge badge-email">{{ e }}</span>{% endfor %}
-            </p>
-            {% endif %}
-
-            {% if identity.usernames %}
-            <p><strong>Usernames:</strong>
-                {% for u in identity.usernames %}<span class="badge badge-username">{{ u }}</span>{% endfor %}
-            </p>
-            {% endif %}
-
-            {% if identity.platforms %}
-            <p><strong>Platforms:</strong>
-                {% for p in identity.platforms %}
-                <span class="badge badge-platform">
-                    {% if p.profile_url %}<a href="{{ p.profile_url }}">{{ p.platform }}</a>{% else %}{{ p.platform }}{% endif %}
-                </span>
+    <!-- Artifacts -->
+    <h2>Discovered Artifacts</h2>
+    <p class="section-blurb">Complete inventory of all data points found (emails, usernames, phone numbers, domains, etc.) with source attribution, confidence scores, and discovery depth for comprehensive analysis and evidence documentation.</p>
+    <div class="card">
+        <table>
+            <thead>
+                <tr><th>Type</th><th>Value</th><th>Source</th><th>Confidence</th><th>Depth</th></tr>
+            </thead>
+            <tbody>
+                {% for a in artifacts %}
+                <tr>
+                    <td><span class="badge badge-{{ a.artifact_type }}">{{ a.artifact_type }}</span></td>
+                    <td>{{ a.value }}</td>
+                    <td>{{ a.source or '-' }}</td>
+                    <td>{{ "%.0f%%" | format((a.confidence or 0) * 100) }}</td>
+                    <td>{{ a.depth }}</td>
+                </tr>
                 {% endfor %}
-            </p>
-            {% endif %}
-
-            {% if identity.risk_indicators %}
-            <p><strong>Risk Indicators:</strong>
-                {% for r in identity.risk_indicators %}<span class="badge badge-risk">{{ r }}</span>{% endfor %}
-            </p>
-            {% endif %}
-        </div>
+            </tbody>
+        </table>
     </div>
-    {% endfor %}
 
-    <!-- Platform Presence Matrix -->
-    {% if presences %}
-    <div class="collapsible">
-        <div class="collapsible-header">
-            <h2>Platform Presence Matrix</h2>
-            <span class="collapsible-toggle">▼</span>
+    <!-- Footer -->
+    <div class="footer">
+        <p>Ghost Identity Hunter - OSINT Investigation Report | Generated {{ generated_at }}</p>
+    </div>
+</div>
+
+<script>
+    function toggleCollapsible(element) {
+        element.classList.toggle('active');
+    }
+    
+    // Initialize
+    document.addEventListener('DOMContentLoaded', function() {
+        // Any initialization code here
+    });
+</script>
+</body>
+</html>
+"""
+
+# Summary Template - High-level overview for management
+EXECUTIVE_TEMPLATE = """<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Summary - {{ investigation.investigation_id }}</title>
+    <style>
+        body { font-family: 'Segoe UI', Arial, sans-serif; background: #f5f5f5; color: #333; margin: 0; padding: 2rem; }
+        .container { max-width: 900px; margin: 0 auto; background: white; padding: 2rem; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        h1 { color: #2c3e50; border-bottom: 3px solid #3498db; padding-bottom: 0.5rem; }
+        h2 { color: #34495e; margin-top: 2rem; }
+        .summary-box { background: #ecf0f1; padding: 1.5rem; border-radius: 8px; margin: 1rem 0; border-left: 5px solid #3498db; }
+        .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem; margin: 1rem 0; }
+        .stat-card { background: #3498db; color: white; padding: 1rem; border-radius: 8px; text-align: center; }
+        .stat-value { font-size: 2rem; font-weight: bold; }
+        .stat-label { font-size: 0.9rem; opacity: 0.9; }
+        .risk-critical { background: #e74c3c; }
+        .risk-high { background: #e67e22; }
+        .risk-medium { background: #f39c12; }
+        .risk-low { background: #27ae60; }
+        table { width: 100%; border-collapse: collapse; margin: 1rem 0; }
+        th, td { padding: 0.75rem; text-align: left; border-bottom: 1px solid #ddd; }
+        th { background: #34495e; color: white; }
+        .badge { padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.8rem; font-weight: bold; }
+        .badge-risk { background: #e74c3c; color: white; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Summary</h1>
+        <p><strong>Investigation ID:</strong> {{ investigation.investigation_id }}</p>
+        <p><strong>Title:</strong> {{ investigation.title or 'Untitled Investigation' }}</p>
+        <p><strong>Status:</strong> {{ (investigation.status or 'Unknown') | title }}</p>
+        <p><strong>Generated:</strong> {{ generated_at }}</p>
+
+        <div class="summary-box">
+            <h2>Key Findings</h2>
+            <ul>
+                {% for finding in key_findings %}
+                <li>{{ finding }}</li>
+                {% endfor %}
+            </ul>
         </div>
-        <div class="collapsible-content">
+
+        <h2>Summary Statistics</h2>
+        <div class="stat-grid">
+            <div class="stat-card">
+                <div class="stat-value">{{ artifacts | length }}</div>
+                <div class="stat-label">Artifacts Found</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value">{{ links | length }}</div>
+                <div class="stat-label">Connections</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value">{{ correlation.identities | length }}</div>
+                <div class="stat-label">Identities</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value">{{ presences | length }}</div>
+                <div class="stat-label">Platforms</div>
+            </div>
+        </div>
+
+        <h2>Risk Assessment</h2>
+        <table>
+            <thead>
+                <tr><th>Identity</th><th>Risk Level</th><th>Confidence</th></tr>
+            </thead>
+            <tbody>
+                {% for identity in correlation.identities %}
+                <tr>
+                    <td>{{ identity.name or 'Unknown Identity' }}</td>
+                    <td><span class="badge badge-risk">{{ risk_levels[loop.index0] | upper }}</span></td>
+                    <td>{{ "%.1f%%" | format(identity.confidence * 100) }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+        <h2>Platform Presence</h2>
+        <table>
+            <thead>
+                <tr><th>Platform</th><th>Username</th><th>Profile URL</th></tr>
+            </thead>
+            <tbody>
+                {% for p in presences[:10] %}
+                <tr>
+                    <td>{{ p.platform_name }}</td>
+                    <td>{{ p.username or '-' }}</td>
+                    <td>{% if p.profile_url %}<a href="{{ p.profile_url }}">Link</a>{% else %}-{% endif %}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+        <h2>Recommendations</h2>
+        {% for rec in recommendations %}
+        <div class="summary-box" style="border-left-color: #e74c3c;">
+            <p><strong>{{ rec.priority | upper }}:</strong> {{ rec.action }}</p>
+            <p style="font-size: 0.9rem;">{{ rec.details }}</p>
+        </div>
+        {% endfor %}
+
+        <p class="meta" style="margin-top: 3rem; text-align: center; color: #7f8c8d;">
+            Confidential Summary | Generated by Ghost Identity Hunter
+        </p>
+    </div>
+</body>
+</html>
+"""
+
+
+# Technical Report Template - Detailed technical information
+TECHNICAL_TEMPLATE = """<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Technical Report - {{ investigation.investigation_id }}</title>
+    <style>
+        body { font-family: 'Consolas', 'Monaco', monospace; background: #1e1e1e; color: #d4d4d4; margin: 0; padding: 2rem; }
+        .container { max-width: 1200px; margin: 0 auto; background: #252526; padding: 2rem; border-radius: 4px; }
+        h1 { color: #569cd6; border-bottom: 2px solid #569cd6; padding-bottom: 0.5rem; }
+        h2 { color: #4ec9b0; margin-top: 2rem; }
+        .card { background: #2d2d30; padding: 1rem; border-radius: 4px; margin: 1rem 0; border: 1px solid #3e3e42; }
+        table { width: 100%; border-collapse: collapse; margin: 1rem 0; }
+        th { background: #3e3e42; color: #d4d4d4; }
+        .code { background: #1e1e1e; padding: 1rem; border-radius: 4px; font-family: monospace; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Technical Report</h1>
+        <p><strong>Investigation ID:</strong> {{ investigation.investigation_id }}</p>
+        <p><strong>Generated:</strong> {{ generated_at }}</p>
+        
+        <h2>Artifacts</h2>
+        <div class="card">
             <table>
                 <thead>
-                    <tr><th>Platform</th><th>Username</th><th>Display Name</th><th>Profile URL</th></tr>
-                </thead>
-                <tbody>
-                    {% for p in presences %}
-                    <tr>
-                        <td>{{ p.platform_name }}</td>
-                        <td>{{ p.username or '-' }}</td>
-                        <td>{{ p.display_name or '-' }}</td>
-                        <td>{% if p.profile_url %}<a href="{{ p.profile_url }}">Link</a>{% else %}-{% endif %}</td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
-    </div>
-    {% endif %}
-
-    <!-- All Artifacts -->
-    <div class="collapsible">
-        <div class="collapsible-header">
-            <h2>Artifact Inventory</h2>
-            <span class="collapsible-toggle">▼</span>
-        </div>
-        <div class="collapsible-content">
-            <table>
-                <thead>
-                    <tr><th>Type</th><th>Value</th><th>Source</th><th>Confidence</th><th>Depth</th></tr>
+                    <tr><th>Type</th><th>Value</th><th>Source</th><th>Confidence</th></tr>
                 </thead>
                 <tbody>
                     {% for a in artifacts %}
                     <tr>
-                        <td><span class="badge badge-{{ a.artifact_type }}">{{ a.artifact_type }}</span></td>
-                        <td>{{ a.value[:60] }}{% if a.value | length > 60 %}...{% endif %}</td>
+                        <td>{{ a.artifact_type }}</td>
+                        <td>{{ a.value }}</td>
                         <td>{{ a.source or '-' }}</td>
-                        <td>{{ "%.0f" | format((a.confidence or 0) * 100) }}%</td>
-                        <td>{{ a.depth }}</td>
+                        <td>{{ "%.2f" | format(a.confidence or 0) }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        
+        <h2>Links</h2>
+        <div class="card">
+            <table>
+                <thead>
+                    <tr><th>Source</th><th>Target</th><th>Type</th><th>Confidence</th></tr>
+                </thead>
+                <tbody>
+                    {% for l in links %}
+                    <tr>
+                        <td>{{ l.source_artifact }}</td>
+                        <td>{{ l.target_artifact }}</td>
+                        <td>{{ l.link_type }}</td>
+                        <td>{{ "%.2f" | format(l.confidence or 0) }}</td>
                     </tr>
                     {% endfor %}
                 </tbody>
             </table>
         </div>
     </div>
-
-    <!-- Footer -->
-    <p class="meta" style="margin-top: 3rem; text-align: center;">
-        Generated by Ghost Identity Hunter | {{ generated_at }}
-    </p>
-</div>
 </body>
 </html>
 """
+
+
+# Legal Report Template - For legal proceedings and documentation
+LEGAL_TEMPLATE = """<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Legal Investigation Report - {{ investigation.investigation_id }}</title>
+    <style>
+        body { font-family: 'Times New Roman', Times, serif; background: #ffffff; color: #000000; margin: 0; padding: 2rem; line-height: 1.6; }
+        .container { max-width: 900px; margin: 0 auto; background: white; padding: 2rem; border: 1px solid #000; }
+        h1 { color: #000; border-bottom: 2px solid #000; padding-bottom: 0.5rem; text-align: center; }
+        h2 { color: #000; margin-top: 2rem; border-bottom: 1px solid #ccc; }
+        .header-section { text-align: center; margin-bottom: 2rem; }
+        .disclaimer { background: #f0f0f0; padding: 1rem; margin: 1rem 0; border-left: 4px solid #000; font-size: 0.9rem; }
+        table { width: 100%; border-collapse: collapse; margin: 1rem 0; }
+        th, td { padding: 0.75rem; text-align: left; border: 1px solid #000; }
+        th { background: #f0f0f0; font-weight: bold; }
+        .signature-block { margin-top: 3rem; border-top: 1px solid #000; padding-top: 1rem; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header-section">
+            <h1>Legal Investigation Report</h1>
+            <p><strong>Case Reference:</strong> {{ investigation.investigation_id }}</p>
+            <p><strong>Date of Report:</strong> {{ generated_at }}</p>
+            <p><strong>Investigation Status:</strong> {{ (investigation.status or 'Unknown') | upper }}</p>
+        </div>
+
+        <div class="disclaimer">
+            <strong>CONFIDENTIAL - LEGAL PRIVILEGED DOCUMENT</strong><br>
+            This report contains sensitive information and is intended solely for authorized legal personnel. 
+            Unauthorized distribution is prohibited.
+        </div>
+
+        <h2>Summary</h2>
+        <p>This report documents the findings of OSINT investigation {{ investigation.investigation_id }} 
+        conducted on {{ investigation.created_at }}. The investigation focused on digital identity correlation 
+        and evidence gathering in accordance with applicable laws and regulations.</p>
+
+        <h2>Evidence Summary</h2>
+        <table>
+            <thead>
+                <tr><th>Evidence Type</th><th>Count</th><th>Source</th></tr>
+            </thead>
+            <tbody>
+                <tr><td>Digital Artifacts</td><td>{{ artifacts | length }}</td><td>OSINT Collection</td></tr>
+                <tr><td>Identity Links</td><td>{{ links | length }}</td><td>Correlation Analysis</td></tr>
+                <tr><td>Platform Presences</td><td>{{ presences | length }}</td><td>Social Media Analysis</td></tr>
+            </tbody>
+        </table>
+
+        <h2>Key Findings</h2>
+        {% for finding in key_findings %}
+        <div style="margin-bottom: 1rem;">
+            <p><strong>Finding {{ loop.index }}:</strong> {{ finding }}</p>
+        </div>
+        {% endfor %}
+
+        <h2>Risk Assessment</h2>
+        <p>Based on the collected evidence, the following risk levels have been assigned:</p>
+        <table>
+            <thead>
+                <tr><th>Identity</th><th>Risk Level</th><th>Evidence Basis</th></tr>
+            </thead>
+            <tbody>
+                {% for identity in correlation.identities %}
+                <tr>
+                    <td>{{ identity.name or 'Unknown Identity' }}</td>
+                    <td>{{ risk_levels[loop.index0] | upper }}</td>
+                    <td>{{ identity.artifacts | length }} correlated artifacts</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+        <h2>Data Sources</h2>
+        <p>The following data sources were utilized in this investigation:</p>
+        <ul>
+            <li>Publicly available social media platforms</li>
+            <li>Public domain registration records</li>
+            <li>Breach data repositories (where legally permissible)</li>
+            <li>Open source intelligence gathering</li>
+        </ul>
+
+        <h2>Legal Compliance</h2>
+        <p>This investigation was conducted in compliance with applicable laws including but not limited to:</p>
+        <ul>
+            <li>Computer Fraud and Abuse Act (CFAA)</li>
+            <li>Stored Communications Act (SCA)</li>
+            <li>General Data Protection Regulation (GDPR) - where applicable</li>
+            <li>California Consumer Privacy Act (CCPA) - where applicable</li>
+        </ul>
+        <p>All data collection was limited to publicly available information. No unauthorized access to private systems was attempted.</p>
+
+        <div class="signature-block">
+            <p><strong>Report Prepared By:</strong> Ghost Identity Hunter Automated System</p>
+            <p><strong>Verification Status:</strong> Automated Analysis - Requires Human Review</p>
+            <p><strong>Classification:</strong> CONFIDENTIAL - LEGAL PRIVILEGED</p>
+        </div>
+    </div>
+</body>
+</html>
+"""
+
+
+def _select_template(template_type: str) -> str:
+    """Select the appropriate template based on type."""
+    templates = {
+        'html': HTML_TEMPLATE,
+        'executive': EXECUTIVE_TEMPLATE,
+        'technical': TECHNICAL_TEMPLATE,
+        'legal': LEGAL_TEMPLATE,
+    }
+    return templates.get(template_type, HTML_TEMPLATE)
+
+
+def _generate_key_findings(artifacts: list, links: list, presences: list, correlation) -> list:
+    """Generate key findings summary."""
+    findings = []
+    
+    # High-confidence artifacts
+    high_conf = [a for a in artifacts if (a.get('confidence') or 0) > 0.8]
+    if high_conf:
+        findings.append(f"Found {len(high_conf)} high-confidence artifacts")
+    
+    # Platform presence
+    if presences:
+        platforms = set(p.get('platform_name') for p in presences)
+        findings.append(f"Detected presence on {len(platforms)} platforms: {', '.join(platforms)}")
+    
+    # Identity profiles
+    if correlation and correlation.identities:
+        findings.append(f"Identified {len(correlation.identities)} potential identity profiles")
+    
+    # Links/connections
+    if links:
+        findings.append(f"Discovered {len(links)} connections between artifacts")
+    
+    return findings
+
+
+def _select_template(template_type: str) -> str:
+    """Select the appropriate HTML template based on report type."""
+    if template_type == "executive":
+        return EXECUTIVE_TEMPLATE
+    elif template_type == "technical":
+        return TECHNICAL_TEMPLATE
+    elif template_type == "legal":
+        return LEGAL_TEMPLATE
+    else:
+        return HTML_TEMPLATE
 
 
 def generate_html_report(
     conn: sqlite3.Connection,
     investigation_id: str,
     output_path: Optional[str] = None,
+    template_type: str = "standard",
 ) -> str:
     """
-    Generate a comprehensive HTML report for an investigation.
-
-    Returns the output file path.
-    """
+    Generate a comprehensive HTML report with optional template type.
+    
+    Args:
+        conn: Database connection
+        investigation_id: Investigation ID
+        output_path: Optional output file path
+        template_type: Type of report template (standard, executive, technical, legal)
+    """ 
     investigation = db.get_investigation(conn, investigation_id)
     if not investigation:
         raise ValueError(f"Investigation {investigation_id} not found")
@@ -830,6 +896,19 @@ def generate_html_report(
 
     # Generate recommendations
     recommendations = _generate_recommendations(artifacts, links, presences, correlation, risk_levels)
+    
+    # Log recommendations
+    if recommendations:
+        logger.info("=" * 60)
+        logger.info("INVESTIGATION RECOMMENDATIONS")
+        logger.info("=" * 60)
+        for rec in recommendations:
+            logger.info("[%s Priority - %s]", rec['priority'].upper(), rec['category'])
+            logger.info("  Action: %s", rec['action'])
+            logger.info("  Details: %s", rec['details'])
+            logger.info("-" * 60)
+    else:
+        logger.info("No recommendations generated for this investigation")
 
     # Generate priority queue for artifact ranking
     priority_queue = _generate_priority_queue(artifacts, links, correlation)
@@ -852,9 +931,15 @@ def generate_html_report(
     # Generate auto-escalation alerts
     auto_escalation = _generate_auto_escalation(artifacts, links, risk_levels, correlation)
 
+    # Generate audit trail
+    audit_trail = db.get_audit_trail(conn, investigation_id)
+
+    # Select template based on type
+    template_content = _select_template(template_type)
+
     # Render template
     env = Environment(loader=BaseLoader())
-    template = env.from_string(HTML_TEMPLATE)
+    template = env.from_string(template_content)
     html = template.render(
         investigation=investigation,
         artifacts=artifacts,
@@ -875,6 +960,7 @@ def generate_html_report(
         verification_status=verification_status,
         anomaly_detection=anomaly_detection,
         auto_escalation=auto_escalation,
+        audit_trail=audit_trail,
         generated_at=datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC"),
     )
 
@@ -914,20 +1000,12 @@ def _generate_key_findings(artifacts: list, links: list, presences: list, correl
     # Top artifacts by confidence
     high_confidence_artifacts = [a for a in artifacts if a.get('confidence', 0) >= 0.8]
     if high_confidence_artifacts:
-        findings.append({
-            'category': 'High-Confidence Artifacts',
-            'count': len(high_confidence_artifacts),
-            'items': high_confidence_artifacts[:5]
-        })
+        findings.append(f"Found {len(high_confidence_artifacts)} high-confidence artifacts")
     
     # Platform presence summary
     if presences:
         platforms = list(set(p.get('platform_name') for p in presences))
-        findings.append({
-            'category': 'Platform Presence',
-            'count': len(platforms),
-            'items': [{'platform': p} for p in platforms[:5]]
-        })
+        findings.append(f"Detected presence on {len(platforms)} platforms: {', '.join(platforms[:5])}")
     
     # Identity profiles with high risk
     high_risk_identities = []
@@ -942,11 +1020,10 @@ def _generate_key_findings(artifacts: list, links: list, presences: list, correl
             })
     
     if high_risk_identities:
-        findings.append({
-            'category': 'High-Risk Identity Profiles',
-            'count': len(high_risk_identities),
-            'items': high_risk_identities[:3]
-        })
+        findings.append(f"Identified {len(high_risk_identities)} high-risk identity profiles requiring attention")
+    
+    # Total artifacts and connections
+    findings.append(f"Total of {len(artifacts)} artifacts discovered with {len(links)} connections")
     
     return findings
 
@@ -1068,7 +1145,7 @@ def _generate_recommendations(artifacts: list, links: list, presences: list, cor
         })
     
     # Breach data analysis
-    breach_artifacts = [a for a in artifacts if a.get('source', '').lower() in ['breach', 'hibp', 'pwned']]
+    breach_artifacts = [a for a in artifacts if (a.get('source') or '').lower() in ['breach', 'hibp', 'pwned']]
     if breach_artifacts:
         recommendations.append({
             'priority': 'high',
@@ -1168,7 +1245,7 @@ def _generate_geographic_data(artifacts: list, presences: list) -> dict:
     # Extract location data from platform presences (if available)
     for presence in presences:
         # Check for location in bio or other fields
-        bio = presence.get('bio', '').lower()
+        bio = (presence.get('bio') or '').lower()
         if any(loc in bio for loc in ['usa', 'us', 'uk', 'india', 'germany', 'france', 'canada', 'australia']):
             locations.append({
                 'type': 'platform',

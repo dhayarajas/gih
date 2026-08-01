@@ -23,7 +23,7 @@ plugins:
     timeout: 30
     max_retries: 3
   
-  # External tool plugins (require tool installation)
+  # Username Search Tools
   sherlock:
     enabled: false  # Disabled by default - requires installation
     priority: 2
@@ -31,6 +31,31 @@ plugins:
     max_retries: 2
     custom_params:
       output_format: "json"
+  
+  maigret:
+    enabled: false  # Disabled by default - requires installation
+    priority: 2
+    timeout: 60
+    max_retries: 2
+  
+  social_analyzer:
+    enabled: false  # Disabled by default - requires installation
+    priority: 2
+    timeout: 60
+    max_retries: 2
+  
+  # Email Investigation Tools
+  holehe:
+    enabled: false  # Disabled by default - requires installation
+    priority: 2
+    timeout: 60
+    max_retries: 2
+  
+  emailharvester:
+    enabled: false  # Disabled by default - requires installation
+    priority: 2
+    timeout: 60
+    max_retries: 2
   
   theharvester:
     enabled: false  # Disabled by default - requires installation
@@ -40,13 +65,7 @@ plugins:
     custom_params:
       sources: ["google", "bing"]
   
-  shodan:
-    enabled: false  # Disabled by default - requires API key
-    priority: 3
-    timeout: 30
-    max_retries: 2
-    api_key: null  # Required: Shodan API key
-  
+  # Domain & DNS Tools
   whois:
     enabled: false  # Disabled by default - requires installation
     priority: 2
@@ -59,6 +78,126 @@ plugins:
     timeout: 15
     max_retries: 2
   
+  amass:
+    enabled: false  # Disabled by default - requires installation
+    priority: 2
+    timeout: 120
+    max_retries: 2
+  
+  subfinder:
+    enabled: false  # Disabled by default - requires installation
+    priority: 2
+    timeout: 60
+    max_retries: 2
+  
+  sublist3r:
+    enabled: false  # Disabled by default - requires installation
+    priority: 2
+    timeout: 60
+    max_retries: 2
+  
+  # Network Scanning Tools
+  nmap:
+    enabled: false  # Disabled by default - requires installation
+    priority: 3
+    timeout: 300
+    max_retries: 1
+  
+  masscan:
+    enabled: false  # Disabled by default - requires installation
+    priority: 3
+    timeout: 300
+    max_retries: 1
+  
+  whatweb:
+    enabled: false  # Disabled by default - requires installation
+    priority: 2
+    timeout: 60
+    max_retries: 2
+  
+  wappalyzer:
+    enabled: false  # Disabled by default - requires installation
+    priority: 2
+    timeout: 60
+    max_retries: 2
+  
+  # OSINT Frameworks
+  recon_ng:
+    enabled: false  # Disabled by default - requires installation
+    priority: 2
+    timeout: 120
+    max_retries: 2
+  
+  spiderfoot:
+    enabled: false  # Disabled by default - requires installation
+    priority: 2
+    timeout: 120
+    max_retries: 2
+  
+  osrframework:
+    enabled: false  # Disabled by default - requires installation
+    priority: 2
+    timeout: 120
+    max_retries: 2
+  
+  # Specialized Tools
+  shodan:
+    enabled: false  # Disabled by default - requires API key
+    priority: 3
+    timeout: 30
+    max_retries: 2
+    api_key: null  # Required: Shodan API key
+  
+  ghunt:
+    enabled: false  # Disabled by default - requires installation
+    priority: 2
+    timeout: 60
+    max_retries: 2
+  
+  image_match:
+    enabled: true
+    priority: 3
+    timeout: 120
+    max_retries: 2
+    custom_params:
+      max_results: 20
+  
+  metagoofil:
+    enabled: false  # Disabled by default - requires installation
+    priority: 2
+    timeout: 60
+    max_retries: 2
+  
+  # Image & Metadata Tools
+  exiftool:
+    enabled: false  # Disabled by default - requires installation
+    priority: 2
+    timeout: 30
+    max_retries: 2
+  
+  # Historical Data Tools
+  wayback_machine:
+    enabled: false  # Disabled by default - requires installation
+    priority: 2
+    timeout: 60
+    max_retries: 2
+  
+  # Blockchain & Geolocation Tools
+  etherscan:
+    enabled: false  # Disabled by default - requires API key
+    priority: 3
+    timeout: 30
+    max_retries: 2
+    api_key: null  # Optional: Etherscan API key
+  
+  geonames:
+    enabled: false  # Disabled by default - requires installation
+    priority: 2
+    timeout: 30
+    max_retries: 2
+    api_key: null  # Optional: GeoNames API key
+  
+  # Built-in Advanced Features
   google_dorks:
     enabled: true
     priority: 2
@@ -73,10 +212,10 @@ plugins:
 # Global Plugin Settings
 plugin_settings:
   parallel_execution: true
-  max_parallel_workers: 5
+  max_parallel_workers: 50
   enable_caching: true
-  cache_duration_hours: 24
-  rate_limit_seconds: 1.0
+  cache_duration_hours: 0.25  # 15 minutes instead of 24 hours
+  rate_limit_seconds: 0.1
   log_plugin_output: false
 
 # Investigation Settings
@@ -96,13 +235,162 @@ investigation:
 # Reporting Settings
 reporting:
   auto_generate: true
-  default_format: "html"  # html, json, both
-  output_directory: "./reports"
-  include_plugin_details: true
+  default_format: "html"  # Report Settings
+  output_dir: "./reports"
+  template: "default"  # default, executive, technical, legal
   include_execution_stats: true
+  branding:
+    enabled: true
+    organization_name: "Ghost Identity Hunter"
+    logo_path: null  # Path to custom logo image
+    primary_color: "#1a1a2e"  # Dark blue
+    secondary_color: "#16213e"  # Darker blue
+    accent_color: "#e94560"  # Red accent
+    text_color: "#ffffff"  # White text
+    background_color: "#0f0f1a"  # Dark background
+    font_family: "Arial, sans-serif"
+    custom_css: null  # Path to custom CSS file
+  watermark:
+    enabled: false
+    text: "CONFIDENTIAL"
+    opacity: 0.1
+    position: "center"  # center, top-left, top-right, bottom-left, bottom-right
 
 # Database Settings
 database:
   path: "./investigations.db"
   backup_enabled: true
   backup_interval_hours: 24
+
+# HTTP Client Settings
+http_client:
+  timeout: 10  # Default timeout in seconds
+  min_timeout: 5  # Minimum timeout for quick requests
+  max_timeout: 30  # Maximum timeout for slow requests
+  adaptive_timeout: true  # Enable adaptive timeout based on response time
+  enable_compression: true  # Enable gzip/brotli compression
+  min_request_interval: 0.1  # Minimum seconds between requests
+  connection_pool_size: 100
+  connect_timeout: 5
+  read_timeout: 15
+  retry_total: 2
+  retry_backoff_factor: 1.0
+  retry_status_codes: [500, 502, 503, 504]
+  user_agents:
+    - "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+    - "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+    - "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+    - "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Safari/605.1.15"
+    - "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:124.0) Gecko/20100101 Firefox/124.0"
+
+# Google Dorks Settings
+google_dorks:
+  max_patterns: 3
+  rate_limit_seconds: 1.0
+  max_results_per_search: 10  # Hard limit to prevent exponential growth
+  max_parallel_workers: 10
+  enable_retry: true  # Set to false during testing to prevent hanging
+  max_retries: 3
+  initial_backoff: 1.0
+  backoff_multiplier: 2.0
+  jitter_max: 0.5
+  max_alternative_links: 50  # Hard limit to prevent infinite processing
+
+# Username Search Settings
+username_search:
+  max_parallel_workers: 10
+  platforms:
+    - name: "GitHub"
+      url_template: "https://api.github.com/users/{username}"
+      check_type: "api_status"
+      expected_status: 200
+    - name: "GitLab"
+      url_template: "https://gitlab.com/api/v4/users?username={username}"
+      check_type: "api_json_array"
+      expected_field: "username"
+    - name: "Reddit"
+      url_template: "https://www.reddit.com/user/{username}/about.json"
+      check_type: "api_json"
+      expected_field: "name"
+    - name: "Twitter/X"
+      url_template: "https://twitter.com/{username}"
+      check_type: "web_status"
+      expected_status: 200
+    - name: "Instagram"
+      url_template: "https://www.instagram.com/{username}/"
+      check_type: "web_status"
+      expected_status: 200
+    - name: "LinkedIn"
+      url_template: "https://www.linkedin.com/in/{username}/"
+      check_type: "web_status"
+      expected_status: 200
+    - name: "Keybase"
+      url_template: "https://keybase.io/{username}"
+      check_type: "web_status"
+      expected_status: 200
+    - name: "HackerNews"
+      url_template: "https://news.ycombinator.com/user?id={username}"
+      check_type: "web_status"
+      expected_status: 200
+    - name: "Medium"
+      url_template: "https://medium.com/@{username}"
+      check_type: "web_status"
+      expected_status: 200
+    - name: "Pinterest"
+      url_template: "https://www.pinterest.com/{username}/"
+      check_type: "web_status"
+      expected_status: 200
+    - name: "Steam"
+      url_template: "https://steamcommunity.com/id/{username}"
+      check_type: "web_status"
+      expected_status: 200
+    - name: "Mastodon"
+      url_template: "https://mastodon.social/@{username}"
+      check_type: "web_status"
+      expected_status: 200
+
+# Email OSINT Settings
+email_osint:
+  max_parallel_workers: 10
+  disposable_domains:
+    - "mailinator.com"
+    - "guerrillamail.com"
+    - "tempmail.com"
+    - "throwaway.email"
+    - "10minutemail.com"
+    - "trashmail.com"
+    - "yopmail.com"
+    - "sharklasers.com"
+    - "grr.la"
+    - "guerrillamail.info"
+    - "temp-mail.org"
+    - "fakeinbox.com"
+    - "dispostable.com"
+    - "maildrop.cc"
+    - "getnada.com"
+    - "mohmal.com"
+    - "tmpmail.net"
+    - "tempail.com"
+    - "emailondeck.com"
+    - "burnermail.io"
+    - "protonmail.com"  # Not disposable but privacy-focused (flagged differently)
+  privacy_providers:
+    - "protonmail.com"
+    - "tutanota.com"
+    - "mailbox.org"
+    - "countermail.com"
+    - "scryptmail.com"
+    - "kolabnow.com"
+    - "runbox.com"
+    - "startmail.com"
+
+# Breach Check Settings
+breach_check:
+  hibp_api_base: "https://haveibeenpwned.com/api/v3"
+  rate_limit_seconds: 1.5
+
+# Orchestrator Settings
+orchestrator:
+  bfs_batch_size: 10  # Number of artifacts to process in parallel
+  max_depth: 2  # Maximum recursion depth for artifact discovery
+

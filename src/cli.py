@@ -71,16 +71,39 @@ from src.correlation.scorer import compute_identity_risk_score, classify_risk_le
 from src.graph.visualizer import generate_interactive_graph, get_graph_stats
 from src.reporting.html_report import generate_html_report, generate_json_report
 from src.storage.database import get_connection, list_investigations, get_investigation
+from src.plugins.manager import PluginRegistry, PluginManager
 
 
 def setup_logging(verbose: bool = False) -> None:
-    """Configure logging."""
+    """Configure logging to output to both console and file."""
     level = logging.DEBUG if verbose else logging.INFO
+    
+    # Create logs directory if it doesn't exist
+    logs_dir = Path("logs")
+    logs_dir.mkdir(exist_ok=True)
+    
+    # Create log file with timestamp
+    import getpass
+    from datetime import datetime
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    log_file = logs_dir / f"{getpass.getuser()}_{timestamp}.log"
+    
+    # Configure logging format
+    log_format = "%(asctime)s [%(levelname)s] %(name)s: %(message)s"
+    date_format = "%H:%M:%S"
+    
+    # Configure root logger
     logging.basicConfig(
         level=level,
-        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-        datefmt="%H:%M:%S",
+        format=log_format,
+        datefmt=date_format,
+        handlers=[
+            logging.FileHandler(log_file),
+            logging.StreamHandler(sys.stdout)
+        ]
     )
+    
+    logging.info("Logging to file: %s", log_file)
 
 
 @click.group()
@@ -428,6 +451,125 @@ def correlate(ctx: click.Context, investigation_id: str) -> None:
 
     finally:
         conn.close()
+
+
+@cli.group()
+def plugins():
+    """Plugin management commands."""
+    pass
+
+
+@plugins.command()
+@click.option("--verbose", "-v", is_flag=True, help="Show detailed plugin information")
+def list(verbose: bool):
+    """List all available plugins.
+
+    Examples:
+        ghost-hunter plugins list
+        ghost-hunter plugins list --verbose
+    """
+    registry = PluginRegistry()
+    registry.discover_plugins()
+    
+    available_plugins = registry.get_available_plugins()
+    
+    if not available_plugins:
+        click.echo("No plugins found.")
+        return
+    
+    click.echo(f"\nAvailable Plugins ({len(available_plugins)}):")
+    click.echo("=" * 50)
+    
+    for plugin_name in available_plugins:
+        plugin_class = registry.get_plugin(plugin_name)
+        if plugin_class:
+            plugin = plugin_class()
+            status = "✓" if plugin.is_enabled() else "✗"
+            click.echo(f"  [{status}] {plugin_name}")
+            click.echo(f"      Version: {plugin.version}")
+            click.echo(f"      Description: {plugin.description}")
+            click.echo(f"      Supported artifacts: {', '.join(plugin.supported_artifacts)}")
+            if verbose:
+                click.echo(f"      Author: {plugin.author}")
+            click.echo()
+
+
+@plugins.command()
+@click.argument("plugin_name")
+def info(plugin_name: str):
+    """Show detailed information about a specific plugin.
+
+    Examples:
+        ghost-hunter plugins info username_search
+    """
+    registry = PluginRegistry()
+    registry.discover_plugins()
+    
+    plugin_class = registry.get_plugin(plugin_name)
+    if not plugin_class:
+        click.echo(f"Error: Plugin '{plugin_name}' not found")
+        sys.exit(1)
+    
+    plugin = plugin_class()
+    
+    click.echo(f"\nPlugin: {plugin_name}")
+    click.echo("=" * 50)
+    click.echo(f"  Version: {plugin.version}")
+    click.echo(f"  Description: {plugin.description}")
+    click.echo(f"  Author: {plugin.author}")
+    click.echo(f"  Status: {'Enabled' if plugin.is_enabled() else 'Disabled'}")
+    click.echo(f"  Supported artifacts: {', '.join(plugin.supported_artifacts)}")
+    click.echo()
+
+
+@plugins.command()
+@click.argument("plugin_name")
+def enable(plugin_name: str):
+    """Enable a plugin.
+
+    Examples:
+        ghost-hunter plugins enable username_search
+    """
+    from src.config.loader import get_config
+    
+    config = get_config()
+    plugin_settings = config.get("plugin_settings", {})
+    plugins_config = plugin_settings.get("plugins", {})
+    
+    if plugin_name not in plugins_config:
+        click.echo(f"Error: Plugin '{plugin_name}' not found in configuration")
+        sys.exit(1)
+    
+    plugins_config[plugin_name]["enabled"] = True
+    
+    # Save configuration (would need config save functionality)
+    click.echo(f"Plugin '{plugin_name}' enabled.")
+    click.echo("Note: Configuration changes require manual update to config.yaml")
+
+
+@plugins.command()
+@click.argument("plugin_name")
+def disable(plugin_name: str):
+    """Disable a plugin.
+
+    Examples:
+        ghost-hunter plugins disable username_search
+    """
+    from src.config.loader import get_config
+    
+    config = get_config()
+    plugin_settings = config.get("plugin_settings", {})
+    plugins_config = plugin_settings.get("plugins", {})
+    
+    if plugin_name not in plugins_config:
+        click.echo(f"Error: Plugin '{plugin_name}' not found in configuration")
+        sys.exit(1)
+    
+    plugins_config[plugin_name]["enabled"] = False
+    
+    # Save configuration (would need config save functionality)
+    click.echo(f"Plugin '{plugin_name}' disabled.")
+    click.echo("Note: Configuration changes require manual update to config.yaml")
 
 
 if __name__ == "__main__":

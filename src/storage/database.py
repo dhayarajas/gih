@@ -165,6 +165,20 @@ def _init_schema(conn: sqlite3.Connection) -> None:
 
         CREATE INDEX IF NOT EXISTS idx_metadata_investigation_key
             ON investigation_metadata(investigation_id, key);
+
+        CREATE TABLE IF NOT EXISTS audit_trail (
+            audit_id TEXT PRIMARY KEY,
+            investigation_id TEXT NOT NULL,
+            action TEXT NOT NULL,
+            entity_type TEXT,
+            entity_id TEXT,
+            details TEXT,
+            performed_at TEXT NOT NULL,
+            FOREIGN KEY (investigation_id) REFERENCES investigations(investigation_id)
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_audit_investigation
+            ON audit_trail(investigation_id, performed_at);
     """)
     conn.commit()
 
@@ -249,6 +263,67 @@ def add_artifact(
     return artifact_id
 
 
+def add_artifacts_bulk(
+    conn: sqlite3.Connection,
+    investigation_id: str,
+    artifacts: list[dict],
+) -> list[str]:
+    """
+    Add multiple artifacts in a single transaction for better performance.
+    
+    Args:
+        conn: Database connection
+        investigation_id: Investigation ID
+        artifacts: List of artifact dicts with keys: type, value, source, confidence, metadata, depth
+    
+    Returns:
+        List of artifact IDs
+    """
+    artifact_ids = []
+    now = datetime.now(timezone.utc).isoformat()
+    
+    # Start transaction
+    conn.execute("BEGIN TRANSACTION")
+    
+    try:
+        for artifact in artifacts:
+            # Check if artifact already exists
+            existing = conn.execute(
+                "SELECT artifact_id FROM artifacts "
+                "WHERE investigation_id = ? AND artifact_type = ? AND value = ?",
+                (investigation_id, artifact["type"], artifact["value"]),
+            ).fetchone()
+            
+            if existing:
+                artifact_ids.append(existing["artifact_id"])
+            else:
+                artifact_id = f"ART-{generate_id()}"
+                conn.execute(
+                    "INSERT INTO artifacts "
+                    "(artifact_id, investigation_id, artifact_type, value, source, confidence, metadata, discovered_at, depth) "
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    (
+                        artifact_id,
+                        investigation_id,
+                        artifact["type"],
+                        artifact["value"],
+                        artifact.get("source"),
+                        artifact.get("confidence", 1.0),
+                        artifact.get("metadata"),
+                        now,
+                        artifact.get("depth", 0),
+                    ),
+                )
+                artifact_ids.append(artifact_id)
+        
+        conn.commit()
+    except Exception as e:
+        conn.rollback()
+        raise e
+    
+    return artifact_ids
+
+
 def get_artifacts(conn: sqlite3.Connection, investigation_id: str) -> list[dict]:
     """Get all artifacts for an investigation."""
     rows = conn.execute(
@@ -326,6 +401,36 @@ def get_platform_presences(conn: sqlite3.Connection, investigation_id: str) -> l
     """Get all platform presences for an investigation."""
     rows = conn.execute(
         "SELECT * FROM platform_presence WHERE investigation_id = ?",
+        (investigation_id,),
+    ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def add_audit_log(
+    conn: sqlite3.Connection,
+    investigation_id: str,
+    action: str,
+    entity_type: Optional[str] = None,
+    entity_id: Optional[str] = None,
+    details: Optional[str] = None,
+) -> str:
+    """Add an audit log entry for an investigation."""
+    audit_id = f"AUD-{generate_id()}"
+    now = datetime.now(timezone.utc).isoformat()
+    conn.execute(
+        "INSERT INTO audit_trail "
+        "(audit_id, investigation_id, action, entity_type, entity_id, details, performed_at) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?)",
+        (audit_id, investigation_id, action, entity_type, entity_id, details, now),
+    )
+    conn.commit()
+    return audit_id
+
+
+def get_audit_trail(conn: sqlite3.Connection, investigation_id: str) -> list[dict]:
+    """Get audit trail for an investigation."""
+    rows = conn.execute(
+        "SELECT * FROM audit_trail WHERE investigation_id = ? ORDER BY performed_at DESC",
         (investigation_id,),
     ).fetchall()
     return [dict(r) for r in rows]

@@ -66,20 +66,32 @@ import json
 import logging
 import sqlite3
 from collections import deque
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from typing import Optional
 
-from src.modules import phone_osint, email_osint, username_search, image_search, breach_check, correlation
+from src.modules import phone_osint, email_osint, username_search, image_search, breach_check, correlation, image_match
 from src.modules.correlation_neo4j import Neo4jCorrelation
 from src.modules.google_dorks import run_google_dorks_search, check_google_dorks_availability
 from src.storage import database as db
 from src.utils.tool_checker import get_tool_checker, check_tool_availability
 from src.modules.external_tools import run_tool_analysis, get_tool_integrations
 from src.plugins import PluginManager, PluginRegistry, Artifact as PluginArtifact, PluginConfig
+from src.config.loader import get_config
 
 logger = logging.getLogger(__name__)
 
-MAX_DEPTH = 2  # Maximum recursion depth for artifact discovery
+
+def _get_orchestrator_config() -> dict:
+    """Get orchestrator configuration from config.yaml."""
+    config = get_config()
+    return config.get("orchestrator", {
+        "bfs_batch_size": 10,
+        "max_depth": 2,
+    })
+
+
+MAX_DEPTH = _get_orchestrator_config().get("max_depth", 2)
 
 
 @dataclass
@@ -221,9 +233,11 @@ def run_investigation(
 
     logger.info("Starting BFS processing with %d artifacts in queue", len(queue))
 
-    # BFS loop
+    # BFS loop with sequential processing (SQLite connections are not thread-safe)
     processed_count = 0
+    
     while queue:
+        # Process one artifact at a time (SQLite threading constraint)
         current = queue.popleft()
         current_depth = current["depth"]
         current_id = current["artifact_id"]
@@ -234,63 +248,69 @@ def run_investigation(
             current["type"], current["value"], current_depth, len(queue)
         )
 
-        # Run appropriate OSINT module
-        discovered = _process_artifact(conn, inv_id, current, config, plugin_manager)
-        
-        logger.debug("Discovered %d new artifacts from %s=%s", 
-                    len(discovered), current["type"], current["value"])
+        try:
+            discovered = _process_artifact(conn, inv_id, current, config, plugin_manager)
+            logger.debug("Discovered %d new artifacts from %s=%s", 
+                        len(discovered), current["type"], current["value"])
 
-        # Add discovered artifacts to queue (if within depth limit)
-        if current_depth < config.max_depth:
-            added_count = 0
-            for artifact in discovered:
-                key = f"{artifact['type']}:{artifact['value']}"
-                if key in seen:
-                    logger.debug("Skipping duplicate artifact: %s", key)
-                    continue
-                seen.add(key)
+            # Add discovered artifacts to queue (if within depth limit)
+            if current_depth < config.max_depth:
+                added_count = 0
+                for artifact in discovered:
+                    key = f"{artifact['type']}:{artifact['value']}"
+                    if key in seen:
+                        logger.debug("Skipping duplicate artifact: %s", key)
+                        continue
+                    seen.add(key)
 
-                # Store new artifact
-                new_id = db.add_artifact(
-                    conn,
-                    investigation_id=inv_id,
-                    artifact_type=artifact["type"],
-                    value=artifact["value"],
-                    source=artifact.get("source", "discovered"),
-                    confidence=artifact.get("confidence", 0.8),
-                    metadata=artifact.get("metadata"),
-                    depth=current_depth + 1,
-                )
+                    # Store new artifact
+                    metadata_value = artifact.get("metadata")
+                    if metadata_value and isinstance(metadata_value, dict):
+                        metadata_value = json.dumps(metadata_value)
+                    
+                    new_id = db.add_artifact(
+                        conn,
+                        investigation_id=inv_id,
+                        artifact_type=artifact["type"],
+                        value=artifact["value"],
+                        source=artifact.get("source", "discovered"),
+                        confidence=artifact.get("confidence", 0.8),
+                        metadata=metadata_value,
+                        depth=current_depth + 1,
+                    )
 
-                # Create link from source to discovered
-                db.add_link(
-                    conn,
-                    investigation_id=inv_id,
-                    source_artifact=current_id,
-                    target_artifact=new_id,
-                    link_type=artifact.get("link_type", "discovered_from"),
-                    confidence=artifact.get("confidence", 0.8),
-                    evidence=artifact.get("source", ""),
-                )
+                    # Create link from source to discovered
+                    db.add_link(
+                        conn,
+                        investigation_id=inv_id,
+                        source_artifact=current_id,
+                        target_artifact=new_id,
+                        link_type=artifact.get("link_type", "discovered_from"),
+                        confidence=artifact.get("confidence", 0.8),
+                        evidence=artifact.get("source", ""),
+                    )
 
-                # Add to queue for further investigation
-                queue.append({
-                    "artifact_id": new_id,
-                    "type": artifact["type"],
-                    "value": artifact["value"],
-                    "depth": current_depth + 1,
-                })
-                added_count += 1
+                    # Add to queue for further investigation
+                    queue.append({
+                        "artifact_id": new_id,
+                        "type": artifact["type"],
+                        "value": artifact["value"],
+                        "depth": current_depth + 1,
+                    })
+                    added_count += 1
+                    
+                    logger.debug("Added artifact: %s=%s (confidence=%.2f, link=%s)", 
+                               artifact["type"], artifact["value"], 
+                               artifact.get("confidence", 0.8),
+                               artifact.get("link_type", "discovered_from"))
                 
-                logger.debug("Added artifact: %s=%s (confidence=%.2f, link=%s)", 
-                           artifact["type"], artifact["value"], 
-                           artifact.get("confidence", 0.8),
-                           artifact.get("link_type", "discovered_from"))
-            
-            logger.debug("Added %d new artifacts to queue from %s=%s", 
-                        added_count, current["type"], current["value"])
-        else:
-            logger.debug("Depth limit reached (%d), not adding discovered artifacts", config.max_depth)
+                logger.debug("Added %d new artifacts to queue from %s=%s", 
+                            added_count, current["type"], current["value"])
+            else:
+                logger.debug("Depth limit reached (%d), not adding discovered artifacts", config.max_depth)
+        
+        except Exception as e:
+            logger.error("Error processing artifact %s=%s: %s", current["type"], current["value"], e)
 
     logger.info("BFS processing complete. Processed %d artifacts", processed_count)
     
@@ -376,6 +396,71 @@ def run_investigation(
     return result
 
 
+def _process_artifacts_generator(
+    conn: sqlite3.Connection,
+    inv_id: str,
+    artifacts: list[dict],
+    config: InvestigationConfig,
+    plugin_manager: PluginManager = None,
+):
+    """
+    Process artifacts using a generator for memory efficiency.
+    
+    Yields discovered artifacts one at a time instead of building a large list.
+    
+    Args:
+        conn: Database connection
+        inv_id: Investigation ID
+        artifacts: List of artifacts to process
+        config: Investigation configuration
+        plugin_manager: Plugin manager instance
+        
+    Yields:
+        Discovered artifacts one at a time
+    """
+    for artifact in artifacts:
+        discovered = _process_artifact(conn, inv_id, artifact, config, plugin_manager)
+        yield from discovered
+
+
+def _get_artifacts_stream(
+    conn: sqlite3.Connection,
+    inv_id: str,
+    limit: Optional[int] = None,
+):
+    """
+    Stream artifacts from database using a generator for memory efficiency.
+    
+    Args:
+        conn: Database connection
+        inv_id: Investigation ID
+        limit: Optional limit on number of artifacts to stream
+        
+    Yields:
+        Artifact records one at a time
+    """
+    query = """
+        SELECT artifact_id, artifact_type, value, source, depth, metadata
+        FROM artifacts
+        WHERE investigation_id = ?
+        ORDER BY depth, artifact_id
+    """
+    
+    if limit:
+        query += f" LIMIT {limit}"
+    
+    cursor = conn.execute(query, (inv_id,))
+    for row in cursor:
+        yield {
+            "artifact_id": row[0],
+            "type": row[1],
+            "value": row[2],
+            "source": row[3],
+            "depth": row[4],
+            "metadata": row[5],
+        }
+
+
 def _process_artifact(
     conn: sqlite3.Connection,
     inv_id: str,
@@ -402,6 +487,9 @@ def _process_artifact(
     elif artifact_type == "image":
         logger.debug("Processing image with image_search module")
         discovered.extend(_process_image(conn, inv_id, artifact, value, config))
+    elif artifact_type == "fullname":
+        logger.debug("Processing full name with image_match module")
+        discovered.extend(_process_fullname(conn, inv_id, artifact, value, config))
     else:
         logger.warning("Unknown artifact type: %s", artifact_type)
 
@@ -598,6 +686,69 @@ def _process_username(
     except Exception as e:
         logger.error("Username search failed for %s: %s", value, e)
 
+    return discovered
+
+
+def _process_fullname(
+    conn: sqlite3.Connection,
+    inv_id: str,
+    artifact: dict,
+    value: str,
+    config: InvestigationConfig,
+) -> list[dict]:
+    """Process a full name artifact using image matching."""
+    discovered = []
+    try:
+        logger.debug("Processing full name with image matching: %s", value)
+        
+        # Search and match identity
+        match_result = image_match.search_and_match_identity(
+            full_name=value,
+            max_results=20
+        )
+        
+        # Store match result metadata
+        metadata = match_result.to_dict()
+        conn.execute(
+            "UPDATE artifacts SET metadata = ? WHERE artifact_id = ?",
+            (json.dumps(metadata), artifact["artifact_id"]),
+        )
+        conn.commit()
+        
+        logger.info(
+            "Image match complete for %s: %d images, %d face matches, probability=%.2f",
+            value, len(match_result.images), len(match_result.face_matches), match_result.overall_probability
+        )
+        
+        # Extract discovered artifacts
+        discovered.extend(image_match.get_discovered_artifacts(match_result))
+        
+        # Add high-probability face matches as identity artifacts
+        for match in match_result.face_matches:
+            if match.match_probability > 0.7:
+                discovered.append({
+                    "type": "identity_match",
+                    "value": match.image_url,
+                    "source": f"face_match_{match.source.lower().replace(' ', '_')}",
+                    "confidence": match.match_probability,
+                    "metadata": json.dumps(match.to_dict()),
+                    "link_type": "identity_verification",
+                })
+        
+        # Add overall probability as a risk/quality indicator
+        if match_result.overall_probability > 0.8:
+            discovered.append({
+                "type": "identity_confidence",
+                "value": f"high_confidence_{match_result.overall_probability:.2f}",
+                "source": "image_match",
+                "confidence": match_result.overall_probability,
+                "metadata": json.dumps({"sources": match_result.confidence_sources}),
+                "link_type": "identity_quality",
+            })
+    
+    except Exception as e:
+        logger.error("Image match failed for %s: %s", value, e)
+    
     return discovered
 
 

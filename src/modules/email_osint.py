@@ -69,28 +69,42 @@ import hashlib
 import json
 import logging
 import re
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from typing import Optional
 
-import requests
+from src.utils.http_client import get_http_session
+
+from src.config.loader import get_config
 
 logger = logging.getLogger(__name__)
 
-# Known disposable email domains
-DISPOSABLE_DOMAINS = {
-    "mailinator.com", "guerrillamail.com", "tempmail.com", "throwaway.email",
-    "10minutemail.com", "trashmail.com", "yopmail.com", "sharklasers.com",
-    "grr.la", "guerrillamail.info", "temp-mail.org", "fakeinbox.com",
-    "dispostable.com", "maildrop.cc", "getnada.com", "mohmal.com",
-    "tmpmail.net", "tempail.com", "emailondeck.com", "burnermail.io",
-    "protonmail.com",  # Not disposable but privacy-focused (flagged differently)
-}
 
-# Privacy-focused email providers
-PRIVACY_PROVIDERS = {
-    "protonmail.com", "proton.me", "tutanota.com", "tuta.io",
-    "mailfence.com", "disroot.org", "riseup.net", "cock.li",
-}
+def _get_email_osint_config() -> dict:
+    """Get email OSINT configuration from config.yaml."""
+    config = get_config()
+    return config.get("email_osint", {
+        "max_parallel_workers": 10,
+        "disposable_domains": [
+            "mailinator.com", "guerrillamail.com", "tempmail.com", "throwaway.email",
+            "10minutemail.com", "trashmail.com", "yopmail.com", "sharklasers.com",
+            "grr.la", "guerrillamail.info", "temp-mail.org", "fakeinbox.com",
+            "dispostable.com", "maildrop.cc", "getnada.com", "mohmal.com",
+            "tmpmail.net", "tempail.com", "emailondeck.com", "burnermail.io",
+            "protonmail.com",
+        ],
+        "privacy_providers": [
+            "protonmail.com", "tutanota.com", "mailbox.org", "countermail.com",
+            "scryptmail.com", "kolabnow.com", "runbox.com", "startmail.com",
+        ],
+    })
+
+
+# Known disposable email domains (loaded from config)
+DISPOSABLE_DOMAINS = set(_get_email_osint_config().get("disposable_domains", []))
+
+# Privacy-focused email providers (loaded from config)
+PRIVACY_PROVIDERS = set(_get_email_osint_config().get("privacy_providers", []))
 
 # Common platforms to check for account existence
 PLATFORMS_TO_CHECK = [
@@ -153,7 +167,8 @@ def check_gravatar(email: str) -> tuple[bool, Optional[str]]:
     email_hash = hashlib.md5(email.lower().strip().encode()).hexdigest()
     url = f"https://www.gravatar.com/avatar/{email_hash}?d=404"
     try:
-        resp = requests.head(url, timeout=10)
+        session = get_http_session()
+        resp = session.head(url, timeout=10)
         if resp.status_code == 200:
             return True, f"https://www.gravatar.com/avatar/{email_hash}"
         return False, None
@@ -164,7 +179,8 @@ def check_gravatar(email: str) -> tuple[bool, Optional[str]]:
 def check_github_email(email: str) -> Optional[dict]:
     """Search GitHub for users with this email (via commits search)."""
     try:
-        resp = requests.get(
+        session = get_http_session()
+        resp = session.get(
             "https://api.github.com/search/users",
             params={"q": f"{email} in:email"},
             headers={"Accept": "application/vnd.github.v3+json"},
@@ -192,7 +208,8 @@ def check_hibp_breaches(email: str) -> list[dict]:
     """
     breaches = []
     try:
-        resp = requests.get(
+        session = get_http_session()
+        resp = session.get(
             f"https://haveibeenpwned.com/api/v3/breachedaccount/{email}",
             headers={
                 "User-Agent": "GhostIdentityHunter-Academic",
@@ -255,24 +272,32 @@ def analyze_email(email: str) -> EmailAnalysis:
     if result.domain not in free_providers and result.domain not in DISPOSABLE_DOMAINS:
         result.is_corporate = True
 
-    # Gravatar check
-    result.has_gravatar, result.gravatar_url = check_gravatar(email)
-    if result.has_gravatar:
-        result.platforms_found.append({
-            "platform": "Gravatar",
-            "profile_url": result.gravatar_url,
-        })
+        # Execute external checks in parallel
+        config = _get_email_osint_config()
+        max_workers = config["max_parallel_workers"]
+        
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            # Submit all checks
+            gravatar_future = executor.submit(check_gravatar, email)
+            github_future = executor.submit(check_github_email, email)
+            hibp_future = executor.submit(check_hibp_breaches, email)
+            
+            # Collect results
+            result.has_gravatar, result.gravatar_url = gravatar_future.result()
+            if result.has_gravatar:
+                result.platforms_found.append({
+                    "platform": "Gravatar",
+                    "profile_url": result.gravatar_url,
+                })
 
-    # GitHub check
-    github_result = check_github_email(email)
-    if github_result:
-        result.platforms_found.append(github_result)
+            github_result = github_future.result()
+            if github_result:
+                result.platforms_found.append(github_result)
 
-    # HIBP breach check
-    result.breaches = check_hibp_breaches(email)
-    result.breach_count = len(result.breaches)
-    if result.breach_count > 0:
-        result.risk_indicators.append(f"found_in_{result.breach_count}_breaches")
+            result.breaches = hibp_future.result()
+            result.breach_count = len(result.breaches)
+            if result.breach_count > 0:
+                result.risk_indicators.append(f"found_in_{result.breach_count}_breaches")
 
     logger.info(
         "Email analysis complete: %s → disposable=%s, breaches=%d, platforms=%d",

@@ -52,35 +52,41 @@ VERSION:
 3.0 - Google Dorks Integration
 """
 
+import json
 import logging
 import random
 import re
 import time
 import hashlib
-import json
-from pathlib import Path
+import threading
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
-from typing import List, Dict, Any, Optional
+from pathlib import Path
+from typing import Any, Dict, List, Optional
 from urllib.parse import quote_plus
 
 import requests
 from bs4 import BeautifulSoup
 
+from src.config.loader import get_config
+
 logger = logging.getLogger(__name__)
 
-# Rotate through realistic User-Agent strings to reduce fingerprinting
-_USER_AGENTS = [
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36 Edg/124.0.0.0",
-    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 13_4) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.4 Safari/605.1.15",
-]
 
-# Retry / backoff settings for web scraping
-_MAX_RETRIES = 3
-_INITIAL_BACKOFF = 8.0   # seconds — first retry wait
-_BACKOFF_MULTIPLIER = 2.0
-_JITTER_MAX = 3.0        # random extra seconds added to each wait
+def _get_google_dorks_config() -> dict:
+    """Get Google Dorks configuration from config.yaml."""
+    config = get_config()
+    return config.get("google_dorks", {
+        "max_patterns": 3,
+        "rate_limit_seconds": 1.0,
+        "max_results_per_search": 10,
+        "max_parallel_workers": 10,
+        "max_retries": 3,
+        "initial_backoff": 1.0,
+        "backoff_multiplier": 2.0,
+        "jitter_max": 0.5,
+        "max_alternative_links": 50,
+    })
 
 
 @dataclass
@@ -146,13 +152,7 @@ class GoogleDorksSearch:
             platforms=["reddit", "stackoverflow", "quora"],
             confidence=0.8
         ),
-        DorkPattern(
-            name="email_pattern",
-            template='site:*.* "{username}" @gmail.com OR "{username}" @yahoo.com OR "{username}" @hotmail.com',
-            description="Search for email patterns",
-            platforms=["email"],
-            confidence=0.7
-        ),
+        # Removed email_pattern - too broad and causes false positives
         DorkPattern(
             name="combined_search",
             template='"{username}" (profile OR account OR user OR bio)',
@@ -181,10 +181,10 @@ class GoogleDorksSearch:
         api_key: Optional[str] = None,
         cx: Optional[str] = None,
         use_api: bool = False,
-        rate_limit: float = 1.0,
+        rate_limit: Optional[float] = None,
         search_engine: str = "auto",
         cache_dir: Optional[str] = None,
-        max_patterns: int = 3
+        max_patterns: Optional[int] = None
     ):
         """
         Initialize Google Dorks search engine.
@@ -198,17 +198,27 @@ class GoogleDorksSearch:
             cache_dir: Directory for caching results (optional)
             max_patterns: Maximum number of patterns to execute (to avoid rate limiting)
         """
+        config = _get_google_dorks_config()
+        
         self.api_key = api_key
         self.cx = cx
         self.use_api = use_api and api_key and cx
-        self.rate_limit = rate_limit
+        self.rate_limit = rate_limit if rate_limit is not None else config["rate_limit_seconds"]
         self.search_engine = search_engine
-        self.max_patterns = max_patterns
+        self.max_patterns = max_patterns if max_patterns is not None else config["max_patterns"]
+        self.max_results_per_search = config["max_results_per_search"]
+        self.max_parallel_workers = config["max_parallel_workers"]
         self.last_request_time = 0
+        self._rate_limit_lock = threading.Lock()
         
-        # User agent rotation
+        # User agent rotation - use HTTP client user agents
+        from src.utils.http_client import get_http_session
+        http_config = get_config().get("http_client", {})
+        user_agents = http_config.get("user_agents", [
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+        ])
         self.headers = {
-            'User-Agent': random.choice(_USER_AGENTS)
+            'User-Agent': random.choice(user_agents)
         }
         
         # Cache setup
@@ -216,13 +226,15 @@ class GoogleDorksSearch:
         self.cache_dir.mkdir(parents=True, exist_ok=True)
     
     def _rate_limit(self):
-        """Apply rate limiting between requests."""
-        current_time = time.time()
-        time_since_last = current_time - self.last_request_time
-        if time_since_last < self.rate_limit:
-            sleep_time = self.rate_limit - time_since_last
-            time.sleep(sleep_time)
-        self.last_request_time = time.time()
+        """Apply rate limiting between requests (thread-safe)."""
+        with self._rate_limit_lock:
+            current_time = time.time()
+            time_since_last = current_time - self.last_request_time
+            if time_since_last < self.rate_limit:
+                sleep_time = self.rate_limit - time_since_last
+                logger.debug("Rate limiting: sleeping for %.2f seconds", sleep_time)
+                time.sleep(sleep_time)
+            self.last_request_time = time.time()
     
     def _get_cache_key(self, query: str, engine: str) -> str:
         """Generate cache key for query."""
@@ -268,16 +280,32 @@ class GoogleDorksSearch:
     
     def _retry_with_backoff(self, func, *args, **kwargs) -> Any:
         """Execute function with exponential backoff retry logic."""
-        for attempt in range(_MAX_RETRIES):
+        config = _get_google_dorks_config()
+        enable_retry = config.get("enable_retry", True)
+        
+        if not enable_retry:
+            # If retry is disabled, execute once without retry
             try:
                 return func(*args, **kwargs)
             except Exception as e:
-                if attempt == _MAX_RETRIES - 1:
+                logger.debug(f"Retry disabled, failing immediately: {e}")
+                raise
+        
+        max_retries = config.get("max_retries", 3)
+        initial_backoff = config.get("initial_backoff", 1.0)
+        backoff_multiplier = config.get("backoff_multiplier", 2.0)
+        jitter_max = config.get("jitter_max", 0.5)
+        
+        for attempt in range(max_retries):
+            try:
+                return func(*args, **kwargs)
+            except Exception as e:
+                if attempt == max_retries - 1:
                     raise
                 
                 # Calculate backoff with jitter
-                backoff = _INITIAL_BACKOFF * (_BACKOFF_MULTIPLIER ** attempt)
-                jitter = random.uniform(0, _JITTER_MAX)
+                backoff = initial_backoff * (backoff_multiplier ** attempt)
+                jitter = random.uniform(0, jitter_max)
                 total_wait = backoff + jitter
                 
                 logger.warning(f"Attempt {attempt + 1} failed: {e}. Retrying in {total_wait:.1f}s...")
@@ -311,24 +339,49 @@ class GoogleDorksSearch:
         
         logger.info(f"Searching for username '{username}' with {len(dork_patterns)} dork patterns")
         
-        for pattern in dork_patterns:
-            try:
-                result = self._execute_dork_search(username, pattern)
-                results.append(result)
-                
-                if result.success:
-                    logger.info(f"Pattern '{pattern.name}' found {len(result.results)} results")
+        # Execute dork patterns in parallel
+        with ThreadPoolExecutor(max_workers=self.max_parallel_workers) as executor:
+            futures = {
+                executor.submit(self._execute_dork_search, username, pattern): pattern
+                for pattern in dork_patterns
+            }
+            
+            for future in as_completed(futures):
+                pattern = futures[future]
+                try:
+                    result = future.result()
+                    results.append(result)
+                    
+                    if result.success:
+                        logger.info(f"Pattern '{pattern.name}' found {len(result.results)} results")
+                    else:
+                        logger.warning(f"Pattern '{pattern.name}' failed: {result.error}")
+                    
+                except Exception as e:
+                    logger.error(f"Error executing dork pattern '{pattern.name}': {e}")
+                    results.append(DorkResult(
+                        pattern_name=pattern.name,
+                        query=pattern.template.format(username=username),
+                        success=False,
+                        error=str(e)
+                    ))
+        
+        # Limit total results to prevent exponential artifact growth
+        total_urls = []
+        for result in results:
+            total_urls.extend(result.results)
+        
+        if len(total_urls) > self.max_results_per_search:
+            logger.warning(f"Limiting Google Dorks results from {len(total_urls)} to {self.max_results_per_search} to prevent exponential growth")
+            # Take first N URLs and redistribute across results
+            limited_urls = total_urls[:self.max_results_per_search]
+            url_index = 0
+            for result in results:
+                if url_index >= len(limited_urls):
+                    result.results = []
                 else:
-                    logger.warning(f"Pattern '{pattern.name}' failed: {result.error}")
-                
-            except Exception as e:
-                logger.error(f"Error executing dork pattern '{pattern.name}': {e}")
-                results.append(DorkResult(
-                    pattern_name=pattern.name,
-                    query=pattern.template.format(username=username),
-                    success=False,
-                    error=str(e)
-                ))
+                    result.results = limited_urls[url_index:url_index + len(result.results)]
+                    url_index += len(result.results)
         
         return results
     
@@ -428,7 +481,7 @@ class GoogleDorksSearch:
     
     def _search_via_duckduckgo(self, query: str, pattern: DorkPattern) -> DorkResult:
         """Search using DuckDuckGo HTML search (free, no rate limits)."""
-        self._rate_limit()
+        # DuckDuckGo doesn't require rate limiting - skip for true parallelism
         
         try:
             # DuckDuckGo HTML search (more reliable than API for dorks)
@@ -517,7 +570,17 @@ class GoogleDorksSearch:
                 logger.debug("Trying alternative DuckDuckGo parsing approach")
                 # Look for all links with text content
                 all_links = soup.find_all('a', href=True)
+                logger.debug(f"Found {len(all_links)} total links for alternative parsing")
+                
+                config = _get_google_dorks_config()
+                processed_count = 0
+                max_alternative_links = config.get("max_alternative_links", 50)
+                
                 for link in all_links:
+                    if processed_count >= max_alternative_links:
+                        logger.debug(f"Reached limit of {max_alternative_links} alternative links")
+                        break
+                        
                     href = link.get('href', '')
                     text = link.get_text().strip()
                     # Skip navigation links and empty text
@@ -541,6 +604,8 @@ class GoogleDorksSearch:
                             # Extract artifacts from result
                             extracted = self._extract_artifacts_from_result(results[-1], pattern)
                             artifacts.extend(extracted)
+                            
+                            processed_count += 1
                             
                             # Limit to prevent too many results
                             if len(results) >= 10:
@@ -566,8 +631,12 @@ class GoogleDorksSearch:
         """Search using web scraping (fallback)."""
         self._rate_limit()
         
-        # Rotate user agent for each request
-        self.headers['User-Agent'] = random.choice(_USER_AGENTS)
+        # Rotate user agent for each request from config
+        http_config = get_config().get("http_client", {})
+        user_agents = http_config.get("user_agents", [
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+        ])
+        self.headers['User-Agent'] = random.choice(user_agents)
         
         try:
             url = f"https://www.google.com/search?q={quote_plus(query)}&num=10"
@@ -623,7 +692,18 @@ class GoogleDorksSearch:
             # Strategy 2: If no results, try alternative parsing
             if not results:
                 logger.debug("Trying alternative Google parsing approach")
-                for link in soup.find_all('a', href=True):
+                all_links = soup.find_all('a', href=True)
+                logger.debug(f"Found {len(all_links)} total links for alternative parsing")
+                
+                config = _get_google_dorks_config()
+                processed_count = 0
+                max_alternative_links = config.get("max_alternative_links", 50)
+                
+                for link in all_links:
+                    if processed_count >= max_alternative_links:
+                        logger.debug(f"Reached limit of {max_alternative_links} alternative links")
+                        break
+                        
                     href = link.get('href', '')
                     if href.startswith('http') and not href.startswith('https://www.google.'):
                         # Get text from parent or link
@@ -639,6 +719,8 @@ class GoogleDorksSearch:
                             # Extract artifacts from result
                             extracted = self._extract_artifacts_from_result(results[-1], pattern)
                             artifacts.extend(extracted)
+                            
+                            processed_count += 1
                             
                             # Limit results
                             if len(results) >= 10:

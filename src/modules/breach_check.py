@@ -93,11 +93,22 @@ import logging
 from dataclasses import dataclass, field
 from typing import Optional
 
-import requests
+from src.utils.http_client import get_http_session
+from src.config.loader import get_config
 
 logger = logging.getLogger(__name__)
 
-HIBP_API_BASE = "https://haveibeenpwned.com/api/v3"
+
+def _get_breach_check_config() -> dict:
+    """Get breach check configuration from config.yaml."""
+    config = get_config()
+    return config.get("breach_check", {
+        "hibp_api_base": "https://haveibeenpwned.com/api/v3",
+        "rate_limit_seconds": 1.5,
+    })
+
+
+HIBP_API_BASE = _get_breach_check_config().get("hibp_api_base", "https://haveibeenpwned.com/api/v3")
 HIBP_USER_AGENT = "GhostIdentityHunter-Academic-Research"
 
 
@@ -184,7 +195,8 @@ def check_password_exposure(password: str) -> tuple[bool, int]:
     suffix = sha1_hash[5:]
 
     try:
-        resp = requests.get(
+        session = get_http_session()
+        resp = session.get(
             f"https://api.pwnedpasswords.com/range/{prefix}",
             headers={"User-Agent": HIBP_USER_AGENT},
             timeout=10,
@@ -219,7 +231,8 @@ def check_email_breaches(email: str, api_key: Optional[str] = None) -> BreachChe
     # Check breaches with real API if key provided
     if api_key:
         try:
-            resp = requests.get(
+            session = get_http_session()
+            resp = session.get(
                 f"{HIBP_API_BASE}/breachedaccount/{email}",
                 headers=headers,
                 params={"truncateResponse": "false"},

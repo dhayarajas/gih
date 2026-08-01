@@ -127,7 +127,7 @@ class PluginManager:
         artifact: Artifact,
         plugin_names: Optional[List[str]] = None,
         parallel: bool = True,
-        max_workers: int = 5
+        max_workers: Optional[int] = None
     ) -> List[PluginResult]:
         """
         Execute multiple plugins on an artifact.
@@ -136,7 +136,7 @@ class PluginManager:
             artifact: Artifact to investigate
             plugin_names: List of plugin names to execute (None for all compatible)
             parallel: Whether to execute plugins in parallel
-            max_workers: Maximum number of parallel workers
+            max_workers: Maximum number of parallel workers (None to use config)
             
         Returns:
             List of PluginResults
@@ -148,6 +148,11 @@ class PluginManager:
         if not plugin_names:
             logger.warning(f"No plugins available for artifact type: {artifact.type}")
             return []
+        
+        # Get max_workers from config if not specified
+        if max_workers is None:
+            plugin_settings = self.config.get("plugin_settings", {})
+            max_workers = plugin_settings.get("max_parallel_workers", 50)
         
         results = []
         
@@ -188,7 +193,7 @@ class PluginManager:
         artifacts: List[Artifact],
         plugin_names: Optional[List[str]] = None,
         parallel: bool = True,
-        max_workers: int = 5
+        max_workers: Optional[int] = None
     ) -> Dict[str, List[PluginResult]]:
         """
         Execute plugins on multiple artifacts.
@@ -197,21 +202,50 @@ class PluginManager:
             artifacts: List of artifacts to investigate
             plugin_names: List of plugin names to execute (None for all compatible)
             parallel: Whether to execute in parallel
-            max_workers: Maximum number of parallel workers
+            max_workers: Maximum number of parallel workers (None to use config)
             
         Returns:
             Dictionary mapping artifact values to lists of PluginResults
         """
+        # Get max_workers from config if not specified
+        if max_workers is None:
+            plugin_settings = self.config.get("plugin_settings", {})
+            max_workers = plugin_settings.get("max_parallel_workers", 50)
+        
         results = {}
         
-        for artifact in artifacts:
-            artifact_results = self.execute_plugins_for_artifact(
-                artifact,
-                plugin_names,
-                parallel,
-                max_workers
-            )
-            results[artifact.value] = artifact_results
+        if parallel and len(artifacts) > 1:
+            # Execute all artifacts in parallel
+            with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                futures = {
+                    executor.submit(
+                        self.execute_plugins_for_artifact,
+                        artifact,
+                        plugin_names,
+                        True,  # Enable parallel within each artifact too
+                        max_workers
+                    ): artifact.value
+                    for artifact in artifacts
+                }
+                
+                for future in as_completed(futures):
+                    artifact_value = futures[future]
+                    try:
+                        artifact_results = future.result()
+                        results[artifact_value] = artifact_results
+                    except Exception as e:
+                        logger.error(f"Parallel execution failed for artifact {artifact_value}: {e}")
+                        results[artifact_value] = []
+        else:
+            # Execute sequentially
+            for artifact in artifacts:
+                artifact_results = self.execute_plugins_for_artifact(
+                    artifact,
+                    plugin_names,
+                    parallel,
+                    max_workers
+                )
+                results[artifact.value] = artifact_results
         
         return results
     
