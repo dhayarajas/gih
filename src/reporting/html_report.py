@@ -157,7 +157,188 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         .stat-value { font-size: 2rem; font-weight: bold; color: #4ECDC4; }
         .stat-label { font-size: 0.85rem; color: #888; }
         .evidence-chain { font-family: monospace; font-size: 0.85rem; color: #aaa; }
+        .collapsible {
+            background: #1a1a2e;
+            border: 1px solid #333;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+            overflow: hidden;
+        }
+        .collapsible-header {
+            background: #16213e;
+            padding: 1rem 1.5rem;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            user-select: none;
+        }
+        .collapsible-header:hover {
+            background: #1a2a4a;
+        }
+        .collapsible-content {
+            padding: 1.5rem;
+            display: none;
+        }
+        .collapsible.active .collapsible-content {
+            display: block;
+        }
+        .collapsible-toggle {
+            font-size: 1.2rem;
+            transition: transform 0.3s;
+        }
+        .collapsible.active .collapsible-toggle {
+            transform: rotate(180deg);
+        }
+        .search-box {
+            background: #16213e;
+            border: 1px solid #333;
+            border-radius: 8px;
+            padding: 1rem;
+            margin-bottom: 2rem;
+        }
+        .search-input {
+            width: 100%;
+            padding: 0.75rem;
+            background: #1a1a2e;
+            border: 1px solid #333;
+            border-radius: 4px;
+            color: #e0e0e0;
+            font-size: 1rem;
+        }
+        .search-input:focus {
+            outline: none;
+            border-color: #4ECDC4;
+        }
+        .highlight {
+            background-color: #FFD700;
+            color: #000;
+            padding: 2px 4px;
+            border-radius: 2px;
+        }
+        .export-buttons {
+            display: flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+            margin-top: 0.5rem;
+        }
+        .export-btn {
+            background: #4ECDC4;
+            color: #0f0f23;
+            border: none;
+            padding: 0.5rem 1rem;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            transition: background 0.3s;
+        }
+        .export-btn:hover {
+            background: #45B7D1;
+        }
     </style>
+    <script>
+        function toggleCollapsible(element) {
+            element.classList.toggle('active');
+        }
+        
+        function searchReport() {
+            const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+            const content = document.querySelector('.container');
+            
+            // Remove previous highlights
+            const highlights = document.querySelectorAll('.highlight');
+            highlights.forEach(h => {
+                const parent = h.parentNode;
+                parent.replaceChild(document.createTextNode(h.textContent), h);
+                parent.normalize();
+            });
+            
+            if (searchTerm.length < 2) return;
+            
+            // Find and highlight matches
+            const walker = document.createTreeWalker(content, NodeFilter.SHOW_TEXT, null, false);
+            const textNodes = [];
+            let node;
+            while (node = walker.nextNode()) {
+                if (node.textContent.toLowerCase().includes(searchTerm) && node.parentNode.tagName !== 'SCRIPT') {
+                    textNodes.push(node);
+                }
+            }
+            
+            textNodes.forEach(node => {
+                const text = node.textContent;
+                const regex = new RegExp(`(${searchTerm})`, 'gi');
+                const highlighted = text.replace(regex, '<span class="highlight">$1</span>');
+                
+                const span = document.createElement('span');
+                span.innerHTML = highlighted;
+                node.parentNode.replaceChild(span, node);
+            });
+            
+            // Expand collapsibles that contain matches
+            document.querySelectorAll('.collapsible').forEach(collapsible => {
+                if (collapsible.textContent.toLowerCase().includes(searchTerm)) {
+                    collapsible.classList.add('active');
+                }
+            });
+        }
+        
+        function exportToCSV() {
+            const investigationId = '{{ investigation.investigation_id }}';
+            const artifacts = {{ artifacts | tojson }};
+            
+            if (!artifacts || artifacts.length === 0) {
+                alert('No artifacts to export');
+                return;
+            }
+            
+            const headers = ['Type', 'Value', 'Source', 'Confidence', 'Depth', 'Discovered At'];
+            const rows = artifacts.map(a => [
+                a.artifact_type,
+                a.value,
+                a.source || '',
+                (a.confidence || 0).toFixed(2),
+                a.depth || 0,
+                a.discovered_at || ''
+            ]);
+            
+            const csvContent = [headers, ...rows].map(row => row.join(',')).join('\n');
+            const blob = new Blob([csvContent], { type: 'text/csv' });
+            const url = URL.createObjectURL(blob);
+            
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${investigationId}_artifacts.csv`;
+            document?.body?.appendChild(a);
+            a.click();
+            document?.body?.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+        
+        function printReport() {
+            window.print();
+        }
+        
+        // Initialize all collapsibles
+        document.addEventListener('DOMContentLoaded', function() {
+            document.querySelectorAll('.collapsible-header').forEach(header => {
+                header.addEventListener('click', function() {
+                    toggleCollapsible(this.parentElement);
+                });
+            });
+            
+            // Add search functionality
+            const searchInput = document.getElementById('searchInput');
+            if (searchInput) {
+                searchInput.addEventListener('input', searchReport);
+                searchInput.addEventListener('keypress', function(e) {
+                    if (e.key === 'Enter') {
+                        searchReport();
+                    }
+                });
+            }
+        });
+    </script>
 </head>
 <body>
 <div class="container">
@@ -168,8 +349,160 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         Status: {{ investigation.status }}
     </p>
 
-    <!-- Summary Stats -->
-    <h2>Summary</h2>
+    <!-- Search Box -->
+    <div class="search-box">
+        <input type="text" id="searchInput" class="search-input" placeholder="Search report... (type to search, Enter to execute)">
+        <div class="export-buttons">
+            <button class="export-btn" onclick="exportToCSV()">Export Artifacts (CSV)</button>
+            <button class="export-btn" onclick="printReport()">Print / Save as PDF</button>
+        </div>
+    </div>
+
+    <!-- Executive Summary -->
+    <h2>Executive Summary</h2>
+    <div class="card">
+        <h3>Investigation Timeline</h3>
+        <table>
+            <thead>
+                <tr><th>Time</th><th>Type</th><th>Value</th><th>Source</th><th>Depth</th></tr>
+            </thead>
+            <tbody>
+                {% for event in timeline[:10] %}
+                <tr>
+                    <td>{{ event.time[:19] if event.time else '-' }}</td>
+                    <td><span class="badge badge-{{ event.type }}">{{ event.type }}</span></td>
+                    <td>{{ event.value[:40] }}{% if event.value | length > 40 %}...{% endif %}</td>
+                    <td>{{ event.source or '-' }}</td>
+                    <td>{{ event.depth }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <div class="card">
+        <h3>Key Findings</h3>
+        {% for finding in key_findings %}
+        <div style="margin-bottom: 1rem;">
+            <strong>{{ finding.category }}</strong> ({{ finding.count }} items)
+            <ul>
+                {% for item in finding.items %}
+                <li>
+                    {% if finding.category == 'High-Confidence Artifacts' %}
+                    {{ item.value[:50] }}{% if item.value | length > 50 %}...{% endif %} ({{ "%.0f" | format((item.confidence or 0) * 100) }}% confidence)
+                    {% elif finding.category == 'Platform Presence' %}
+                    {{ item.platform }}
+                    {% elif finding.category == 'High-Risk Identity Profiles' %}
+                    {{ item.profile_id }} - {{ item.risk_level | upper }} risk ({{ item.artifact_count }} artifacts)
+                    {% endif %}
+                </li>
+                {% endfor %}
+            </ul>
+        </div>
+        {% endfor %}
+    </div>
+
+    <div class="card">
+        <h3>Confidence Metrics</h3>
+        <p><strong>Overall Confidence:</strong> {{ "%.0f" | format(confidence_metrics.overall * 100) }}%</p>
+        
+        {% if confidence_metrics.by_type %}
+        <h4>By Artifact Type</h4>
+        <table>
+            <thead>
+                <tr><th>Type</th><th>Average Confidence</th></tr>
+            </thead>
+            <tbody>
+                {% for type, conf in confidence_metrics.by_type.items() %}
+                <tr>
+                    <td>{{ type }}</td>
+                    <td>{{ "%.0f" | format(conf * 100) }}%</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% endif %}
+        
+        {% if confidence_metrics.by_source %}
+        <h4>By Data Source</h4>
+        <table>
+            <thead>
+                <tr><th>Source</th><th>Average Confidence</th></tr>
+            </thead>
+            <tbody>
+                {% for source, conf in confidence_metrics.by_source.items() %}
+                <tr>
+                    <td>{{ source }}</td>
+                    <td>{{ "%.0f" | format(conf * 100) }}%</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% endif %}
+    </div>
+
+    <div class="card">
+        <h3>Risk Assessment Matrix</h3>
+        <p><strong>Total Identity Profiles:</strong> {{ risk_matrix.total_identities }}</p>
+        
+        <table>
+            <thead>
+                <tr><th>Risk Level</th><th>Count</th><th>Percentage</th></tr>
+            </thead>
+            <tbody>
+                {% for level in ['critical', 'high', 'medium', 'low', 'minimal'] %}
+                <tr>
+                    <td><span class="risk-{{ level }}">{{ level | upper }}</span></td>
+                    <td>{{ risk_matrix.counts.get(level, 0) }}</td>
+                    <td>{{ risk_matrix.distribution.get(level, 0) }}%</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Recommendations -->
+    {% if recommendations %}
+    <h2>Investigative Recommendations</h2>
+    {% for rec in recommendations %}
+    <div class="card" style="border-left: 4px solid {% if rec.priority == 'critical' %}#FF0000{% elif rec.priority == 'high' %}#FF6B6B{% elif rec.priority == 'medium' %}#FFA500{% else %}#4ECDC4{% endif %};">
+        <h3>
+            <span class="badge badge-risk">{{ rec.priority | upper }}</span>
+            {{ rec.category }}
+        </h3>
+        <p><strong>{{ rec.action }}</strong></p>
+        <p style="color: #888; font-size: 0.9rem;">{{ rec.details }}</p>
+    </div>
+    {% endfor %}
+    {% endif %}
+
+    <!-- Priority Queue -->
+    {% if priority_queue %}
+    <h2>Priority Artifact Queue</h2>
+    <div class="card">
+        <p>Artifacts ranked by investigation value and priority for follow-up.</p>
+        <table>
+            <thead>
+                <tr><th>Rank</th><th>Priority</th><th>Type</th><th>Value</th><th>Score</th><th>Factors</th></tr>
+            </thead>
+            <tbody>
+                {% for item in priority_queue[:10] %}
+                <tr>
+                    <td>{{ loop.index }}</td>
+                    <td><span class="badge badge-risk">{{ item.priority | upper }}</span></td>
+                    <td><span class="badge badge-{{ item.artifact.artifact_type }}">{{ item.artifact.artifact_type }}</span></td>
+                    <td>{{ item.artifact.value[:40] }}{% if item.artifact.value | length > 40 %}...{% endif %}</td>
+                    <td>{{ "%.0f" | format(item.score) }}</td>
+                    <td style="font-size: 0.8rem; color: #888;">{{ ', '.join(item.factors) }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+
+    <!-- Summary Statistics -->
+    <h2>Summary Statistics</h2>
     <div class="stats-grid">
         <div class="stat-card">
             <div class="stat-value">{{ artifacts | length }}</div>
@@ -189,89 +522,118 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         </div>
     </div>
 
+    <!-- Interactive Identity Graph -->
+    {% if graph_html %}
+    <h2>Interactive Identity Graph</h2>
+    <div class="card" style="padding: 0; overflow: hidden;">
+        <div style="height: 700px; width: 100%;">
+            {{ graph_html | safe }}
+        </div>
+    </div>
+    {% endif %}
+
     <!-- Identity Profiles -->
     <h2>Identity Profiles</h2>
     {% for identity in correlation.identities %}
-    <div class="card">
-        <h3>{{ identity.profile_id }} ({{ identity.artifact_count }} artifacts)</h3>
-        <p>Confidence: <strong>{{ "%.1f" | format(identity.confidence * 100) }}%</strong> |
-           Risk: <span class="risk-{{ risk_levels[loop.index0] }}">{{ risk_levels[loop.index0] | upper }}</span>
-        </p>
+    <div class="collapsible">
+        <div class="collapsible-header">
+            <h3>{{ identity.profile_id }} ({{ identity.artifact_count }} artifacts)</h3>
+            <span class="collapsible-toggle">▼</span>
+        </div>
+        <div class="collapsible-content">
+            <p>Confidence: <strong>{{ "%.1f" | format(identity.confidence * 100) }}%</strong> |
+               Risk: <span class="risk-{{ risk_levels[loop.index0] }}">{{ risk_levels[loop.index0] | upper }}</span>
+            </p>
 
-        {% if identity.phones %}
-        <p><strong>Phones:</strong>
-            {% for p in identity.phones %}<span class="badge badge-phone">{{ p }}</span>{% endfor %}
-        </p>
-        {% endif %}
+            {% if identity.phones %}
+            <p><strong>Phones:</strong>
+                {% for p in identity.phones %}<span class="badge badge-phone">{{ p }}</span>{% endfor %}
+            </p>
+            {% endif %}
 
-        {% if identity.emails %}
-        <p><strong>Emails:</strong>
-            {% for e in identity.emails %}<span class="badge badge-email">{{ e }}</span>{% endfor %}
-        </p>
-        {% endif %}
+            {% if identity.emails %}
+            <p><strong>Emails:</strong>
+                {% for e in identity.emails %}<span class="badge badge-email">{{ e }}</span>{% endfor %}
+            </p>
+            {% endif %}
 
-        {% if identity.usernames %}
-        <p><strong>Usernames:</strong>
-            {% for u in identity.usernames %}<span class="badge badge-username">{{ u }}</span>{% endfor %}
-        </p>
-        {% endif %}
+            {% if identity.usernames %}
+            <p><strong>Usernames:</strong>
+                {% for u in identity.usernames %}<span class="badge badge-username">{{ u }}</span>{% endfor %}
+            </p>
+            {% endif %}
 
-        {% if identity.platforms %}
-        <p><strong>Platforms:</strong>
-            {% for p in identity.platforms %}
-            <span class="badge badge-platform">
-                {% if p.profile_url %}<a href="{{ p.profile_url }}">{{ p.platform }}</a>{% else %}{{ p.platform }}{% endif %}
-            </span>
-            {% endfor %}
-        </p>
-        {% endif %}
+            {% if identity.platforms %}
+            <p><strong>Platforms:</strong>
+                {% for p in identity.platforms %}
+                <span class="badge badge-platform">
+                    {% if p.profile_url %}<a href="{{ p.profile_url }}">{{ p.platform }}</a>{% else %}{{ p.platform }}{% endif %}
+                </span>
+                {% endfor %}
+            </p>
+            {% endif %}
 
-        {% if identity.risk_indicators %}
-        <p><strong>Risk Indicators:</strong>
-            {% for r in identity.risk_indicators %}<span class="badge badge-risk">{{ r }}</span>{% endfor %}
-        </p>
-        {% endif %}
+            {% if identity.risk_indicators %}
+            <p><strong>Risk Indicators:</strong>
+                {% for r in identity.risk_indicators %}<span class="badge badge-risk">{{ r }}</span>{% endfor %}
+            </p>
+            {% endif %}
+        </div>
     </div>
     {% endfor %}
 
     <!-- Platform Presence Matrix -->
     {% if presences %}
-    <h2>Platform Presence Matrix</h2>
-    <table>
-        <thead>
-            <tr><th>Platform</th><th>Username</th><th>Display Name</th><th>Profile URL</th></tr>
-        </thead>
-        <tbody>
-            {% for p in presences %}
-            <tr>
-                <td>{{ p.platform_name }}</td>
-                <td>{{ p.username or '-' }}</td>
-                <td>{{ p.display_name or '-' }}</td>
-                <td>{% if p.profile_url %}<a href="{{ p.profile_url }}">Link</a>{% else %}-{% endif %}</td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
+    <div class="collapsible">
+        <div class="collapsible-header">
+            <h2>Platform Presence Matrix</h2>
+            <span class="collapsible-toggle">▼</span>
+        </div>
+        <div class="collapsible-content">
+            <table>
+                <thead>
+                    <tr><th>Platform</th><th>Username</th><th>Display Name</th><th>Profile URL</th></tr>
+                </thead>
+                <tbody>
+                    {% for p in presences %}
+                    <tr>
+                        <td>{{ p.platform_name }}</td>
+                        <td>{{ p.username or '-' }}</td>
+                        <td>{{ p.display_name or '-' }}</td>
+                        <td>{% if p.profile_url %}<a href="{{ p.profile_url }}">Link</a>{% else %}-{% endif %}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
     {% endif %}
 
     <!-- All Artifacts -->
-    <h2>Artifact Inventory</h2>
-    <table>
-        <thead>
-            <tr><th>Type</th><th>Value</th><th>Source</th><th>Confidence</th><th>Depth</th></tr>
-        </thead>
-        <tbody>
-            {% for a in artifacts %}
-            <tr>
-                <td><span class="badge badge-{{ a.artifact_type }}">{{ a.artifact_type }}</span></td>
-                <td>{{ a.value[:60] }}{% if a.value | length > 60 %}...{% endif %}</td>
-                <td>{{ a.source or '-' }}</td>
-                <td>{{ "%.0f" | format((a.confidence or 0) * 100) }}%</td>
-                <td>{{ a.depth }}</td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
+    <div class="collapsible">
+        <div class="collapsible-header">
+            <h2>Artifact Inventory</h2>
+            <span class="collapsible-toggle">▼</span>
+        </div>
+        <div class="collapsible-content">
+            <table>
+                <thead>
+                    <tr><th>Type</th><th>Value</th><th>Source</th><th>Confidence</th><th>Depth</th></tr>
+                </thead>
+                <tbody>
+                    {% for a in artifacts %}
+                    <tr>
+                        <td><span class="badge badge-{{ a.artifact_type }}">{{ a.artifact_type }}</span></td>
+                        <td>{{ a.value[:60] }}{% if a.value | length > 60 %}...{% endif %}</td>
+                        <td>{{ a.source or '-' }}</td>
+                        <td>{{ "%.0f" | format((a.confidence or 0) * 100) }}%</td>
+                        <td>{{ a.depth }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
 
     <!-- Footer -->
     <p class="meta" style="margin-top: 3rem; text-align: center;">
@@ -308,6 +670,27 @@ def generate_html_report(
         risk_score = compute_identity_risk_score(identity.risk_indicators)
         risk_levels.append(classify_risk_level(risk_score))
 
+    # Generate investigation timeline
+    timeline = _generate_timeline(artifacts)
+    
+    # Generate key findings summary
+    key_findings = _generate_key_findings(artifacts, links, presences, correlation)
+    
+    # Generate confidence metrics breakdown
+    confidence_metrics = _generate_confidence_metrics(artifacts, links)
+    
+    # Generate risk assessment matrix
+    risk_matrix = _generate_risk_matrix(correlation, risk_levels)
+
+    # Generate interactive graph HTML
+    graph_html = _generate_embedded_graph(conn, investigation_id)
+
+    # Generate recommendations
+    recommendations = _generate_recommendations(artifacts, links, presences, correlation, risk_levels)
+
+    # Generate priority queue for artifact ranking
+    priority_queue = _generate_priority_queue(artifacts, links, correlation)
+
     # Render template
     env = Environment(loader=BaseLoader())
     template = env.from_string(HTML_TEMPLATE)
@@ -318,6 +701,13 @@ def generate_html_report(
         presences=presences,
         correlation=correlation,
         risk_levels=risk_levels,
+        timeline=timeline,
+        key_findings=key_findings,
+        confidence_metrics=confidence_metrics,
+        risk_matrix=risk_matrix,
+        graph_html=graph_html,
+        recommendations=recommendations,
+        priority_queue=priority_queue,
         generated_at=datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC"),
     )
 
@@ -331,6 +721,267 @@ def generate_html_report(
 
     logger.info("HTML report saved to %s", output_file)
     return str(output_file)
+
+
+def _generate_timeline(artifacts: list) -> list:
+    """Generate investigation timeline from artifact discovery times."""
+    timeline = []
+    for artifact in artifacts:
+        timeline.append({
+            'time': artifact.get('discovered_at', ''),
+            'type': artifact.get('artifact_type', 'unknown'),
+            'value': artifact.get('value', ''),
+            'source': artifact.get('source', 'unknown'),
+            'depth': artifact.get('depth', 0)
+        })
+    
+    # Sort by discovery time
+    timeline.sort(key=lambda x: x['time'])
+    return timeline
+
+
+def _generate_key_findings(artifacts: list, links: list, presences: list, correlation) -> list:
+    """Generate key findings summary for executive summary."""
+    findings = []
+    
+    # Top artifacts by confidence
+    high_confidence_artifacts = [a for a in artifacts if a.get('confidence', 0) >= 0.8]
+    if high_confidence_artifacts:
+        findings.append({
+            'category': 'High-Confidence Artifacts',
+            'count': len(high_confidence_artifacts),
+            'items': high_confidence_artifacts[:5]
+        })
+    
+    # Platform presence summary
+    if presences:
+        platforms = list(set(p.get('platform_name') for p in presences))
+        findings.append({
+            'category': 'Platform Presence',
+            'count': len(platforms),
+            'items': [{'platform': p} for p in platforms[:5]]
+        })
+    
+    # Identity profiles with high risk
+    high_risk_identities = []
+    for i, identity in enumerate(correlation.identities):
+        risk_score = compute_identity_risk_score(identity.risk_indicators)
+        risk_level = classify_risk_level(risk_score)
+        if risk_level in ['critical', 'high']:
+            high_risk_identities.append({
+                'profile_id': identity.profile_id,
+                'risk_level': risk_level,
+                'artifact_count': identity.artifact_count
+            })
+    
+    if high_risk_identities:
+        findings.append({
+            'category': 'High-Risk Identity Profiles',
+            'count': len(high_risk_identities),
+            'items': high_risk_identities[:3]
+        })
+    
+    return findings
+
+
+def _generate_confidence_metrics(artifacts: list, links: list) -> dict:
+    """Generate confidence metrics breakdown."""
+    if not artifacts:
+        return {'overall': 0.0, 'by_type': {}, 'by_source': {}}
+    
+    # Overall confidence
+    overall_confidence = sum(a.get('confidence', 0) for a in artifacts) / len(artifacts)
+    
+    # Confidence by artifact type
+    by_type = {}
+    for artifact in artifacts:
+        artifact_type = artifact.get('artifact_type', 'unknown')
+        if artifact_type not in by_type:
+            by_type[artifact_type] = []
+        by_type[artifact_type].append(artifact.get('confidence', 0))
+    
+    by_type_avg = {k: sum(v)/len(v) for k, v in by_type.items()}
+    
+    # Confidence by source
+    by_source = {}
+    for artifact in artifacts:
+        source = artifact.get('source', 'unknown')
+        if source not in by_source:
+            by_source[source] = []
+        by_source[source].append(artifact.get('confidence', 0))
+    
+    by_source_avg = {k: sum(v)/len(v) for k, v in by_source.items()}
+    
+    return {
+        'overall': round(overall_confidence, 2),
+        'by_type': {k: round(v, 2) for k, v in by_type_avg.items()},
+        'by_source': {k: round(v, 2) for k, v in by_source_avg.items()}
+    }
+
+
+def _generate_risk_matrix(correlation, risk_levels: list) -> dict:
+    """Generate risk assessment matrix."""
+    risk_counts = {'critical': 0, 'high': 0, 'medium': 0, 'low': 0, 'minimal': 0}
+    
+    for level in risk_levels:
+        risk_counts[level] = risk_counts.get(level, 0) + 1
+    
+    # Calculate risk distribution percentages
+    total = sum(risk_counts.values()) or 1
+    risk_distribution = {k: round(v/total * 100, 1) for k, v in risk_counts.items()}
+    
+    return {
+        'counts': risk_counts,
+        'distribution': risk_distribution,
+        'total_identities': len(correlation.identities)
+    }
+
+
+def _generate_embedded_graph(conn: sqlite3.Connection, investigation_id: str) -> str:
+    """Generate embedded interactive graph HTML."""
+    try:
+        from src.graph.visualizer import generate_interactive_graph
+        import tempfile
+        
+        # Generate graph to temporary file
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.html', delete=False) as f:
+            temp_path = f.name
+        
+        graph_path = generate_interactive_graph(conn, investigation_id, temp_path)
+        
+        if graph_path and Path(graph_path).exists():
+            # Read the generated HTML and extract the body content
+            with open(graph_path, 'r') as f:
+                graph_content = f.read()
+            
+            # Clean up temp file
+            Path(graph_path).unlink(missing_ok=True)
+            
+            return graph_content
+        else:
+            return ""
+    except Exception as e:
+        logger.warning("Failed to generate embedded graph: %s", e)
+        return ""
+
+
+def _generate_recommendations(artifacts: list, links: list, presences: list, correlation, risk_levels: list) -> list:
+    """Generate investigative recommendations based on findings."""
+    recommendations = []
+    
+    # High-risk identity follow-up
+    high_risk_count = sum(1 for level in risk_levels if level in ['critical', 'high'])
+    if high_risk_count > 0:
+        recommendations.append({
+            'priority': 'critical',
+            'category': 'High-Risk Identities',
+            'action': f'Immediate investigation required for {high_risk_count} high-risk identity profile(s)',
+            'details': 'Focus on critical and high-risk profiles for further investigation and verification'
+        })
+    
+    # Platform expansion
+    if presences:
+        platforms = list(set(p.get('platform_name') for p in presences))
+        if len(platforms) < 10:
+            recommendations.append({
+                'priority': 'medium',
+                'category': 'Platform Expansion',
+                'action': 'Expand platform search coverage',
+                'details': f'Currently found on {len(platforms)} platforms. Consider additional platform searches for broader coverage'
+            })
+    
+    # Low confidence artifacts verification
+    low_confidence = [a for a in artifacts if a.get('confidence', 0) < 0.5]
+    if len(low_confidence) > len(artifacts) * 0.3:  # More than 30% low confidence
+        recommendations.append({
+            'priority': 'medium',
+            'category': 'Data Verification',
+            'action': 'Verify low-confidence findings',
+            'details': f'{len(low_confidence)} artifacts have confidence below 50%. Manual verification recommended'
+        })
+    
+    # Breach data analysis
+    breach_artifacts = [a for a in artifacts if a.get('source', '').lower() in ['breach', 'hibp', 'pwned']]
+    if breach_artifacts:
+        recommendations.append({
+            'priority': 'high',
+            'category': 'Breach Analysis',
+            'action': 'Analyze breach exposure patterns',
+            'details': f'{len(breach_artifacts)} artifacts from breach sources. Analyze for credential reuse patterns'
+        })
+    
+    # Cross-platform correlation
+    if len(correlation.identities) > 1:
+        recommendations.append({
+            'priority': 'medium',
+            'category': 'Identity Correlation',
+            'action': 'Deep dive into identity relationships',
+            'details': f'{len(correlation.identities)} identity profiles detected. Investigate potential connections between profiles'
+        })
+    
+    # Depth expansion
+    max_depth = max((a.get('depth', 0) for a in artifacts), default=0)
+    if max_depth < 2:
+        recommendations.append({
+            'priority': 'low',
+            'category': 'Investigation Depth',
+            'action': 'Consider deeper investigation',
+            'details': f'Current investigation depth: {max_depth}. Consider increasing depth for more comprehensive results'
+        })
+    
+    return recommendations
+
+
+def _generate_priority_queue(artifacts: list, links: list, correlation) -> list:
+    """Generate priority queue for artifact ranking based on investigation value."""
+    scored_artifacts = []
+    
+    for artifact in artifacts:
+        score = 0
+        factors = []
+        
+        # Confidence score (0-40 points)
+        confidence = artifact.get('confidence', 0)
+        score += confidence * 40
+        factors.append(f"Confidence: {confidence:.0%}")
+        
+        # Artifact type priority (0-30 points)
+        artifact_type = artifact.get('artifact_type', 'unknown')
+        type_priority = {
+            'email': 30,
+            'phone': 28,
+            'username': 25,
+            'image': 20,
+            'platform_presence': 15,
+            'location': 18,
+            'breach_data': 35,
+            'risk_indicator': 40
+        }
+        score += type_priority.get(artifact_type, 10)
+        factors.append(f"Type: {artifact_type}")
+        
+        # Depth priority (0-15 points) - deeper artifacts often more valuable
+        depth = artifact.get('depth', 0)
+        score += min(depth * 5, 15)
+        factors.append(f"Depth: {depth}")
+        
+        # Connection count (0-15 points) - highly connected artifacts more valuable
+        artifact_id = artifact.get('artifact_id')
+        connection_count = sum(1 for link in links if link.get('source_artifact') == artifact_id or link.get('target_artifact') == artifact_id)
+        score += min(connection_count * 3, 15)
+        factors.append(f"Connections: {connection_count}")
+        
+        scored_artifacts.append({
+            'artifact': artifact,
+            'score': score,
+            'factors': factors,
+            'priority': 'critical' if score >= 70 else 'high' if score >= 50 else 'medium' if score >= 30 else 'low'
+        })
+    
+    # Sort by score descending
+    scored_artifacts.sort(key=lambda x: x['score'], reverse=True)
+    
+    return scored_artifacts[:20]  # Return top 20 priority artifacts
 
 
 def generate_json_report(
