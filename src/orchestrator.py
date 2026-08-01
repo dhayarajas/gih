@@ -759,6 +759,15 @@ def _process_username(
 
         # Record platform presences
         for platform in search_result.platforms_found:
+            # Resolve a profile image for this platform. Prefer the avatar URL
+            # already returned by the platform's API (GitHub/GitLab); otherwise
+            # scrape the profile page using the image_match heuristics.
+            profile_image_url = platform.avatar_url
+            if not profile_image_url and platform.profile_url:
+                profile_image_url = image_match.extract_profile_image_from_url(
+                    platform.profile_url
+                )
+
             db.add_platform_presence(
                 conn,
                 investigation_id=inv_id,
@@ -769,7 +778,24 @@ def _process_username(
                 display_name=platform.display_name,
                 bio=platform.bio,
                 follower_count=platform.follower_count,
+                profile_image_url=profile_image_url,
             )
+
+            # Store the profile image as an image-type artifact linked to the
+            # identity so it is available for correlation and reporting.
+            if profile_image_url:
+                discovered.append({
+                    "type": "image",
+                    "value": profile_image_url,
+                    "source": f"profile_image_{platform.platform_name.lower().replace('/', '_')}",
+                    "confidence": 0.85,
+                    "metadata": json.dumps({
+                        "platform": platform.platform_name,
+                        "profile_url": platform.profile_url,
+                        "is_profile_image": True,
+                    }),
+                    "link_type": "has_profile_image",
+                })
 
         # Extract platform presences as new artifacts
         discovered.extend(username_search.get_discovered_artifacts(search_result))
