@@ -35,7 +35,7 @@ plugins:
   sherlock:
     enabled: false  # Disabled by default - requires installation
     priority: 2
-    timeout: 60
+    timeout: 150  # Sherlock sweeps ~400 sites; below this it is cut off mid-run
     max_retries: 2
     custom_params:
       output_format: "json"
@@ -43,7 +43,7 @@ plugins:
   maigret:
     enabled: false  # Disabled by default - requires installation
     priority: 2
-    timeout: 60
+    timeout: 150
     max_retries: 2
   
   social_analyzer:
@@ -56,7 +56,7 @@ plugins:
   holehe:
     enabled: false  # Disabled by default - requires installation
     priority: 2
-    timeout: 60
+    timeout: 120
     max_retries: 2
   
   emailharvester:

@@ -5,6 +5,7 @@ This module provides functionality to detect if external OSINT tools
 are installed on the system and gracefully handle missing dependencies.
 """
 
+import functools
 import shutil
 import subprocess
 import logging
@@ -203,20 +204,18 @@ class ToolChecker:
         return tool_info.status == ToolStatus.AVAILABLE
     
     def get_available_tools(self) -> List[str]:
-        """Get list of available tool names."""
-        available = []
-        for tool_name, tool_info in self.tools.items():
-            if tool_info.status == ToolStatus.AVAILABLE:
-                available.append(tool_name)
-        return available
+        """Get list of available tool names (resolving any unchecked tool)."""
+        return [
+            name for name in self.tools
+            if self.check_tool(name).status == ToolStatus.AVAILABLE
+        ]
     
     def get_missing_tools(self) -> List[str]:
-        """Get list of missing tool names."""
-        missing = []
-        for tool_name, tool_info in self.tools.items():
-            if tool_info.status != ToolStatus.AVAILABLE:
-                missing.append(tool_name)
-        return missing
+        """Get list of missing tool names (resolving any unchecked tool)."""
+        return [
+            name for name in self.tools
+            if self.check_tool(name).status != ToolStatus.AVAILABLE
+        ]
     
     def print_status(self):
         """Print status of all tools."""
@@ -264,6 +263,7 @@ def check_tool_availability(tool_name: str) -> bool:
 def skip_if_not_available(tool_name: str):
     """Decorator to skip function execution if tool is not available."""
     def decorator(func):
+        @functools.wraps(func)
         def wrapper(*args, **kwargs):
             if not check_tool_availability(tool_name):
                 logger.info(f"Skipping {func.__name__}: {tool_name} not available")

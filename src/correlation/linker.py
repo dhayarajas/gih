@@ -119,6 +119,38 @@ MIN_ARTIFACT_CONFIDENCE = 0.3
 # Identity artifact types
 IDENTITY_ARTIFACT_TYPES = {"phone", "email", "username", "image", "fullname"}
 
+# Artifact types produced by the external OSINT tools. They are deliberately
+# kept out of the identity graph (they are findings *about* an identity, not
+# identifiers of one), but they are attached to the profile of the artifact
+# they were discovered from so the report can render them per identity.
+TOOL_ARTIFACT_TYPES = {
+    "username_presence": "Platform Accounts",
+    "email_account": "Registered Email Services",
+    "host_info": "Host Information",
+    "open_port": "Open Ports",
+    "domain_info": "Domain Registration",
+    "subdomain": "Subdomains",
+    "dns_a": "DNS A Records",
+    "dns_aaaa": "DNS AAAA Records",
+    "dns_mx": "DNS MX Records",
+    "dns_ns": "DNS NS Records",
+    "dns_txt": "DNS TXT Records",
+    "historical_url": "Historical URLs",
+    "gps_coordinates": "GPS Coordinates",
+    "camera_info": "Camera Information",
+    "creation_date": "Media Creation Dates",
+}
+
+# Maximum number of findings retained per tool artifact type per identity, so a
+# noisy tool (e.g. Wayback with thousands of URLs) cannot swamp the report.
+MAX_FINDINGS_PER_TYPE = 25
+
+# How far a tool finding may sit from an identity artifact (email -> domain ->
+# dns_a is two hops) and how many findings are collected per artifact before
+# the walk stops.
+MAX_FINDING_HOPS = 3
+MAX_COLLECTED_FINDINGS = 500
+
 
 def _extract_platform_from_url(url: str) -> str:
     """Extract platform name from a profile URL."""
@@ -265,6 +297,22 @@ class IdentityProfile:
     risk_indicators: list[str] = field(default_factory=list)
     confidence: float = 0.0
     artifact_count: int = 0
+    # External-tool findings attached to this identity, keyed by artifact type
+    # (e.g. "open_port" -> [{"value": ..., "source": "nmap", ...}, ...]).
+    tool_findings: dict[str, list[dict]] = field(default_factory=dict)
+
+    @property
+    def tool_finding_sections(self) -> list[dict]:
+        """Tool findings as ordered, human-labelled sections for reporting."""
+        return [
+            {
+                "type": artifact_type,
+                "label": TOOL_ARTIFACT_TYPES.get(artifact_type, artifact_type),
+                "findings": findings,
+            }
+            for artifact_type, findings in sorted(self.tool_findings.items())
+            if findings
+        ]
 
     def to_dict(self) -> dict:
         return {
@@ -277,6 +325,7 @@ class IdentityProfile:
             "risk_indicators": self.risk_indicators,
             "confidence": self.confidence,
             "artifact_count": self.artifact_count,
+            "tool_findings": self.tool_findings,
         }
 
 
@@ -383,6 +432,8 @@ def correlate_identities(conn: sqlite3.Connection, investigation_id: str) -> Cor
         if aid:
             presence_by_artifact.setdefault(aid, []).append(p)
 
+    tool_findings_by_artifact = _collect_tool_findings(conn, investigation_id)
+
     valid_identities = []
     noise_artifacts = []
     
@@ -438,6 +489,20 @@ def correlate_identities(conn: sqlite3.Connection, investigation_id: str) -> Cor
                     if presence_image:
                         profile.images.append(presence_image)
 
+            # Attach external-tool findings discovered from this artifact.
+            for finding in tool_findings_by_artifact.get(node_id, []):
+                bucket = profile.tool_findings.setdefault(finding["artifact_type"], [])
+                if len(bucket) >= MAX_FINDINGS_PER_TYPE:
+                    continue
+                if any(existing["value"] == finding["value"] for existing in bucket):
+                    continue
+                bucket.append({
+                    "value": finding["value"],
+                    "source": finding["source"],
+                    "confidence": finding["confidence"],
+                    "details": finding["details"],
+                })
+
         # Deduplicate values
         profile.phones = sorted(set(profile.phones))
         profile.emails = sorted(set(profile.emails))
@@ -492,6 +557,75 @@ def correlate_identities(conn: sqlite3.Connection, investigation_id: str) -> Cor
         result.graph_nodes, result.graph_edges, len(result.identities)
     )
     return result
+
+
+def _collect_tool_findings(
+    conn: sqlite3.Connection,
+    investigation_id: str,
+) -> dict[str, list[dict]]:
+    """Map each identity artifact to the external-tool findings linked to it.
+
+    Tool outputs (`open_port`, `subdomain`, `dns_a`, `historical_url`, ...) are
+    stored as artifacts linked to the artifact they were discovered from. They
+    never enter the identity graph, so they are resolved here by walking the
+    links table, up to ``MAX_FINDING_HOPS`` away, and keyed by the artifact the
+    walk started from.
+    """
+    artifacts_by_id = {
+        a["artifact_id"]: a for a in db.get_artifacts(conn, investigation_id)
+    }
+
+    children: dict[str, list[str]] = {}
+    for link in db.get_links(conn, investigation_id):
+        children.setdefault(link["source_artifact"], []).append(link["target_artifact"])
+
+    def _as_finding(artifact: dict) -> dict:
+        details = {}
+        if artifact.get("metadata"):
+            try:
+                parsed = json.loads(artifact["metadata"])
+                if isinstance(parsed, dict):
+                    details = parsed
+            except json.JSONDecodeError:
+                pass
+        return {
+            "artifact_type": artifact["artifact_type"],
+            "value": artifact["value"],
+            "source": artifact.get("source") or "external_tool",
+            "confidence": artifact.get("confidence") or 0.0,
+            "details": details,
+        }
+
+    findings: dict[str, list[dict]] = {}
+    for root_id in artifacts_by_id:
+        collected: list[dict] = []
+        visited = {root_id}
+        frontier = [(child, 1) for child in children.get(root_id, [])]
+
+        # Findings are frequently one hop removed from the identity artifact
+        # (email -> domain -> dns_a / domain_info), so the walk continues
+        # through intermediate non-tool artifacts for a couple of hops.
+        while frontier and len(collected) < MAX_COLLECTED_FINDINGS:
+            node_id, hops = frontier.pop(0)
+            if node_id in visited:
+                continue
+            visited.add(node_id)
+
+            artifact = artifacts_by_id.get(node_id)
+            if not artifact:
+                continue
+
+            if artifact["artifact_type"] in TOOL_ARTIFACT_TYPES:
+                collected.append(_as_finding(artifact))
+                continue
+
+            if hops < MAX_FINDING_HOPS:
+                frontier.extend((child, hops + 1) for child in children.get(node_id, []))
+
+        if collected:
+            findings[root_id] = collected
+
+    return findings
 
 
 def _compute_confidence(G: nx.Graph, component: set) -> float:

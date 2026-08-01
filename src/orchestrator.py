@@ -629,7 +629,7 @@ def _process_artifact(
     if config.check_external_tools:
         logger.debug("Processing artifact with external OSINT tools")
         external_discovered = _process_external_tools(inv_id, artifact, config)
-        result.discovered.extend(external_discovered)
+        result.discovered.extend(_normalize_tool_artifacts(external_discovered, result))
         logger.debug("External tools returned %d additional artifacts", len(external_discovered))
     
     # Process with plugin system if available
@@ -902,6 +902,9 @@ def _process_external_tools(
             if check_tool_availability("sherlock"):
                 tasks.append(("sherlock", _tool_task("sherlock", "username_search", "Sherlock")))
 
+            if check_tool_availability("maigret"):
+                tasks.append(("maigret", _tool_task("maigret", "username_search", "Maigret")))
+
             if check_google_dorks_availability(config.google_api_key):
                 def _google_dorks() -> list[dict]:
                     logger.debug("Running Google Dorks search for: %s", value)
@@ -928,6 +931,8 @@ def _process_external_tools(
                               _tool_task("theharvester", "subdomain_harvest", "theHarvester (subdomain)")))
             if check_tool_availability("amass"):
                 tasks.append(("amass", _tool_task("amass", "subdomain_enum", "Amass")))
+            if check_tool_availability("subfinder"):
+                tasks.append(("subfinder", _tool_task("subfinder", "subdomain_enum", "subfinder")))
             if check_tool_availability("whois"):
                 tasks.append(("whois", _tool_task("whois", "domain_lookup", "Whois")))
             if check_tool_availability("dig"):
@@ -947,6 +952,9 @@ def _process_external_tools(
                 tasks.append(("exiftool", _tool_task("exiftool", "metadata_extract", "ExifTool")))
 
         elif artifact_type == "email":
+            if check_tool_availability("holehe"):
+                tasks.append(("holehe", _tool_task("holehe", "email_accounts", "holehe")))
+
             # Extract domain from email for domain-based analysis (no tool run).
             if "@" in value:
                 domain = value.split("@")[1]
@@ -965,6 +973,68 @@ def _process_external_tools(
         logger.error("External tools processing failed for %s: %s", value, e)
 
     return discovered
+
+
+# Keys of a tool artifact that map onto artifact columns; everything else the
+# tool reports (platform, ports, services, timestamps, ...) is folded into the
+# artifact's metadata so no tool output is lost.
+_ARTIFACT_CORE_KEYS = frozenset({"type", "value", "source", "confidence", "metadata", "link_type"})
+
+
+def _normalize_tool_artifacts(
+    tool_artifacts: list[dict],
+    result: ArtifactProcessResult,
+) -> list[dict]:
+    """Normalize raw external-tool artifacts for persistence.
+
+    Tool integrations return free-form dicts (``platform``, ``profile_url``,
+    ``service``, ``timestamp``, ...). Those extra fields are merged into the
+    artifact ``metadata`` JSON, and Sherlock/Maigret ``username_presence`` hits
+    additionally become ``platform_presence`` rows so tool-discovered accounts
+    show up in the Platform Presence Matrix alongside the built-in search.
+    """
+    normalized: list[dict] = []
+    seen_presence_urls = {
+        p.get("profile_url") for p in result.platform_presences if p.get("profile_url")
+    }
+
+    for raw in tool_artifacts:
+        artifact = {k: v for k, v in raw.items() if k in _ARTIFACT_CORE_KEYS}
+        extras = {k: v for k, v in raw.items() if k not in _ARTIFACT_CORE_KEYS}
+
+        metadata = artifact.get("metadata")
+        if isinstance(metadata, str):
+            try:
+                metadata = json.loads(metadata)
+            except json.JSONDecodeError:
+                metadata = {"raw": metadata}
+        metadata = metadata if isinstance(metadata, dict) else {}
+        metadata.update(extras)
+        if metadata:
+            artifact["metadata"] = json.dumps(metadata, default=str)
+
+        artifact.setdefault("link_type", f"found_by_{raw.get('source', 'external_tool')}")
+
+        if raw.get("type") == "username_presence":
+            profile_url = raw.get("profile_url")
+            # Keep one artifact per platform hit rather than one per username.
+            if profile_url:
+                artifact["value"] = profile_url
+            if profile_url and profile_url not in seen_presence_urls:
+                seen_presence_urls.add(profile_url)
+                result.platform_presences.append({
+                    "platform_name": raw.get("platform") or "unknown",
+                    "profile_url": profile_url,
+                    "username": raw.get("value"),
+                    "display_name": None,
+                    "bio": None,
+                    "follower_count": None,
+                    "profile_image_url": None,
+                })
+
+        normalized.append(artifact)
+
+    return normalized
 
 
 def _run_external_tool_tasks(tasks: "list[tuple[str, Any]]") -> list[dict]:

@@ -126,6 +126,8 @@ def cli(ctx: click.Context, verbose: bool, db_path: Optional[str]) -> None:
 @click.option("--email", "-e", multiple=True, help="Email address to investigate")
 @click.option("--username", "-u", multiple=True, help="Username to investigate")
 @click.option("--image", "-i", multiple=True, help="Image file path to investigate")
+@click.option("--fullname", "-n", multiple=True, help="Full name to investigate")
+@click.option("--ip", multiple=True, help="IP address to investigate")
 @click.option("--title", "-t", default=None, help="Investigation title")
 @click.option("--depth", default=2, help="Max investigation depth (default: 2)")
 @click.option("--no-breach", is_flag=True, help="Skip breach checks")
@@ -153,6 +155,8 @@ def investigate(
     email: tuple,
     username: tuple,
     image: tuple,
+    fullname: tuple,
+    ip: tuple,
     title: Optional[str],
     depth: int,
     no_breach: bool,
@@ -182,8 +186,8 @@ def investigate(
         ghost-hunter investigate -p "+1-555-0123" -e "suspect@example.com" -u "john_doe"
     """
     # Validate input
-    if not phone and not email and not username and not image and not check_tools:
-        click.echo("Error: At least one seed artifact required (--phone, --email, --username, or --image) or use --check-tools")
+    if not phone and not email and not username and not image and not fullname and not ip and not check_tools:
+        click.echo("Error: At least one seed artifact required (--phone, --email, --username, --fullname, --ip, or --image) or use --check-tools")
         sys.exit(1)
 
     # Check external tools if requested
@@ -202,6 +206,10 @@ def investigate(
         seeds.append({"type": "email", "value": e})
     for u in username:
         seeds.append({"type": "username", "value": u})
+    for n in fullname:
+        seeds.append({"type": "fullname", "value": n})
+    for addr in ip:
+        seeds.append({"type": "ip_address", "value": addr})
     for i in image:
         if not Path(i).exists():
             click.echo(f"Warning: Image file not found: {i}")

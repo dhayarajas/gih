@@ -348,6 +348,27 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                 {% endif %}
             </div>
         </div>
+        {% if identity.tool_finding_sections %}
+        <h4>External Tool Findings</h4>
+        <p class="subsection-blurb">Results produced by the external OSINT tools (Sherlock, Maigret, holehe, Whois, Dig, Nmap, Amass, subfinder, ExifTool, Wayback Machine) for artifacts belonging to this identity.</p>
+        <table>
+            <thead>
+                <tr><th>Finding Type</th><th>Value</th><th>Tool</th><th>Confidence</th></tr>
+            </thead>
+            <tbody>
+                {% for section in identity.tool_finding_sections %}
+                {% for finding in section.findings %}
+                <tr>
+                    <td>{{ section.label }}</td>
+                    <td>{{ finding.value }}</td>
+                    <td>{{ finding.source }}</td>
+                    <td>{{ "%.2f" | format(finding.confidence) }}</td>
+                </tr>
+                {% endfor %}
+                {% endfor %}
+            </tbody>
+        </table>
+        {% endif %}
     </div>
     {% endfor %}
 
@@ -611,6 +632,21 @@ EXECUTIVE_TEMPLATE = """<!DOCTYPE html>
             </tbody>
         </table>
 
+        <h2>Tool-Derived Findings by Identity</h2>
+        {% for identity in correlation.identities %}
+        {% if identity.tool_finding_sections %}
+        <div class="summary-box">
+            <p><strong>{{ identity.profile_id }}</strong></p>
+            <ul>
+                {% for section in identity.tool_finding_sections %}
+                <li>{{ section.label }}: {{ section.findings | length }} finding(s)
+                    &mdash; {{ section.findings[:3] | map(attribute='value') | join(', ') }}</li>
+                {% endfor %}
+            </ul>
+        </div>
+        {% endif %}
+        {% endfor %}
+
         <h2>Recommendations</h2>
         {% for rec in recommendations %}
         <div class="summary-box" style="border-left-color: #e74c3c;">
@@ -671,6 +707,34 @@ TECHNICAL_TEMPLATE = """<!DOCTYPE html>
             </table>
         </div>
         
+        <h2>Tool Findings per Identity</h2>
+        {% for identity in correlation.identities %}
+        {% if identity.tool_finding_sections %}
+        <div class="card">
+            <p><strong>{{ identity.profile_id }}</strong>
+               (usernames: {{ identity.usernames | join(', ') or '-' }};
+               emails: {{ identity.emails | join(', ') or '-' }})</p>
+            <table>
+                <thead>
+                    <tr><th>Type</th><th>Value</th><th>Tool</th><th>Details</th></tr>
+                </thead>
+                <tbody>
+                    {% for section in identity.tool_finding_sections %}
+                    {% for finding in section.findings %}
+                    <tr>
+                        <td>{{ section.type }}</td>
+                        <td>{{ finding.value }}</td>
+                        <td>{{ finding.source }}</td>
+                        <td class="code">{{ finding.details }}</td>
+                    </tr>
+                    {% endfor %}
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% endif %}
+        {% endfor %}
+
         <h2>Links</h2>
         <div class="card">
             <table>
@@ -770,6 +834,30 @@ LEGAL_TEMPLATE = """<!DOCTYPE html>
                 {% endfor %}
             </tbody>
         </table>
+
+        <h2>Tool-Derived Evidence by Identity</h2>
+        <p>Findings produced by external OSINT tooling, attributed to the identity whose artifact they were derived from:</p>
+        {% for identity in correlation.identities %}
+        {% if identity.tool_finding_sections %}
+        <p><strong>{{ identity.profile_id }}</strong></p>
+        <table>
+            <thead>
+                <tr><th>Evidence Type</th><th>Value</th><th>Collection Tool</th></tr>
+            </thead>
+            <tbody>
+                {% for section in identity.tool_finding_sections %}
+                {% for finding in section.findings %}
+                <tr>
+                    <td>{{ section.label }}</td>
+                    <td>{{ finding.value }}</td>
+                    <td>{{ finding.source }}</td>
+                </tr>
+                {% endfor %}
+                {% endfor %}
+            </tbody>
+        </table>
+        {% endif %}
+        {% endfor %}
 
         <h2>Data Sources</h2>
         <p>The following data sources were utilized in this investigation:</p>

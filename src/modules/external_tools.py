@@ -40,6 +40,32 @@ def _get_tool_timeout(tool_name: str, default: int = DEFAULT_TOOL_TIMEOUT) -> in
         return default
 
 
+# The CDX API happily returns tens of thousands of rows for a busy domain;
+# only the first slice is turned into artifacts.
+MAX_WAYBACK_URLS = 100
+
+_IPV4_RE = re.compile(r"^\d{1,3}(?:\.\d{1,3}){3}$")
+
+# Matches the "[+] <Site>: <url>" lines printed by sherlock and maigret.
+_FOUND_LINE_RE = re.compile(r"^\s*\[\+\]\s*([^:]+):\s*(https?://\S+)\s*$")
+
+
+def _parse_found_lines(output: str) -> List[tuple]:
+    """Extract ``(site, url)`` pairs from sherlock/maigret "found" output."""
+    found = []
+    seen = set()
+    for line in output.splitlines():
+        match = _FOUND_LINE_RE.match(line)
+        if not match:
+            continue
+        site, url = match.group(1).strip(), match.group(2).strip()
+        if url in seen:
+            continue
+        seen.add(url)
+        found.append((site, url))
+    return found
+
+
 class ToolOutputFormat(Enum):
     """Output format types from OSINT tools."""
     JSON = "json"
@@ -156,44 +182,136 @@ class SherlockIntegration(ExternalToolsIntegration):
     
     @skip_if_not_available("sherlock")
     def search_username(self, username: str) -> ToolResult:
-        """Search for username across social networks using Sherlock."""
-        command = ["sherlock", username, "--json", "--folderoutput", "/tmp"]
+        """Search for username across social networks using Sherlock.
+
+        Sherlock reports hits on stdout as ``[+] <Site>: <url>`` lines; those
+        are parsed into ``username_presence`` artifacts carrying the platform
+        name and profile URL so they can be folded into the platform presence
+        matrix.
+        """
+        command = [
+            "sherlock", username,
+            "--print-found", "--no-color", "--timeout", "10",
+        ]
         result = self.run_tool("sherlock", command)
-        
-        if result.success:
-            # Parse JSON output from sherlock
-            try:
-                # Sherlock creates individual JSON files for each platform
-                # We'll parse the main output for now
-                result.parsed_data = {"username": username, "platforms": {}}
-                
-                # Extract platform information from output
-                lines = result.output.split('\n')
-                for line in lines:
-                    if ':' in line and 'found' in line.lower():
-                        parts = line.split(':')
-                        if len(parts) >= 2:
-                            platform = parts[0].strip()
-                            status = parts[1].strip()
-                            result.parsed_data["platforms"][platform] = status
-                
-                # Create artifacts from found platforms
-                for platform, status in result.parsed_data["platforms"].items():
-                    if "found" in status.lower() or "yes" in status.lower():
-                        result.artifacts_discovered.append({
-                            "type": "username_presence",
-                            "value": username,
-                            "platform": platform,
-                            "source": "sherlock",
-                            "confidence": 0.8
-                        })
-                
-                logger.info(f"Sherlock found {len(result.artifacts_discovered)} platforms for {username}")
-                
-            except Exception as e:
-                logger.error(f"Failed to parse Sherlock output: {e}")
-                result.error_message = f"Parsing error: {str(e)}"
-        
+
+        # Sherlock returns a non-zero exit code when some sites error out, so
+        # findings are parsed regardless of the exit status.
+        for platform, url in _parse_found_lines(result.output):
+            result.artifacts_discovered.append({
+                "type": "username_presence",
+                "value": username,
+                "platform": platform,
+                "profile_url": url,
+                "source": "sherlock",
+                "confidence": 0.8,
+            })
+
+        result.success = result.success or bool(result.artifacts_discovered)
+        result.parsed_data = {
+            "username": username,
+            "platforms": [a["platform"] for a in result.artifacts_discovered],
+        }
+        logger.info("Sherlock found %d platforms for %s",
+                    len(result.artifacts_discovered), username)
+        return result
+
+
+class MaigretIntegration(ExternalToolsIntegration):
+    """Integration for Maigret username search tool."""
+
+    @skip_if_not_available("maigret")
+    def search_username(self, username: str) -> ToolResult:
+        """Search for username across sites using Maigret."""
+        # maigret prints found accounts by default; --print-not-found would be
+        # the opt-in for the noisy variant.
+        command = [
+            "maigret", username,
+            "--no-color", "--no-progressbar",
+            "--timeout", "10", "--top-sites", "150",
+        ]
+        result = self.run_tool("maigret", command)
+
+        # Maigret exits non-zero on partial failures but still prints findings.
+        for platform, url in _parse_found_lines(result.output):
+            result.artifacts_discovered.append({
+                "type": "username_presence",
+                "value": username,
+                "platform": platform,
+                "profile_url": url,
+                "source": "maigret",
+                "confidence": 0.8,
+            })
+
+        result.success = result.success or bool(result.artifacts_discovered)
+        result.parsed_data = {
+            "username": username,
+            "platforms": [a["platform"] for a in result.artifacts_discovered],
+        }
+        logger.info("Maigret found %d platforms for %s",
+                    len(result.artifacts_discovered), username)
+        return result
+
+
+class HoleheIntegration(ExternalToolsIntegration):
+    """Integration for holehe email account discovery."""
+
+    @skip_if_not_available("holehe")
+    def check_email(self, email: str) -> ToolResult:
+        """Check which services an email address is registered on."""
+        command = ["holehe", "--only-used", "--no-color", email]
+        result = self.run_tool("holehe", command)
+
+        for line in result.output.splitlines():
+            line = line.strip()
+            if not line.startswith("[+]"):
+                continue
+            service = line[3:].strip()
+            if not service or " " in service or "." not in service:
+                continue
+            result.artifacts_discovered.append({
+                "type": "email_account",
+                "value": f"{email}@{service}",
+                "platform": service,
+                "email": email,
+                "source": "holehe",
+                "confidence": 0.85,
+            })
+
+        result.success = result.success or bool(result.artifacts_discovered)
+        result.parsed_data = {
+            "email": email,
+            "services": [a["platform"] for a in result.artifacts_discovered],
+        }
+        logger.info("holehe found %d registered services for %s",
+                    len(result.artifacts_discovered), email)
+        return result
+
+
+class SubfinderIntegration(ExternalToolsIntegration):
+    """Integration for subfinder passive subdomain enumeration."""
+
+    @skip_if_not_available("subfinder")
+    def enumerate_subdomains(self, domain: str) -> ToolResult:
+        """Enumerate subdomains passively using subfinder."""
+        command = ["subfinder", "-d", domain, "-silent"]
+        result = self.run_tool("subfinder", command)
+
+        seen: set = set()
+        for line in result.output.splitlines():
+            candidate = line.strip()
+            if not candidate or not candidate.endswith(domain) or candidate in seen:
+                continue
+            seen.add(candidate)
+            result.artifacts_discovered.append({
+                "type": "subdomain",
+                "value": candidate,
+                "source": "subfinder",
+                "confidence": 0.9,
+            })
+
+        logger.info("subfinder found %d subdomains for %s",
+                    len(result.artifacts_discovered), domain)
         return result
 
 
@@ -373,6 +491,18 @@ class DigIntegration(ExternalToolsIntegration):
                     "source": "dig",
                     "confidence": 0.95
                 })
+
+                # An A record resolves to an address; surface it as an
+                # ip_address artifact so the host-oriented tools (Shodan,
+                # Nmap) actually have an input to work from.
+                if record_type.upper() == "A" and _IPV4_RE.match(record):
+                    result.artifacts_discovered.append({
+                        "type": "ip_address",
+                        "value": record,
+                        "domain": domain,
+                        "source": "dig",
+                        "confidence": 0.9,
+                    })
             
             logger.info(f"Dig found {len(result.artifacts_discovered)} {record_type} records for {domain}")
         
@@ -386,9 +516,11 @@ class NmapIntegration(ExternalToolsIntegration):
     def scan_host(self, target: str, ports: str = "common") -> ToolResult:
         """Scan host using Nmap."""
         if ports == "common":
-            command = ["nmap", "-sV", "-sC", target]
+            # Top-100 ports with a fast timing template keeps a scan inside the
+            # configured per-tool budget; a full -sC/-sV sweep does not.
+            command = ["nmap", "-Pn", "-T4", "--top-ports", "100", "-sV", target]
         else:
-            command = ["nmap", "-p", ports, "-sV", "-sC", target]
+            command = ["nmap", "-Pn", "-T4", "-p", ports, "-sV", target]
         
         result = self.run_tool("nmap", command)
         
@@ -471,8 +603,12 @@ class WaybackMachineIntegration(ExternalToolsIntegration):
         
         try:
             # Use Wayback Machine CDX API
-            url = f"http://web.archive.org/cdx/search/cdx?url={domain}/*&output=json&fl=timestamp,original,statuscode,mimetype"
-            response = requests.get(url, timeout=30)
+            url = (
+                f"http://web.archive.org/cdx/search/cdx?url={domain}/*"
+                f"&output=json&fl=timestamp,original,statuscode,mimetype"
+                f"&limit={MAX_WAYBACK_URLS}"
+            )
+            response = requests.get(url, timeout=_get_tool_timeout("wayback_machine", 30))
             
             if response.status_code == 200:
                 result.success = True
@@ -481,7 +617,7 @@ class WaybackMachineIntegration(ExternalToolsIntegration):
                 # Parse JSON response
                 data = response.json()
                 if len(data) > 1:  # First row is headers
-                    for row in data[1:]:
+                    for row in data[1:MAX_WAYBACK_URLS + 1]:
                         timestamp, original_url, status, mime_type = row
                         result.artifacts_discovered.append({
                             "type": "historical_url",
@@ -514,6 +650,9 @@ _dig = DigIntegration()
 _nmap = NmapIntegration()
 _exiftool = ExifToolIntegration()
 _wayback = WaybackMachineIntegration()
+_maigret = MaigretIntegration()
+_holehe = HoleheIntegration()
+_subfinder = SubfinderIntegration()
 
 
 def get_tool_integrations() -> Dict[str, ExternalToolsIntegration]:
@@ -528,7 +667,55 @@ def get_tool_integrations() -> Dict[str, ExternalToolsIntegration]:
         "nmap": _nmap,
         "exiftool": _exiftool,
         "wayback_machine": _wayback,
+        "maigret": _maigret,
+        "holehe": _holehe,
+        "subfinder": _subfinder,
     }
+
+
+# Maps (tool, analysis type) to the unbound integration method implementing it.
+# Unbound methods are used so building the table never touches an unrelated
+# integration instance (binding them eagerly made every dispatch fail with an
+# AttributeError for the methods the selected integration does not define).
+ANALYSIS_METHODS = {
+    "sherlock": {
+        "username_search": SherlockIntegration.search_username,
+    },
+    "maigret": {
+        "username_search": MaigretIntegration.search_username,
+    },
+    "theharvester": {
+        "email_harvest": TheHarvesterIntegration.harvest_email,
+        "subdomain_harvest": TheHarvesterIntegration.harvest_subdomains,
+    },
+    "holehe": {
+        "email_accounts": HoleheIntegration.check_email,
+    },
+    "shodan": {
+        "host_search": ShodanIntegration.search_host,
+    },
+    "amass": {
+        "subdomain_enum": AmassIntegration.enumerate_subdomains,
+    },
+    "subfinder": {
+        "subdomain_enum": SubfinderIntegration.enumerate_subdomains,
+    },
+    "whois": {
+        "domain_lookup": WhoisIntegration.lookup_domain,
+    },
+    "dig": {
+        "dns_lookup": DigIntegration.dns_lookup,
+    },
+    "nmap": {
+        "host_scan": NmapIntegration.scan_host,
+    },
+    "exiftool": {
+        "metadata_extract": ExifToolIntegration.extract_metadata,
+    },
+    "wayback_machine": {
+        "historical_urls": WaybackMachineIntegration.get_historical_urls,
+    },
+}
 
 
 def run_tool_analysis(tool_name: str, analysis_type: str, target: str) -> ToolResult:
@@ -547,45 +734,27 @@ def run_tool_analysis(tool_name: str, analysis_type: str, target: str) -> ToolRe
     
     if tool_name not in integrations:
         logger.error(f"Unknown tool integration: {tool_name}")
-        return ToolResult(tool_name=tool_name, success=False, error_message="Unknown tool")
+        return ToolResult(
+            tool_name=tool_name, success=False, output="", error_message="Unknown tool"
+        )
     
     integration = integrations[tool_name]
-    
-    # Map analysis types to integration methods
-    analysis_methods = {
-        "sherlock": {
-            "username_search": integration.search_username,
-        },
-        "theharvester": {
-            "email_harvest": integration.harvest_email,
-            "subdomain_harvest": integration.harvest_subdomains,
-        },
-        "shodan": {
-            "host_search": integration.search_host,
-        },
-        "amass": {
-            "subdomain_enum": integration.enumerate_subdomains,
-        },
-        "whois": {
-            "domain_lookup": integration.lookup_domain,
-        },
-        "dig": {
-            "dns_lookup": integration.dns_lookup,
-        },
-        "nmap": {
-            "host_scan": integration.scan_host,
-        },
-        "exiftool": {
-            "metadata_extract": integration.extract_metadata,
-        },
-        "wayback_machine": {
-            "historical_urls": integration.get_historical_urls,
-        },
-    }
-    
-    if tool_name not in analysis_methods or analysis_type not in analysis_methods[tool_name]:
+
+    methods = ANALYSIS_METHODS.get(tool_name, {})
+    if analysis_type not in methods:
         logger.error(f"Unknown analysis type: {analysis_type} for tool: {tool_name}")
-        return ToolResult(tool_name=tool_name, success=False, error_message="Unknown analysis type")
-    
-    method = analysis_methods[tool_name][analysis_type]
-    return method(target)
+        return ToolResult(
+            tool_name=tool_name, success=False, output="",
+            error_message="Unknown analysis type",
+        )
+
+    result = methods[analysis_type](integration, target)
+    # The availability decorator returns None when the tool is not installed.
+    if result is None:
+        return ToolResult(
+            tool_name=tool_name,
+            success=False,
+            output="",
+            error_message=f"{tool_name} is not installed",
+        )
+    return result
