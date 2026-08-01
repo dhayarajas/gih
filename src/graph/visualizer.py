@@ -213,7 +213,7 @@ def generate_interactive_graph(
 
     # Save
     if output_path is None:
-        output_path = f"{investigation_id}_graph.html"
+        output_path = f"reports/{investigation_id}_graph.html"
 
     output_file = Path(output_path)
     output_file.parent.mkdir(parents=True, exist_ok=True)

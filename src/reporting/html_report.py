@@ -323,7 +323,7 @@ def generate_html_report(
 
     # Save
     if output_path is None:
-        output_path = f"{investigation_id}_report.html"
+        output_path = f"reports/{investigation_id}_report.html"
 
     output_file = Path(output_path)
     output_file.parent.mkdir(parents=True, exist_ok=True)
@@ -373,7 +373,7 @@ def generate_json_report(
     }
 
     if output_path is None:
-        output_path = f"{investigation_id}_report.json"
+        output_path = f"reports/{investigation_id}_report.json"
 
     output_file = Path(output_path)
     output_file.parent.mkdir(parents=True, exist_ok=True)
