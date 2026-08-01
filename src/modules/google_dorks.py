@@ -81,11 +81,12 @@ def _get_google_dorks_config() -> dict:
         "rate_limit_seconds": 1.0,
         "max_results_per_search": 10,
         "max_parallel_workers": 10,
-        "max_retries": 3,
-        "initial_backoff": 1.0,
+        "max_retries": 1,
+        "initial_backoff": 0.5,
         "backoff_multiplier": 2.0,
-        "jitter_max": 0.5,
+        "jitter_max": 0.3,
         "max_alternative_links": 50,
+        "request_timeout": 15,
     })
 
 
@@ -208,6 +209,8 @@ class GoogleDorksSearch:
         self.max_patterns = max_patterns if max_patterns is not None else config["max_patterns"]
         self.max_results_per_search = config["max_results_per_search"]
         self.max_parallel_workers = config["max_parallel_workers"]
+        # Explicit per-request timeout so a hung HTTP call cannot stall the run.
+        self.request_timeout = config.get("request_timeout", 15)
         self.last_request_time = 0
         self._rate_limit_lock = threading.Lock()
         
@@ -440,7 +443,7 @@ class GoogleDorksSearch:
                 'num': 10
             }
             
-            response = requests.get(url, params=params, headers=self.headers)
+            response = requests.get(url, params=params, headers=self.headers, timeout=self.request_timeout)
             response.raise_for_status()
             
             data = response.json()
@@ -491,7 +494,7 @@ class GoogleDorksSearch:
                 'kl': 'us-en'
             }
             
-            response = requests.post(url, data=params, headers=self.headers)
+            response = requests.post(url, data=params, headers=self.headers, timeout=self.request_timeout)
             response.raise_for_status()
             
             soup = BeautifulSoup(response.text, 'html.parser')
@@ -640,7 +643,7 @@ class GoogleDorksSearch:
         
         try:
             url = f"https://www.google.com/search?q={quote_plus(query)}&num=10"
-            response = requests.get(url, headers=self.headers)
+            response = requests.get(url, headers=self.headers, timeout=self.request_timeout)
             
             # Handle 429 rate limiting specifically
             if response.status_code == 429:
@@ -755,6 +758,9 @@ class GoogleDorksSearch:
         url = result.get('url', '')
         title = result.get('title', '')
         snippet = result.get('snippet', '')
+
+        config = _get_google_dorks_config()
+        max_emails_per_result = int(config.get("max_emails_per_result", 3))
         
         # Extract platform from URL
         platform = self._extract_platform_from_url(url)
@@ -777,9 +783,14 @@ class GoogleDorksSearch:
                 }
             })
         
-        # Extract email from snippet
-        email_matches = re.findall(r'[\w\.-]+@[\w\.-]+\.\w+', snippet)
-        for email in email_matches:
+        # Extract email from snippet (de-duplicated and capped to bound growth).
+        seen_emails: set = set()
+        for email in re.findall(r'[\w\.-]+@[\w\.-]+\.\w+', snippet):
+            if email in seen_emails:
+                continue
+            seen_emails.add(email)
+            if len(seen_emails) > max_emails_per_result:
+                break
             artifacts.append({
                 'type': 'email',
                 'value': email,

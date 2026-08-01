@@ -5,7 +5,13 @@ from pathlib import Path
 
 import pytest
 
-from src.orchestrator import run_investigation, InvestigationConfig
+import src.orchestrator as orchestrator
+from src.orchestrator import (
+    EXPANDABLE_ARTIFACT_TYPES,
+    ArtifactProcessResult,
+    InvestigationConfig,
+    run_investigation,
+)
 from src.storage import database as db
 
 
@@ -121,3 +127,99 @@ class TestInvestigationOrchestrator:
         )
         inv = db.get_investigation(conn, result.investigation_id)
         assert inv["title"] == "My Custom Investigation"
+
+
+class TestBoundedProcessing:
+    """Tests for the artifact budget, re-queue restriction, and dedup."""
+
+    @staticmethod
+    def _stub_processor(discovered_per_artifact):
+        """Build a _process_artifact stub returning fixed discoveries."""
+        def _fake(inv_id, artifact, config, plugin_manager=None):
+            res = ArtifactProcessResult(artifact=artifact)
+            if artifact["depth"] == 0:
+                res.discovered = list(discovered_per_artifact)
+            return res
+        return _fake
+
+    def test_artifact_budget_caps_total(self, conn, monkeypatch):
+        """max_total_artifacts should cap the number of enqueued artifacts."""
+        discovered = [
+            {"type": "username", "value": f"user{i}", "source": "test"}
+            for i in range(50)
+        ]
+        monkeypatch.setattr(orchestrator, "_process_artifact", self._stub_processor(discovered))
+
+        config = InvestigationConfig(
+            max_depth=3,
+            check_breaches=False,
+            search_usernames=False,
+            check_external_tools=False,
+            max_total_artifacts=10,
+        )
+        result = run_investigation(
+            conn,
+            seeds=[{"type": "username", "value": "seed"}],
+            config=config,
+        )
+        # seed counts toward the budget, so total never exceeds the cap.
+        assert result.total_artifacts <= 10
+
+    def test_only_expandable_types_requeued(self, conn, monkeypatch):
+        """Leaf artifact types are stored but never re-queued for expansion."""
+        # A leaf type (risk_indicator) plus an expandable type (username).
+        discovered = [
+            {"type": "risk_indicator", "value": "spam", "source": "test"},
+            {"type": "username", "value": "child", "source": "test"},
+        ]
+        calls = []
+
+        def _fake(inv_id, artifact, config, plugin_manager=None):
+            calls.append((artifact["type"], artifact["value"]))
+            res = ArtifactProcessResult(artifact=artifact)
+            if artifact["depth"] == 0:
+                res.discovered = list(discovered)
+            return res
+
+        monkeypatch.setattr(orchestrator, "_process_artifact", _fake)
+
+        config = InvestigationConfig(
+            max_depth=3,
+            check_breaches=False,
+            search_usernames=False,
+            check_external_tools=False,
+        )
+        run_investigation(conn, seeds=[{"type": "username", "value": "seed"}], config=config)
+
+        processed_types = {c[0] for c in calls}
+        # The expandable child was processed; the leaf risk_indicator was not.
+        assert ("username", "child") in calls
+        assert "risk_indicator" not in processed_types
+
+    def test_expandable_types_constant(self):
+        """Sanity check on the re-queue allowlist."""
+        assert "username" in EXPANDABLE_ARTIFACT_TYPES
+        assert "risk_indicator" not in EXPANDABLE_ARTIFACT_TYPES
+
+    def test_dedup_preserved_across_levels(self, conn, monkeypatch):
+        """The same discovered value should be stored only once."""
+        discovered = [
+            {"type": "username", "value": "dup", "source": "test"},
+            {"type": "username", "value": "dup", "source": "test"},
+        ]
+        monkeypatch.setattr(orchestrator, "_process_artifact", self._stub_processor(discovered))
+
+        config = InvestigationConfig(
+            max_depth=2,
+            check_breaches=False,
+            search_usernames=False,
+            check_external_tools=False,
+        )
+        result = run_investigation(
+            conn,
+            seeds=[{"type": "username", "value": "seed"}],
+            config=config,
+        )
+        artifacts = db.get_artifacts(conn, result.investigation_id)
+        dup_artifacts = [a for a in artifacts if a["value"] == "dup"]
+        assert len(dup_artifacts) == 1
