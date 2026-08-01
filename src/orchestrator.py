@@ -65,9 +65,11 @@ VERSION:
 import json
 import logging
 import sqlite3
-from collections import deque
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
+from datetime import datetime
+from collections import deque
+from pathlib import Path
 from typing import Optional
 
 from src.modules import phone_osint, email_osint, username_search, image_search, breach_check, correlation, image_match
@@ -88,6 +90,7 @@ def _get_orchestrator_config() -> dict:
     return config.get("orchestrator", {
         "bfs_batch_size": 10,
         "max_depth": 2,
+        "max_concurrent_artifacts": 5,  # Number of artifacts to process concurrently
     })
 
 
@@ -233,86 +236,170 @@ def run_investigation(
 
     logger.info("Starting BFS processing with %d artifacts in queue", len(queue))
 
-    # BFS loop with sequential processing (SQLite connections are not thread-safe)
+    # BFS loop with concurrent processing (using separate DB connections per thread)
     processed_count = 0
+    orchestrator_config = _get_orchestrator_config()
+    max_concurrent = orchestrator_config.get("max_concurrent_artifacts", 5)
     
     while queue:
-        # Process one artifact at a time (SQLite threading constraint)
-        current = queue.popleft()
-        current_depth = current["depth"]
-        current_id = current["artifact_id"]
-        processed_count += 1
-
-        logger.info(
-            "Processing: %s=%s (depth=%d, queue_size=%d)",
-            current["type"], current["value"], current_depth, len(queue)
-        )
-
-        try:
-            discovered = _process_artifact(conn, inv_id, current, config, plugin_manager)
-            logger.debug("Discovered %d new artifacts from %s=%s", 
-                        len(discovered), current["type"], current["value"])
-
-            # Add discovered artifacts to queue (if within depth limit)
-            if current_depth < config.max_depth:
-                added_count = 0
-                for artifact in discovered:
-                    key = f"{artifact['type']}:{artifact['value']}"
-                    if key in seen:
-                        logger.debug("Skipping duplicate artifact: %s", key)
-                        continue
-                    seen.add(key)
-
-                    # Store new artifact
-                    metadata_value = artifact.get("metadata")
-                    if metadata_value and isinstance(metadata_value, dict):
-                        metadata_value = json.dumps(metadata_value)
-                    
-                    new_id = db.add_artifact(
-                        conn,
-                        investigation_id=inv_id,
-                        artifact_type=artifact["type"],
-                        value=artifact["value"],
-                        source=artifact.get("source", "discovered"),
-                        confidence=artifact.get("confidence", 0.8),
-                        metadata=metadata_value,
-                        depth=current_depth + 1,
-                    )
-
-                    # Create link from source to discovered
-                    db.add_link(
-                        conn,
-                        investigation_id=inv_id,
-                        source_artifact=current_id,
-                        target_artifact=new_id,
-                        link_type=artifact.get("link_type", "discovered_from"),
-                        confidence=artifact.get("confidence", 0.8),
-                        evidence=artifact.get("source", ""),
-                    )
-
-                    # Add to queue for further investigation
-                    queue.append({
-                        "artifact_id": new_id,
-                        "type": artifact["type"],
-                        "value": artifact["value"],
-                        "depth": current_depth + 1,
-                    })
-                    added_count += 1
-                    
-                    logger.debug("Added artifact: %s=%s (confidence=%.2f, link=%s)", 
-                               artifact["type"], artifact["value"], 
-                               artifact.get("confidence", 0.8),
-                               artifact.get("link_type", "discovered_from"))
-                
-                logger.debug("Added %d new artifacts to queue from %s=%s", 
-                            added_count, current["type"], current["value"])
-            else:
-                logger.debug("Depth limit reached (%d), not adding discovered artifacts", config.max_depth)
+        # Process artifacts in batches for concurrency
+        batch_size = min(max_concurrent, len(queue))
+        batch = []
         
-        except Exception as e:
-            logger.error("Error processing artifact %s=%s: %s", current["type"], current["value"], e)
+        for _ in range(batch_size):
+            if queue:
+                batch.append(queue.popleft())
+        
+        if len(batch) == 1:
+            # Single artifact - process sequentially
+            current = batch[0]
+            current_depth = current["depth"]
+            current_id = current["artifact_id"]
+            processed_count += 1
 
-    logger.info("BFS processing complete. Processed %d artifacts", processed_count)
+            logger.info(
+                "Processing: %s=%s (depth=%d, queue_size=%d)",
+                current["type"], current["value"], current_depth, len(queue)
+            )
+
+            try:
+                discovered = _process_artifact(conn, inv_id, current, config, plugin_manager)
+                logger.debug("Discovered %d new artifacts from %s=%s", 
+                            len(discovered), current["type"], current["value"])
+
+                # Add discovered artifacts to queue (if within depth limit)
+                if current_depth < config.max_depth:
+                    added_count = 0
+                    for artifact in discovered:
+                        key = f"{artifact['type']}:{artifact['value']}"
+                        if key in seen:
+                            logger.debug("Skipping duplicate artifact: %s", key)
+                            continue
+                        seen.add(key)
+
+                        # Store new artifact
+                        metadata_value = artifact.get("metadata")
+                        if metadata_value and isinstance(metadata_value, dict):
+                            metadata_value = json.dumps(metadata_value)
+                        
+                        new_id = db.add_artifact(
+                            conn,
+                            investigation_id=inv_id,
+                            artifact_type=artifact["type"],
+                            value=artifact["value"],
+                            source=artifact.get("source", "discovered"),
+                            confidence=artifact.get("confidence", 0.8),
+                            metadata=metadata_value,
+                            depth=current_depth + 1,
+                        )
+
+                        # Create link from source to discovered
+                        db.add_link(
+                            conn,
+                            investigation_id=inv_id,
+                            source_artifact=current_id,
+                            target_artifact=new_id,
+                            link_type=artifact.get("link_type", "discovered_from"),
+                            confidence=artifact.get("confidence", 0.8),
+                            evidence=artifact.get("source", ""),
+                        )
+
+                        # Add to queue for further investigation
+                        queue.append({
+                            "artifact_id": new_id,
+                            "type": artifact["type"],
+                            "value": artifact["value"],
+                            "depth": current_depth + 1,
+                        })
+                        added_count += 1
+                    logger.debug("Added %d new artifacts to queue", added_count)
+
+            except Exception as e:
+                logger.error("Error processing artifact %s=%s: %s", current["type"], current["value"], e)
+
+            processed_count += 1
+        else:
+            # Multiple artifacts - process concurrently with separate DB connections
+            logger.info("Processing batch of %d artifacts concurrently", len(batch))
+            
+            def process_artifact_with_db(current):
+                """Process artifact with its own DB connection."""
+                db_conn = db.get_connection()
+                try:
+                    current_depth = current["depth"]
+                    current_id = current["artifact_id"]
+                    
+                    logger.info(
+                        "Processing: %s=%s (depth=%d, queue_size=%d)",
+                        current["type"], current["value"], current_depth, len(queue)
+                    )
+                    
+                    discovered = _process_artifact(db_conn, inv_id, current, config, plugin_manager)
+                    logger.debug("Discovered %d new artifacts from %s=%s", 
+                                len(discovered), current["type"], current["value"])
+                    
+                    new_artifacts = []
+                    if current_depth < config.max_depth:
+                        for artifact in discovered:
+                            key = f"{artifact['type']}:{artifact['value']}"
+                            metadata_value = artifact.get("metadata")
+                            if metadata_value and isinstance(metadata_value, dict):
+                                metadata_value = json.dumps(metadata_value)
+                            
+                            new_id = db.add_artifact(
+                                db_conn,
+                                investigation_id=inv_id,
+                                artifact_type=artifact["type"],
+                                value=artifact["value"],
+                                source=artifact.get("source", "discovered"),
+                                confidence=artifact.get("confidence", 0.8),
+                                metadata=metadata_value,
+                                depth=current_depth + 1,
+                            )
+                            
+                            db.add_link(
+                                db_conn,
+                                investigation_id=inv_id,
+                                source_artifact=current_id,
+                                target_artifact=new_id,
+                                link_type=artifact.get("link_type", "discovered_from"),
+                                confidence=artifact.get("confidence", 0.8),
+                                evidence=artifact.get("source", ""),
+                            )
+                            
+                            new_artifacts.append({
+                                "artifact_id": new_id,
+                                "type": artifact["type"],
+                                "value": artifact["value"],
+                                "depth": current_depth + 1,
+                                "key": key,
+                            })
+                    
+                    db_conn.commit()
+                    return new_artifacts
+                except Exception as e:
+                    logger.error("Error processing artifact %s=%s: %s", current["type"], current["value"], e)
+                    db_conn.rollback()
+                    return []
+                finally:
+                    db_conn.close()
+            
+            with ThreadPoolExecutor(max_workers=len(batch)) as executor:
+                futures = {executor.submit(process_artifact_with_db, current): current for current in batch}
+                
+                for future in as_completed(futures):
+                    try:
+                        new_artifacts = future.result()
+                        for new_artifact in new_artifacts:
+                            if new_artifact["key"] not in seen:
+                                seen.add(new_artifact["key"])
+                                queue.append(new_artifact)
+                        processed_count += 1
+                    except Exception as e:
+                        logger.error("Error in concurrent processing: %s", e)
+                        processed_count += 1
+
+        logger.info("BFS processing complete. Processed %d artifacts", processed_count)
     
     # Finalize
     logger.debug("Finalizing investigation %s", inv_id)
@@ -490,6 +577,10 @@ def _process_artifact(
     elif artifact_type == "fullname":
         logger.debug("Processing full name with image_match module")
         discovered.extend(_process_fullname(conn, inv_id, artifact, value, config))
+    elif artifact_type == "platform_presence":
+        logger.debug("Processing platform presence URL with plugin system")
+        # Platform presence URLs are processed by plugins (e.g., profile image extraction)
+        pass
     else:
         logger.warning("Unknown artifact type: %s", artifact_type)
 

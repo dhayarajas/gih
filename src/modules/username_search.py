@@ -83,12 +83,16 @@ from src.config.loader import get_config
 
 logger = logging.getLogger(__name__)
 
+# Simple in-memory cache for platform checks
+_platform_check_cache = {}
+_cache_max_size = 1000  # Maximum number of cached results
+
 
 def _get_username_search_config() -> dict:
     """Get username search configuration from config.yaml."""
     config = get_config()
     return config.get("username_search", {
-        "max_parallel_workers": 10,
+        "max_parallel_workers": 25,  # Increased from 10 for faster platform checks
         "platforms": [
             {
                 "name": "GitHub",
@@ -224,6 +228,14 @@ class UsernameSearchResult:
 
 def _check_platform(username: str, platform: dict) -> PlatformResult:
     """Check if username exists on a specific platform."""
+    global _platform_check_cache
+    
+    # Check cache first
+    cache_key = f"{username}:{platform['name']}"
+    if cache_key in _platform_check_cache:
+        logger.debug("Cache hit for %s on %s", username, platform['name'])
+        return _platform_check_cache[cache_key]
+    
     url = platform["url_template"].format(username=username)
     result = PlatformResult(
         platform_name=platform["name"],
@@ -292,7 +304,54 @@ def _check_platform(username: str, platform: dict) -> PlatformResult:
     except requests.RequestException as e:
         result.error = str(e)
 
+    # Cache the result (with size limit)
+    if len(_platform_check_cache) < _cache_max_size:
+        _platform_check_cache[cache_key] = result
+    else:
+        # Simple cache eviction: remove oldest entry
+        oldest_key = next(iter(_platform_check_cache))
+        del _platform_check_cache[oldest_key]
+        _platform_check_cache[cache_key] = result
+
     return result
+
+
+def search_usernames_batch(usernames: list[str], platforms: Optional[list[dict]] = None, max_workers: int = 10) -> list[UsernameSearchResult]:
+    """
+    Search for multiple usernames in parallel.
+
+    Args:
+        usernames: List of usernames to search for
+        platforms: Optional list of platform configs (defaults to built-in PLATFORMS)
+        max_workers: Maximum number of concurrent username searches
+
+    Returns:
+        List of UsernameSearchResult objects
+    """
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+    
+    results = []
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = {
+            executor.submit(search_username, username, platforms): username 
+            for username in usernames
+        }
+        
+        for future in as_completed(futures):
+            username = futures[future]
+            try:
+                result = future.result()
+                results.append(result)
+                logger.info("Batch search complete for %s: found on %d/%d platforms", 
+                           username, len(result.platforms_found), result.total_checked)
+            except Exception as e:
+                logger.error("Batch search failed for %s: %s", username, e)
+                # Create error result
+                error_result = UsernameSearchResult(username=username)
+                error_result.platforms_error = ["batch_error"]
+                results.append(error_result)
+    
+    return results
 
 
 def search_username(username: str, platforms: Optional[list[dict]] = None) -> UsernameSearchResult:

@@ -75,14 +75,181 @@ VERSION:
 
 import json
 import logging
+import re
 import sqlite3
 from dataclasses import dataclass, field
+from urllib.parse import urlparse
 
 import networkx as nx
 
 from src.storage import database as db
 
 logger = logging.getLogger(__name__)
+
+
+# Noise patterns for filtering non-identity artifacts
+NOISE_PATTERNS = [
+    r"^\?",                    # URL parameters like ?hl=en
+    r"^\d+\-",                 # Issue IDs like 10684626-enable-and-use-web-search
+    r"^[a-zA-Z0-9][-a-zA-Z0-9]*\.(com|org|net|io|co|ai)$",  # Standalone domain-like strings
+    r"^[a-z]{2}-[A-Z]{2}$",    # Language codes like en-IN
+    r"^[a-z]{2}_[A-Z]{2}$",    # Locale codes like en_US
+    r"^login\?",               # Login URLs
+    r"^advanced_search$",
+    r"^websearch$",
+    r"^simple_search$",
+    r"^search$",
+    r"^open-webSearch$",
+    r"^InteractiveLogin",
+    r"^login$",
+    r"^signin$",
+    r"^log-in$",
+    r"^mail$",
+    r"^inbox$",
+    r"^secure\.login\.gov$",
+    r"^myaadhaar\.uidai\.gov\.in$",
+    r"^bio$",
+    r"^playlists$",
+    r"^UC[a-zA-Z0-9_-]{20,}$",  # YouTube channel IDs
+]
+
+# Minimum confidence for artifacts to be included in identity correlation
+MIN_ARTIFACT_CONFIDENCE = 0.3
+
+# Identity artifact types
+IDENTITY_ARTIFACT_TYPES = {"phone", "email", "username", "image", "fullname"}
+
+
+def _extract_platform_from_url(url: str) -> str:
+    """Extract platform name from a profile URL."""
+    domain = urlparse(url).netloc.lower()
+    platform_map = {
+        "instagram.com": "Instagram",
+        "pinterest.com": "Pinterest",
+        "steamcommunity.com": "Steam",
+        "medium.com": "Medium",
+        "mastodon.social": "Mastodon",
+        "github.com": "GitHub",
+        "gitlab.com": "GitLab",
+        "linkedin.com": "LinkedIn",
+        "reddit.com": "Reddit",
+        "twitter.com": "Twitter",
+        "x.com": "Twitter",
+        "keybase.io": "Keybase",
+        "news.ycombinator.com": "HackerNews",
+    }
+    for key, value in platform_map.items():
+        if key in domain:
+            return value
+    return "unknown"
+
+
+def _is_noise_value(value: str) -> bool:
+    """Check if an artifact value is noise and should not be part of identity correlation."""
+    if not value or not isinstance(value, str):
+        return True
+    
+    value = value.strip()
+    
+    # Too short
+    if len(value) < 3:
+        return True
+    
+    # Contains URL-like structures
+    if value.startswith("http://") or value.startswith("https://"):
+        return True
+    
+    # Contains query parameters or fragments
+    if "?" in value or "#" in value or "=" in value:
+        return True
+    
+    # Domain-like values
+    if re.match(r"^[a-zA-Z0-9][-a-zA-Z0-9]*\.(com|org|net|io|co|edu|gov|in|uk|us|ai)$", value):
+        return True
+    
+    # IP addresses
+    if re.match(r"^\d+\.\d+\.\d+\.\d+$", value):
+        return True
+    
+    # YouTube channel IDs
+    if re.match(r"^UC[a-zA-Z0-9_-]{20,}$", value):
+        return True
+    
+    for pattern in NOISE_PATTERNS:
+        if re.search(pattern, value, re.IGNORECASE):
+            return True
+    
+    return False
+
+
+def _is_valid_username(value: str) -> bool:
+    """Check if a username value looks like a real username."""
+    if not value or not isinstance(value, str):
+        return False
+    
+    value = value.strip()
+    
+    # Length check
+    if len(value) < 3 or len(value) > 64:
+        return False
+    
+    # Should not be an email
+    if "@" in value:
+        return False
+    
+    # Should not contain URL characters
+    if any(c in value for c in ["?", "=", "&", "#", "\\", " "]):
+        return False
+    
+    # Should not be a domain
+    if re.match(r"^[a-zA-Z0-9][-a-zA-Z0-9]*\.[a-z]{2,}$", value):
+        return False
+    
+    # Should have at least one letter
+    if not re.search(r"[a-zA-Z]", value):
+        return False
+    
+    # Should not be a known generic/non-username word
+    generic_words = {
+        "login", "signin", "log-in", "signup", "register", "logout",
+        "mail", "inbox", "email", "search", "advanced_search", "websearch",
+        "simple_search", "open-websearch", "about", "contact", "help",
+        "home", "index", "bio", "playlists", "videos", "photos",
+    }
+    if value.lower() in generic_words:
+        return False
+    
+    return True
+
+
+def _is_identity_artifact(artifact: dict) -> bool:
+    """Check if an artifact should be included in identity correlation."""
+    artifact_type = artifact.get("artifact_type", "")
+    value = artifact.get("value", "")
+    confidence = artifact.get("confidence", 0.0) or 0.0
+    
+    # Skip low-confidence artifacts
+    if confidence < MIN_ARTIFACT_CONFIDENCE:
+        return False
+    
+    # Skip non-identity artifact types
+    if artifact_type not in IDENTITY_ARTIFACT_TYPES and artifact_type != "platform_presence":
+        return False
+    
+    # Filter noise values
+    if _is_noise_value(value):
+        return False
+    
+    # Validate usernames
+    if artifact_type == "username" and not _is_valid_username(value):
+        return False
+    
+    # Validate emails
+    if artifact_type == "email":
+        if "@" not in value or "." not in value.split("@")[-1]:
+            return False
+    
+    return True
 
 
 @dataclass
@@ -144,10 +311,20 @@ def build_identity_graph(conn: sqlite3.Connection, investigation_id: str) -> nx.
 
     # Add artifact nodes
     artifacts = db.get_artifacts(conn, investigation_id)
+    identity_artifact_ids = set()
+    
     for artifact in artifacts:
         # Skip risk_indicator and meta artifacts
         if artifact["artifact_type"] in ("risk_indicator", "carrier_info", "breach_data"):
             continue
+        
+        # Filter non-identity artifacts from correlation graph
+        if not _is_identity_artifact(artifact):
+            logger.debug("Skipping non-identity artifact from correlation: %s=%s", 
+                        artifact["artifact_type"], artifact["value"])
+            continue
+        
+        identity_artifact_ids.add(artifact["artifact_id"])
         G.add_node(
             artifact["artifact_id"],
             artifact_type=artifact["artifact_type"],
@@ -157,13 +334,17 @@ def build_identity_graph(conn: sqlite3.Connection, investigation_id: str) -> nx.
             depth=artifact["depth"],
         )
 
-    # Add edges from links
+    # Add edges from links (only between identity artifacts)
     links = db.get_links(conn, investigation_id)
     for link in links:
-        if G.has_node(link["source_artifact"]) and G.has_node(link["target_artifact"]):
+        source_id = link["source_artifact"]
+        target_id = link["target_artifact"]
+        
+        # Only add edges between identity artifacts
+        if source_id in identity_artifact_ids and target_id in identity_artifact_ids:
             G.add_edge(
-                link["source_artifact"],
-                link["target_artifact"],
+                source_id,
+                target_id,
                 link_type=link["link_type"],
                 confidence=link["confidence"],
             )
@@ -176,10 +357,11 @@ def correlate_identities(conn: sqlite3.Connection, investigation_id: str) -> Cor
     Correlate artifacts into identity profiles using connected component analysis.
 
     Algorithm:
-    1. Build graph from artifacts and links
+    1. Build graph from filtered identity artifacts and links
     2. Find connected components (each component = likely same person)
     3. For each component, extract identity profile with typed artifacts
-    4. Compute confidence score based on cross-type link density
+    4. Compute confidence score based on cross-type link density and evidence strength
+    5. Filter out weak/noise components into an unclassified profile
     """
     G = build_identity_graph(conn, investigation_id)
 
@@ -201,6 +383,9 @@ def correlate_identities(conn: sqlite3.Connection, investigation_id: str) -> Cor
         if aid:
             presence_by_artifact.setdefault(aid, []).append(p)
 
+    valid_identities = []
+    noise_artifacts = []
+    
     for i, component in enumerate(components):
         profile = IdentityProfile(profile_id=f"IDENTITY-{i + 1:03d}")
 
@@ -217,16 +402,49 @@ def correlate_identities(conn: sqlite3.Connection, investigation_id: str) -> Cor
                 profile.usernames.append(value)
             elif artifact_type == "image":
                 profile.images.append(value)
+            elif artifact_type == "platform_presence":
+                # platform_presence artifacts only contribute platform URLs, not usernames
+                # Extract platform name and username from URL
+                from urllib.parse import urlparse
+                parsed = urlparse(value)
+                platform_name = _extract_platform_from_url(value)
+                username = parsed.path.strip("/").split("/")[-1] if parsed.path else ""
+                if username and _is_valid_username(username):
+                    profile.platforms.append({
+                        "platform": platform_name,
+                        "profile_url": value,
+                        "username": username,
+                        "display_name": None,
+                    })
 
             # Collect platform presences for this artifact
             if node_id in presence_by_artifact:
                 for presence in presence_by_artifact[node_id]:
-                    profile.platforms.append({
-                        "platform": presence["platform_name"],
-                        "profile_url": presence["profile_url"],
-                        "username": presence["username"],
-                        "display_name": presence["display_name"],
-                    })
+                    # Avoid duplicate platform entries
+                    existing = [p for p in profile.platforms if p.get("profile_url") == presence.get("profile_url")]
+                    if not existing:
+                        profile.platforms.append({
+                            "platform": presence["platform_name"],
+                            "profile_url": presence["profile_url"],
+                            "username": presence["username"],
+                            "display_name": presence["display_name"],
+                        })
+
+        # Deduplicate values
+        profile.phones = sorted(set(profile.phones))
+        profile.emails = sorted(set(profile.emails))
+        profile.usernames = sorted(set(profile.usernames))
+        profile.images = sorted(set(profile.images))
+
+        # Deduplicate platforms by profile_url
+        seen_urls = set()
+        unique_platforms = []
+        for p in profile.platforms:
+            url = p.get("profile_url")
+            if url and url not in seen_urls:
+                seen_urls.add(url)
+                unique_platforms.append(p)
+        profile.platforms = unique_platforms
 
         profile.artifact_count = len(component)
 
@@ -236,7 +454,27 @@ def correlate_identities(conn: sqlite3.Connection, investigation_id: str) -> Cor
         # Collect risk indicators from artifact metadata
         profile.risk_indicators = _collect_risk_indicators(conn, component)
 
-        result.identities.append(profile)
+        # Filter out weak/noise components
+        identity_type_count = sum(1 for field in [profile.phones, profile.emails, profile.usernames, profile.images] if field)
+        
+        # A valid identity should have at least one strong identity type
+        if identity_type_count >= 1 and (len(profile.emails) > 0 or len(profile.usernames) > 0 or len(profile.phones) > 0):
+            valid_identities.append(profile)
+        else:
+            noise_artifacts.extend([G.nodes[n].get("value", "") for n in component])
+
+    # Add unclassified/noise profile if any noise artifacts exist
+    if noise_artifacts:
+        noise_profile = IdentityProfile(
+            profile_id="IDENTITY-NOISE",
+            usernames=sorted(set(noise_artifacts)),
+            confidence=0.1
+        )
+        noise_profile.artifact_count = len(noise_artifacts)
+        noise_profile.risk_indicators = ["noise_artifacts"]
+        valid_identities.append(noise_profile)
+
+    result.identities = valid_identities
 
     # Sort by artifact count (largest identity first)
     result.identities.sort(key=lambda x: x.artifact_count, reverse=True)

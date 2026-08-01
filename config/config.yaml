@@ -10,6 +10,14 @@ plugins:
     timeout: 30
     max_retries: 3
   
+  profile_image:
+    enabled: true
+    priority: 2
+    timeout: 10
+    max_retries: 2
+    custom_params:
+      download_images: false  # Store URLs, not download files
+  
   email_breach:
     enabled: true
     priority: 1
@@ -264,17 +272,17 @@ database:
 
 # HTTP Client Settings
 http_client:
-  timeout: 10  # Default timeout in seconds
-  min_timeout: 5  # Minimum timeout for quick requests
-  max_timeout: 30  # Maximum timeout for slow requests
+  timeout: 5  # Reduced from 10 for faster failure
+  min_timeout: 3  # Reduced from 5
+  max_timeout: 20  # Reduced from 30
   adaptive_timeout: true  # Enable adaptive timeout based on response time
   enable_compression: true  # Enable gzip/brotli compression
-  min_request_interval: 0.1  # Minimum seconds between requests
-  connection_pool_size: 100
-  connect_timeout: 5
-  read_timeout: 15
-  retry_total: 2
-  retry_backoff_factor: 1.0
+  min_request_interval: 0.05  # Reduced from 0.1 for faster requests
+  connection_pool_size: 200  # Increased from 100 for more concurrent connections
+  connect_timeout: 3  # Reduced from 5
+  read_timeout: 7  # Reduced from 15
+  retry_total: 1  # Reduced from 2 to reduce retry delays
+  retry_backoff_factor: 0.5  # Reduced from 1.0 for faster retries
   retry_status_codes: [500, 502, 503, 504]
   user_agents:
     - "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
@@ -285,11 +293,13 @@ http_client:
 
 # Google Dorks Settings
 google_dorks:
-  max_patterns: 3
-  rate_limit_seconds: 1.0
+  max_patterns: 2  # Reduced from 3 to avoid rate limiting
+  rate_limit_seconds: 2.0  # Increased from 1.0 to avoid rate limiting
   max_results_per_search: 10  # Hard limit to prevent exponential growth
-  max_parallel_workers: 10
-  enable_retry: true  # Set to false during testing to prevent hanging
+  max_parallel_workers: 5  # Reduced from 10 to avoid rate limiting
+  enable_retry: false  # Set to false during testing to prevent hanging
+  skip_variants: true  # Only search primary username, skip variants
+  rate_limit_backoff: 2.0  # Exponential backoff for rate limits
   max_retries: 3
   initial_backoff: 1.0
   backoff_multiplier: 2.0
