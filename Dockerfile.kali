@@ -14,14 +14,14 @@ ENV PYTHONPATH=/app
 RUN apt-get update && apt-get upgrade -y && \
     apt-get install -y \
     # Python and build tools
-    python3 python3-pip python3-venv git curl wget \
+    python3 python3-pip python3-venv python3-full git curl wget \
     build-essential python3-dev \
     # Core network tools
     nmap curl wget whois dnsutils netcat-openbsd \
     # Advanced network tools
     masscan nikto sqlmap \
     # DNS and domain tools
-    dnsenum dnsrecon fierce dig \
+    dnsenum dnsrecon fierce \
     # Web tools
     gobuster dirsearch wfuzz whatweb \
     # Image and metadata tools
@@ -36,54 +36,41 @@ RUN apt-get update && apt-get upgrade -y && \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Python dependencies for OSINT tools
-RUN pip3 install --no-cache-dir \
-    # Username search tools
-    sherlock \
-    maigret \
-    social-analyzer \
-    # Email investigation tools
-    holehe \
-    emailharvester \
-    theHarvester \
-    # Domain and DNS tools
-    subfinder \
-    amass \
-    # Network and web tools
-    shodan \
-    wappalyzer \
-    # Specialized tools
-    ghunt \
-    photon \
-    metagoofil \
-    # OSINT framework
-    osrframework \
-    # Additional dependencies
+RUN python3 -m venv /opt/venv && \
+    /opt/venv/bin/pip install --no-cache-dir \
+    # Ghost Identity Hunter dependencies
+    click \
+    networkx \
+    pyvis \
     requests \
     beautifulsoup4 \
     lxml \
     neo4j
 
-# Install additional OSINT tools from source
-RUN git clone https://github.com/aboul3la/Sublist3r.git /opt/Sublist3r && \
-    cd /opt/Sublist3r && \
-    pip3 install -r requirements.txt && \
-    cd / && rm -rf /opt/Sublist3r
+# Add venv to PATH
+ENV PATH="/opt/venv/bin:$PATH"
 
-# Install SpiderFoot OSINT framework
-RUN git clone https://github.com/smicallef/spiderfoot.git /opt/spiderfoot && \
-    cd /opt/spiderfoot && \
-    pip3 install -r requirements.txt && \
-    pip3 install -e . && \
-    cd / && rm -rf /opt/spiderfoot
+# Install additional OSINT tools from source (optional)
+# RUN git clone https://github.com/aboul3la/Sublist3r.git /opt/Sublist3r && \
+#     cd /opt/Sublist3r && \
+#     /opt/venv/bin/pip install -r requirements.txt && \
+#     cd / && rm -rf /opt/Sublist3r
 
-# Install Wayback Machine CLI tool
-RUN pip3 install --no-cache-dir wayback-machine-cli
+# Install SpiderFoot OSINT framework (optional)
+# RUN git clone https://github.com/smicallef/spiderfoot.git /opt/spiderfoot && \
+#     cd /opt/spiderfoot && \
+#     /opt/venv/bin/pip install -r requirements.txt && \
+#     /opt/venv/bin/pip install -e . && \
+#     cd / && rm -rf /opt/spiderfoot
 
-# Install Etherscan for blockchain investigation
-RUN pip3 install --no-cache-dir etherscan
+# Install Wayback Machine CLI tool (optional)
+# RUN /opt/venv/bin/pip install --no-cache-dir wayback-machine-cli
 
-# Install GeoNames for geolocation
-RUN pip3 install --no-cache-dir geopy
+# Install Etherscan for blockchain investigation (optional)
+# RUN /opt/venv/bin/pip install --no-cache-dir etherscan
+
+# Install GeoNames for geolocation (optional)
+# RUN /opt/venv/bin/pip install --no-cache-dir geopy
 
 # Create non-root user for security
 RUN useradd -m -s /bin/bash ghosthunter && \
@@ -101,7 +88,8 @@ RUN pip3 install --no-cache-dir -e .
 
 # Create directories for investigations and reports
 RUN mkdir -p /app/investigations /app/reports && \
-    chown -R ghosthunter:ghosthunter /app/investigations /app/reports
+    chown -R ghosthunter:ghosthunter /app/investigations /app/reports && \
+    chmod -R 755 /app/investigations /app/reports
 
 # Switch to non-root user
 USER ghosthunter
@@ -109,5 +97,5 @@ USER ghosthunter
 # Expose volume for persistent data
 VOLUME ["/home/ghosthunter/.ghost_hunter", "/app/investigations", "/app/reports"]
 
-# Set default command
-CMD ["python", "-m", "src.cli", "--help"]
+# Set default command (keep container running for interactive use)
+CMD ["bash"]

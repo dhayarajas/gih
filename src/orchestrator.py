@@ -71,6 +71,7 @@ from typing import Optional
 
 from src.modules import phone_osint, email_osint, username_search, image_search, breach_check, correlation
 from src.modules.correlation_neo4j import Neo4jCorrelation
+from src.modules.google_dorks import run_google_dorks_search, check_google_dorks_availability
 from src.storage import database as db
 from src.utils.tool_checker import get_tool_checker, check_tool_availability
 from src.modules.external_tools import run_tool_analysis, get_tool_integrations
@@ -96,6 +97,10 @@ class InvestigationConfig:
     neo4j_user: str = "neo4j"  # Neo4j username
     neo4j_password: str = "password"  # Neo4j password
     neo4j_database: str = "neo4j"  # Neo4j database name
+    use_google_dorks: bool = False  # Use Google Dorks for username discovery
+    google_api_key: Optional[str] = None  # Google Custom Search API key
+    google_cx: Optional[str] = None  # Google Custom Search Engine ID
+    use_google_api: bool = False  # Use Google API instead of web scraping
 
 
 @dataclass
@@ -604,6 +609,23 @@ def _process_external_tools(
                                len(sherlock_result.artifacts_discovered), value)
                 else:
                     logger.debug("Sherlock skipped or failed for %s", value)
+            
+            # Run Google Dorks for advanced username discovery
+            if check_google_dorks_availability(config.google_api_key):
+                logger.debug("Running Google Dorks search for: %s", value)
+                google_dorks_result = run_google_dorks_search(
+                    username=value,
+                    api_key=config.google_api_key,
+                    cx=config.google_cx,
+                    use_api=config.use_google_api
+                )
+                
+                if google_dorks_result:
+                    discovered.extend(google_dorks_result)
+                    logger.info("Google Dorks found %d artifacts for username %s", 
+                               len(google_dorks_result), value)
+                else:
+                    logger.debug("Google Dorks found no results for %s", value)
         
         # Domain-based external tools
         elif artifact_type == "domain":

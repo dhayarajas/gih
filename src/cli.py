@@ -58,6 +58,7 @@ VERSION:
 """
 
 import logging
+import os
 import sys
 from pathlib import Path
 from typing import Optional
@@ -117,6 +118,10 @@ def cli(ctx: click.Context, verbose: bool, db_path: Optional[str]) -> None:
 @click.option("--neo4j-user", default="neo4j", help="Neo4j username (default: neo4j)")
 @click.option("--neo4j-password", default="password", help="Neo4j password (default: password)")
 @click.option("--neo4j-database", default="neo4j", help="Neo4j database name (default: neo4j)")
+@click.option("--use-google-dorks", is_flag=True, help="Use Google Dorks for advanced username discovery")
+@click.option("--google-api-key", default=lambda: os.environ.get("GOOGLE_API_KEY"), help="Google Custom Search API key (optional, can be set via GOOGLE_API_KEY env var)")
+@click.option("--google-cx", default=lambda: os.environ.get("GOOGLE_CX"), help="Google Custom Search Engine ID (optional, can be set via GOOGLE_CX env var)")
+@click.option("--use-google-api", is_flag=True, help="Use Google API instead of web scraping (requires API key)")
 @click.pass_context
 def investigate(
     ctx: click.Context,
@@ -139,6 +144,10 @@ def investigate(
     neo4j_user: str,
     neo4j_password: str,
     neo4j_database: str,
+    use_google_dorks: bool,
+    google_api_key: Optional[str],
+    google_cx: Optional[str],
+    use_google_api: bool,
 ) -> None:
     """Start a new OSINT investigation from seed artifacts.
 
@@ -191,6 +200,10 @@ def investigate(
         neo4j_user=neo4j_user,
         neo4j_password=neo4j_password,
         neo4j_database=neo4j_database,
+        use_google_dorks=use_google_dorks,
+        google_api_key=google_api_key,
+        google_cx=google_cx,
+        use_google_api=use_google_api,
     )
 
     click.echo(f"Starting investigation with {len(seeds)} seed artifact(s)...")
@@ -199,6 +212,7 @@ def investigate(
     click.echo(f"  Username search: {'disabled' if no_username_search else 'enabled'}")
     click.echo(f"  External OSINT tools: {'enabled' if config.check_external_tools else 'disabled'}")
     click.echo(f"  Graph correlation: {'Neo4j' if config.use_neo4j else 'NetworkX'}")
+    click.echo(f"  Google Dorks: {'enabled' if config.use_google_dorks else 'disabled'}")
     click.echo(f"  Auto-report: {'disabled' if not auto_report else 'enabled'}")
     if auto_report:
         click.echo(f"  Report format: {report_format}")

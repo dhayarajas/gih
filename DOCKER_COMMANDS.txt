@@ -1,0 +1,221 @@
+# Ghost Identity Hunter - Docker Commands
+# This file contains common Docker commands for running Ghost Identity Hunter
+
+# ============================================
+# BUILD COMMANDS
+# ============================================
+
+# Build the Kali Linux Docker image
+docker-compose -f docker-compose.kali.yml build
+
+# Build without cache
+docker-compose -f docker-compose.kali.yml build --no-cache
+
+# Build specific service
+docker-compose -f docker-compose.kali.yml build ghost-hunter-kali
+
+# ============================================
+# START/STOP COMMANDS
+# ============================================
+
+# Start all services (Ghost Hunter + Neo4j)
+docker-compose -f docker-compose.kali.yml up -d
+
+# Start services in foreground (to see logs)
+docker-compose -f docker-compose.kali.yml up
+
+# Stop all services
+docker-compose -f docker-compose.kali.yml down
+
+# Stop and remove volumes (deletes all data)
+docker-compose -f docker-compose.kali.yml down -v
+
+# Restart services
+docker-compose -f docker-compose.kali.yml restart
+
+# Restart specific service
+docker-compose -f docker-compose.kali.yml restart ghost-hunter-kali
+
+# ============================================
+# CONTAINER ACCESS
+# ============================================
+
+# Access Ghost Hunter container shell
+docker-compose -f docker-compose.kali.yml exec ghost-hunter-kali bash
+
+# Access Neo4j container shell
+docker-compose -f docker-compose.kali.yml exec neo4j bash
+
+# Run single command in container
+docker-compose -f docker-compose.kali.yml exec ghost-hunter-kali python -m src.cli --help
+
+# ============================================
+# INVESTIGATION COMMANDS
+# ============================================
+
+# Run investigation with email
+docker-compose -f docker-compose.kali.yml exec ghost-hunter-kali python -m src.cli investigate --email "target@example.com"
+
+# Run investigation with username
+docker-compose -f docker-compose.kali.yml exec ghost-hunter-kali python -m src.cli investigate --username "target_user"
+
+# Run investigation with phone number
+docker-compose -f docker-compose.kali.yml exec ghost-hunter-kali python -m src.cli investigate --phone "+1234567890"
+
+# Run investigation with multiple artifacts
+docker-compose -f docker-compose.kali.yml exec ghost-hunter-kali python -m src.cli investigate --email "target@example.com" --username "target_user"
+
+# Run investigation with Neo4j backend
+docker-compose -f docker-compose.kali.yml exec ghost-hunter-kali python -m src.cli investigate --email "target@example.com" --use-neo4j
+
+# Run investigation with Google Dorks
+docker-compose -f docker-compose.kali.yml exec ghost-hunter-kali python -m src.cli investigate --username "target_user" --use-google-dorks
+
+# Run investigation without breach checks
+docker-compose -f docker-compose.kali.yml exec ghost-hunter-kali python -m src.cli investigate --email "target@example.com" --no-breach
+
+# Run investigation without username search
+docker-compose -f docker-compose.kali.yml exec ghost-hunter-kali python -m src.cli investigate --email "target@example.com" --no-username-search
+
+# ============================================
+# MANAGEMENT COMMANDS
+# ============================================
+
+# List all investigations
+docker-compose -f docker-compose.kali.yml exec ghost-hunter-kali python -m src.cli list
+
+# Generate report for investigation
+docker-compose -f docker-compose.kali.yml exec ghost-hunter-kali python -m src.cli report --id INV-xxxxx
+
+# Generate graph visualization
+docker-compose -f docker-compose.kali.yml exec ghost-hunter-kali python -m src.cli graph --id INV-xxxxx
+
+# Run correlation analysis
+docker-compose -f docker-compose.kali.yml exec ghost-hunter-kali python -m src.cli correlate --id INV-xxxxx
+
+# ============================================
+# LOGS COMMANDS
+# ============================================
+
+# View Ghost Hunter logs
+docker-compose -f docker-compose.kali.yml logs ghost-hunter-kali
+
+# View Neo4j logs
+docker-compose -f docker-compose.kali.yml logs neo4j
+
+# View all logs
+docker-compose -f docker-compose.kali.yml logs
+
+# Follow logs in real-time
+docker-compose -f docker-compose.kali.yml logs -f ghost-hunter-kali
+
+# View last 100 lines of logs
+docker-compose -f docker-compose.kali.yml logs --tail=100 ghost-hunter-kali
+
+# ============================================
+# STATUS COMMANDS
+# ============================================
+
+# Check container status
+docker-compose -f docker-compose.kali.yml ps
+
+# Check container health
+docker-compose -f docker-compose.kali.yml ps ghost-hunter-kali
+
+# Check Neo4j health
+docker-compose -f docker-compose.kali.yml ps neo4j
+
+# View container stats
+docker stats ghost-hunter-kali
+
+# ============================================
+# NEO4J COMMANDS
+# ============================================
+
+# Access Neo4j Browser (in web browser)
+# URL: http://localhost:7474
+# Username: neo4j
+# Password: ghosthunter_password
+
+# Run Cypher query via command line
+docker-compose -f docker-compose.kali.yml exec neo4j cypher-shell -u neo4j -p ghosthunter_password "MATCH (n) RETURN count(n) as nodes"
+
+# ============================================
+# CLEANUP COMMANDS
+# ============================================
+
+# Remove stopped containers
+docker container prune
+
+# Remove unused images
+docker image prune
+
+# Remove unused volumes
+docker volume prune
+
+# Remove all Ghost Hunter data (WARNING: deletes all investigations)
+docker-compose -f docker-compose.kali.yml down -v
+docker volume rm gih_ghost_hunter_data gih_neo4j_data gih_neo4j_logs gih_neo4j_import gih_neo4j_plugins
+
+# ============================================
+# TROUBLESHOOTING
+# ============================================
+
+# Check if Docker is running
+docker ps
+
+# Check Docker Compose version
+docker-compose --version
+
+# Rebuild from scratch
+docker-compose -f docker-compose.kali.yml down -v
+docker-compose -f docker-compose.kali.yml build --no-cache
+docker-compose -f docker-compose.kali.yml up -d
+
+# Check container logs for errors
+docker-compose -f docker-compose.kali.yml logs ghost-hunter-kali | grep ERROR
+
+# Check Neo4j connection
+docker-compose -f docker-compose.kali.yml exec ghost-hunter-kali python -c "from neo4j import GraphDatabase; driver = GraphDatabase.driver('bolt://neo4j:7687', auth=('neo4j', 'ghosthunter_password')); print(driver.verify_connectivity())"
+
+# ============================================
+# BACKUP COMMANDS
+# ============================================
+
+# Backup Ghost Hunter data
+docker run --rm -v gih_ghost_hunter_data:/data -v $(pwd):/backup alpine tar czf /backup/ghost_hunter_backup.tar.gz /data
+
+# Backup Neo4j data
+docker run --rm -v gih_neo4j_data:/data -v $(pwd):/backup alpine tar czf /backup/neo4j_backup.tar.gz /data
+
+# ============================================
+# STANDALONE SCRIPTS
+# ============================================
+
+# Use standalone run script (Linux/Mac)
+./run.sh investigate --email "target@example.com"
+
+# Use standalone run script (Windows)
+run.bat investigate --email "target@example.com"
+
+# Use Python script (Cross-platform)
+python run.py investigate --email "target@example.com"
+
+# ============================================
+# ENVIRONMENT VARIABLES
+# ============================================
+
+# Set Google API key for Google Dorks
+export GOOGLE_API_KEY="your_api_key_here"
+export GOOGLE_CX="your_custom_search_engine_id"
+
+# Set Neo4j credentials
+export NEO4J_URI="bolt://localhost:7687"
+export NEO4J_USER="neo4j"
+export NEO4J_PASSWORD="ghosthunter_password"
+
+# Enable Neo4j backend
+export USE_NEO4J="true"
+
+# Enable Google Dorks
+export USE_GOOGLE_DORKS="true"

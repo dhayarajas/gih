@@ -87,6 +87,9 @@ class ToolChecker:
             # Blockchain and Crypto Tools
             ToolInfo(name="etherscan", command="etherscan", description="Blockchain investigation tool"),
             
+            # Search and Dorking Tools
+            ToolInfo(name="google_dorks", command="google_dorks", description="Google Dorks for advanced username discovery"),
+            
             # Geolocation Tools
             ToolInfo(name="geonames", command="geonames", description="Geographical database and search"),
             

@@ -30,6 +30,15 @@ An OSINT investigation tool that links fragmented digital identity artifacts (bu
 - **Cross-Investigation Correlation** — Query graph data across multiple investigations
 - **Dual Backend Support** — NetworkX (default) or Neo4j with automatic fallback
 
+### **Google Dorks Integration**
+- **Advanced Username Discovery** — Google Dorks patterns for comprehensive username searches
+- **Platform-Specific Searches** — Target specific platforms (Twitter, LinkedIn, GitHub, etc.)
+- **Document Searches** — Find username mentions in documents (PDF, DOC, etc.)
+- **Forum Mentions** — Discover username discussions on forums (Reddit, StackOverflow, etc.)
+- **Email Pattern Detection** — Extract email addresses associated with usernames
+- **API & Scraping Support** — Google Custom Search API or web scraping fallback
+- **Rate Limiting** — Respects Google's rate limits with built-in throttling
+
 ## Installation
 
 ### **Standard Installation**
@@ -122,6 +131,15 @@ ghost-hunter investigate --email "target@example.com" --use-neo4j \
   --neo4j-uri "bolt://localhost:7687" \
   --neo4j-user "neo4j" \
   --neo4j-password "your_password"
+
+# Use Google Dorks for advanced username discovery
+ghost-hunter investigate --username "target_user" --use-google-dorks
+
+# Use Google Dorks with API key
+ghost-hunter investigate --username "target_user" --use-google-dorks \
+  --google-api-key "your_api_key" \
+  --google-cx "your_cx" \
+  --use-google-api
 ```
 
 ### **Check Available External Tools**

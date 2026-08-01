@@ -1,0 +1,375 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{geometry}
+\usepackage{hyperref}
+\usepackage{xcolor}
+\usepackage{graphicx}
+\usepackage{tabularx}
+\usepackage{colortbl}
+\usepackage{enumitem}
+\usepackage{titlesec}
+\usepackage{fancyhdr}
+\usepackage{listings}
+\usepackage{tcolorbox}
+\usepackage{float}
+\usepackage{amssymb}
+\usepackage{pifont}
+
+% Page setup
+\geometry{margin=1in}
+\setlength{\parskip}{0.5em}
+
+% Colors
+\definecolor{googleblue}{RGB}{66,133,244}
+\definecolor{googlered}{RGB}{234,67,53}
+\definecolor{googlegreen}{RGB}{52,168,83}
+\definecolor{googleyellow}{RGB}{251,188,4}
+\definecolor{codebg}{RGB}{245,245,245}
+\definecolor{alertbg}{RGB}{255,243,224}
+
+% Hyperref setup
+\hypersetup{
+    colorlinks=true,
+    linkcolor=googleblue,
+    urlcolor=googleblue,
+    pdfauthor={Ghost Identity Hunter},
+    pdftitle={Google API Key and CX Setup Guide}
+}
+
+% Custom section formatting
+\titleformat{\section}
+{\normalfont\Large\bfseries\color{googleblue}}{\thesection}{1em}{}
+\titleformat{\subsection}
+{\normalfont\large\bfseries\color{googlegreen}}{\thesubsection}{1em}{}
+
+% Code listing style
+\lstset{
+    basicstyle=\ttfamily\small,
+    backgroundcolor=\color{codebg},
+    frame=single,
+    rulecolor=\color{gray},
+    breaklines=true,
+    showstringspaces=false,
+    commentstyle=\color{googlegreen},
+    keywordstyle=\color{googleblue},
+    stringstyle=\color{googlered}
+}
+
+% Header
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\textbf{Google API Setup Guide}}
+\fancyhead[R]{\thepage}
+\fancyfoot[C]{\small Ghost Identity Hunter - OSINT Investigation Tool}
+
+% Title
+\title{\textbf{\color{googleblue}Google API Key and CX Setup Guide}}
+\author{\textbf{Ghost Identity Hunter Team}}
+\date{\today}
+
+\begin{document}
+
+\maketitle
+
+\begin{tcolorbox}[colback=alertbg,colframe=googleyellow,title=Important Note]
+This guide explains how to set up Google Custom Search API credentials for use with Ghost Identity Hunter's Google Dorks feature. The Google Custom Search API requires a billing account for API access.
+\end{tcolorbox}
+
+\tableofcontents
+\newpage
+
+\section{Overview}
+
+Google Custom Search API allows Ghost Identity Hunter to perform advanced username discovery using Google Dorks without rate limiting. This guide covers:
+
+\begin{itemize}
+    \item Creating a Google Cloud project
+    \item Enabling Custom Search API
+    \item Creating API credentials
+    \item Setting up Custom Search Engine
+    \item Configuring environment variables
+    \item Testing the setup
+\end{itemize}
+
+\section{Prerequisites}
+
+Before starting, ensure you have:
+
+\begin{itemize}
+    \item A Google account
+    \item Access to Google Cloud Console
+    \item A billing account (required for API access)
+    \item Basic familiarity with web interfaces
+\end{itemize}
+
+\section{Step 1: Create Google Cloud Project}
+
+\subsection{Access Google Cloud Console}
+
+\begin{enumerate}
+    \item Navigate to \url{https://console.cloud.google.com/}
+    \item Sign in with your Google account
+\end{enumerate}
+
+\subsection{Create New Project}
+
+\begin{enumerate}
+    \item Click the project dropdown in the top navigation bar
+    \item Click \textbf{"New Project"}
+    \item Enter a project name (e.g., "Ghost Identity Hunter")
+    \item Click \textbf{"Create"}
+    \item Wait for project creation to complete
+\end{enumerate}
+
+\section{Step 2: Enable Custom Search API}
+
+\subsection{Navigate to API Library}
+
+\begin{enumerate}
+    \item In the left sidebar, navigate to \textbf{APIs \& Services} $\rightarrow$ \textbf{Library}
+    \item Search for "Custom Search API"
+    \item Click on \textbf{Custom Search API} from the results
+\end{enumerate}
+
+\subsection{Enable the API}
+
+\begin{enumerate}
+    \item Click the \textbf{"Enable"} button
+    \item Wait for the API to be enabled
+    \item You should see "API enabled" confirmation
+\end{enumerate}
+
+\begin{tcolorbox}[colback=alertbg,colframe=googleyellow,title=Billing Requirement]
+The Custom Search API requires a billing account to be linked to your project. If you don't have one, you'll be prompted to add billing information during this step.
+\end{tcolorbox}
+
+\section{Step 3: Create API Key}
+
+\subsection{Navigate to Credentials}
+
+\begin{enumerate}
+    \item In the left sidebar, navigate to \textbf{APIs \& Services} $\rightarrow$ \textbf{Credentials}
+    \item Click the \textbf{"Create Credentials"} button
+    \item Select \textbf{"API Key"}
+\end{enumerate}
+
+\subsection{Configure API Key}
+
+\begin{enumerate}
+    \item Copy the generated API key
+    \item Click on the API key to edit its settings
+    \item Under \textbf{Application restrictions}, select \textbf{"None"} for testing
+    \item Under \textbf{API restrictions}, select \textbf{"Custom Search API"}
+    \item Click \textbf{"Save"}
+\end{enumerate}
+
+\begin{tcolorbox}[colback=codebg,colframe=gray,title=API Key Format]
+Your API key will look like: \texttt{AIzaSyBgd95vN5dUOMTpffIdYiP8WJRhcQe6\_VA}
+\end{tcolorbox}
+
+\section{Step 4: Create Custom Search Engine}
+
+\subsection{Access Programmable Search}
+
+\begin{enumerate}
+    \item Navigate to \url{https://programmablesearchengine.google.com/}
+    \item Sign in with your Google account
+\end{enumerate}
+
+\subsection{Create New Search Engine}
+
+\begin{enumerate}
+    \item Click \textbf{"Add"} to create a new search engine
+    \item \textbf{Sites to search}: Enter a valid domain (e.g., \texttt{google.com})
+    \item \textbf{Name}: Enter a name (e.g., "Ghost Identity Hunter")
+    \item Click \textbf{"Create"}
+\end{enumerate}
+
+\subsection{Configure Search Engine}
+
+\begin{enumerate}
+    \item After creation, click \textbf{"Control Panel"} for your search engine
+    \item Go to the \textbf{Setup} tab
+    \item Under \textbf{Advanced} settings:
+    \begin{itemize}
+        \item Enable \textbf{"Search the entire web"}
+        \item Set \textbf{"Safe Search"} to \textbf{OFF}
+    \end{itemize}
+    \item Click \textbf{"Save"}
+\end{enumerate}
+
+\subsection{Get CX ID}
+
+\begin{enumerate}
+    \item In the \textbf{Setup} tab, look for \textbf{"Search engine ID"}
+    \item Copy the CX ID
+\end{enumerate}
+
+\begin{tcolorbox}[colback=codebg,colframe=gray,title=CX ID Format]
+Your CX ID will look like: \texttt{22b3a2bb157154ea2}
+\end{tcolorbox}
+
+\section{Step 5: Configure Environment Variables}
+
+\subsection{Add to Shell Configuration}
+
+Add the following lines to your shell configuration file:
+
+\begin{itemize}
+    \item \textbf{macOS/Linux}: \texttt{\textasciitilde/.zshrc} or \texttt{\textasciitilde/.bashrc}
+    \item \textbf{Windows}: System Environment Variables
+\end{itemize}
+
+\begin{lstlisting}[language=bash]
+export GOOGLE_API_KEY="your_actual_api_key_here"
+export GOOGLE_CX="your_actual_cx_id_here"
+\end{lstlisting}
+
+\subsection{Reload Configuration}
+
+\begin{lstlisting}[language=bash]
+# For macOS/Linux with zsh
+source ~/.zshrc
+
+# For macOS/Linux with bash
+source ~/.bashrc
+
+# For Windows, restart Command Prompt or PowerShell
+\end{lstlisting}
+
+\subsection{Verify Configuration}
+
+\begin{lstlisting}[language=bash]
+echo $GOOGLE_API_KEY
+echo $GOOGLE_CX
+\end{lstlisting}
+
+\section{Step 6: Test the Setup}
+
+\subsection{Test API Directly}
+
+\begin{lstlisting}[language=bash]
+curl "https://www.googleapis.com/customsearch/v1?key=$GOOGLE_API_KEY&cx=$GOOGLE_CX&q=test&num=1"
+\end{lstlisting}
+
+Expected response: JSON with search results.
+
+\subsection{Test with Ghost Identity Hunter}
+
+\begin{lstlisting}[language=bash]
+python -m src.cli investigate --username "test_user" --use-google-dorks --use-google-api
+\end{lstlisting}
+
+Expected: Investigation runs without 403 or 429 errors.
+
+\section{Troubleshooting}
+
+\subsection{Common Issues}
+
+\begin{table}[H]
+\centering
+\begin{tabularx}{\textwidth}{|X|X|}
+\hline
+\textbf{Error} & \textbf{Solution} \\
+\hline
+403 Forbidden & Enable Custom Search API in Google Cloud Console \\
+\hline
+403 Forbidden & Add billing account to your project \\
+\hline
+403 Forbidden & Check API key restrictions (set to "None" for testing) \\
+\hline
+403 Forbidden & Ensure CX ID and API key are from same project \\
+\hline
+429 Too Many Requests & Use API instead of web scraping \\
+\hline
+Invalid CX ID & Verify CX ID in Programmable Search Control Panel \\
+\hline
+Invalid API Key & Check API key in Google Cloud Console \\
+\hline
+\end{tabularx}
+\caption{Common Error Messages and Solutions}
+\end{table}
+
+\subsection{Verification Checklist}
+
+\begin{itemize}
+    \item[$\checkmark$] Custom Search API is enabled in Google Cloud Console
+    \item[$\checkmark$] Billing account is linked to the project
+    \item[$\checkmark$] API key has correct restrictions
+    \item[$\checkmark$] CX ID is valid and "Search the entire web" is enabled
+    \item[$\checkmark$] Environment variables are set correctly
+    \item[$\checkmark$] Shell configuration has been reloaded
+    \item[$\checkmark$] Direct API test returns JSON results
+\end{itemize}
+
+\section{Usage Examples}
+
+\subsection{With Environment Variables}
+
+Once configured, use Google Dorks without specifying credentials:
+
+\begin{lstlisting}[language=bash]
+python -m src.cli investigate --username "target_user" --use-google-dorks --use-google-api
+\end{lstlisting}
+
+\subsection{With Explicit Credentials}
+
+Override environment variables with explicit values:
+
+\begin{lstlisting}[language=bash]
+python -m src.cli investigate --username "target_user" \
+  --use-google-dorks \
+  --use-google-api \
+  --google-api-key "YOUR_API_KEY" \
+  --google-cx "YOUR_CX_ID"
+\end{lstlisting}
+
+\subsection{Without Google Dorks}
+
+If API setup fails, the application works without Google Dorks:
+
+\begin{lstlisting}[language=bash]
+python -m src.cli investigate --username "target_user"
+\end{lstlisting}
+
+\section{Security Best Practices}
+
+\begin{itemize}
+    \item Never commit API keys to version control
+    \item Use environment variables for sensitive credentials
+    \item Restrict API key usage to specific applications in production
+    \item Monitor API usage in Google Cloud Console
+    \item Rotate API keys periodically
+    \item Use separate projects for development and production
+\end{itemize}
+
+\section{Additional Resources}
+
+\begin{itemize}
+    \item \url{https://console.cloud.google.com/} - Google Cloud Console
+    \item \url{https://programmablesearchengine.google.com/} - Programmable Search
+    \item \url{https://developers.google.com/custom-search/v1/overview} - API Documentation
+    \item \url{https://cloud.google.com/docs/authentication/api-keys} - API Key Best Practices
+\end{itemize}
+
+\section{Summary}
+
+Setting up Google Custom Search API involves:
+
+\begin{enumerate}
+    \item Creating a Google Cloud project
+    \item Enabling Custom Search API (requires billing)
+    \item Creating and configuring API key
+    \item Setting up Custom Search Engine with web-wide search
+    \item Configuring environment variables
+    \item Testing the setup
+\end{enumerate}
+
+Once configured, Ghost Identity Hunter can perform unlimited Google Dorks searches without rate limiting, providing more comprehensive OSINT results.
+
+\begin{tcolorbox}[colback=googlegreen!10,colframe=googlegreen,title=Alternative]
+If you cannot set up Google API credentials, Ghost Identity Hunter still works perfectly without Google Dorks. The core OSINT features (email analysis, username search, platform detection, graph correlation) all function through other data sources.
+\end{tcolorbox}
+
+\end{document}
