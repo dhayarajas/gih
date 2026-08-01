@@ -263,6 +263,8 @@ class ConfigLoader:
             },
             "investigation": {
                 "max_depth": 2,
+                "max_runtime_minutes": 18,
+                "max_total_artifacts": 500,
                 "check_breaches": True,
                 "search_usernames": True,
                 "check_images": True,

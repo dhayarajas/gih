@@ -8,6 +8,7 @@ are installed on the system and gracefully handle missing dependencies.
 import shutil
 import subprocess
 import logging
+import threading
 from typing import Dict, List, Optional
 from dataclasses import dataclass
 from enum import Enum
@@ -32,6 +33,10 @@ class ToolInfo:
     status: ToolStatus = ToolStatus.NOT_INSTALLED
     version: Optional[str] = None
     error_message: Optional[str] = None
+    # Whether availability has already been resolved this process run. Used to
+    # memoize check_tool so the `<tool> --version` subprocess runs at most once
+    # per tool (it is otherwise invoked per-artifact per-tool inside the BFS loop).
+    checked: bool = False
 
 
 class ToolChecker:
@@ -39,6 +44,9 @@ class ToolChecker:
     
     def __init__(self):
         self.tools: Dict[str, ToolInfo] = {}
+        # Guards the memoization cache so concurrent BFS workers resolve each
+        # tool's availability exactly once.
+        self._lock = threading.Lock()
         self._initialize_common_tools()
     
     def _initialize_common_tools(self):
@@ -111,8 +119,13 @@ class ToolChecker:
         for tool in common_tools:
             self.tools[tool.name] = tool
     
-    def check_tool(self, tool_name: str) -> ToolInfo:
-        """Check if a specific tool is available."""
+    def check_tool(self, tool_name: str, force: bool = False) -> ToolInfo:
+        """Check if a specific tool is available.
+
+        The result is memoized in ``self.tools[tool_name]`` so the underlying
+        ``shutil.which``/``--version`` subprocess runs at most once per process
+        run. Pass ``force=True`` to re-resolve (e.g. after installing a tool).
+        """
         if tool_name not in self.tools:
             logger.warning(f"Unknown tool: {tool_name}")
             return ToolInfo(
@@ -124,7 +137,20 @@ class ToolChecker:
             )
         
         tool = self.tools[tool_name]
-        
+
+        # Fast path: already resolved this run.
+        if tool.checked and not force:
+            return tool
+
+        with self._lock:
+            # Re-check under the lock in case another thread resolved it while
+            # we were waiting.
+            if tool.checked and not force:
+                return tool
+            return self._resolve_tool(tool)
+
+    def _resolve_tool(self, tool: ToolInfo) -> ToolInfo:
+        """Resolve a tool's availability and version (no caching logic)."""
         try:
             # Check if command exists
             if shutil.which(tool.command):
@@ -161,7 +187,8 @@ class ToolChecker:
         except Exception as e:
             tool.status = ToolStatus.ERROR
             tool.error_message = f"Error checking tool '{tool.command}': {str(e)}"
-        
+
+        tool.checked = True
         return tool
     
     def check_all_tools(self) -> Dict[str, ToolInfo]:

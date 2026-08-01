@@ -89,7 +89,7 @@ plugins:
   amass:
     enabled: false  # Disabled by default - requires installation
     priority: 2
-    timeout: 120
+    timeout: 60  # Reduced from 120 to fit the overall time budget
     max_retries: 2
   
   subfinder:
@@ -108,13 +108,13 @@ plugins:
   nmap:
     enabled: false  # Disabled by default - requires installation
     priority: 3
-    timeout: 300
+    timeout: 90  # Reduced from 300 to fit the overall time budget
     max_retries: 1
   
   masscan:
     enabled: false  # Disabled by default - requires installation
     priority: 3
-    timeout: 300
+    timeout: 90  # Reduced from 300 to fit the overall time budget
     max_retries: 1
   
   whatweb:
@@ -229,6 +229,10 @@ plugin_settings:
 # Investigation Settings
 investigation:
   max_depth: 2
+  # Overall wall-clock deadline; BFS stops enqueuing new work once exceeded.
+  max_runtime_minutes: 18
+  # Cap on total artifacts to bound exponential discovery growth.
+  max_total_artifacts: 500
   check_breaches: true
   search_usernames: true
   check_images: true
@@ -300,11 +304,13 @@ google_dorks:
   enable_retry: false  # Set to false during testing to prevent hanging
   skip_variants: true  # Only search primary username, skip variants
   rate_limit_backoff: 2.0  # Exponential backoff for rate limits
-  max_retries: 3
-  initial_backoff: 1.0
+  max_retries: 1  # Reduced from 3 so a slow scrape path fails fast
+  initial_backoff: 0.5  # Reduced from 1.0
   backoff_multiplier: 2.0
-  jitter_max: 0.5
+  jitter_max: 0.3  # Reduced from 0.5
   max_alternative_links: 50  # Hard limit to prevent infinite processing
+  max_emails_per_result: 3  # Cap emails extracted per search result
+  request_timeout: 15  # Explicit per-request HTTP timeout (seconds)
 
 # Username Search Settings
 username_search:
@@ -403,4 +409,6 @@ breach_check:
 orchestrator:
   bfs_batch_size: 10  # Number of artifacts to process in parallel
   max_depth: 2  # Maximum recursion depth for artifact discovery
+  # BFS-level artifact concurrency (falls back to plugin_settings if unset).
+  max_parallel_workers: 15
 

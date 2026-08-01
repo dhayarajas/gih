@@ -14,9 +14,30 @@ from typing import Dict, List, Optional, Any
 from dataclasses import dataclass, field
 from enum import Enum
 
+from src.config.loader import get_config
 from src.utils.tool_checker import check_tool_availability, skip_if_not_available
 
 logger = logging.getLogger(__name__)
+
+# Fallback timeout (seconds) used when a tool has no `timeout` configured.
+DEFAULT_TOOL_TIMEOUT = 60
+
+
+def _get_tool_timeout(tool_name: str, default: int = DEFAULT_TOOL_TIMEOUT) -> int:
+    """Resolve the configured per-tool subprocess timeout from config.yaml.
+
+    Per-tool timeouts live under the ``plugins.<tool_name>.timeout`` section
+    (with a top-level ``<tool_name>.timeout`` also honored as a fallback). This
+    ensures every integration uses its configured budget instead of the old
+    hardcoded 60s default (or nmap's hardcoded 300s).
+    """
+    try:
+        config = get_config()
+        plugins_cfg = config.get("plugins", {}) or {}
+        tool_cfg = plugins_cfg.get(tool_name) or config.get(tool_name) or {}
+        return int(tool_cfg.get("timeout", default))
+    except Exception:
+        return default
 
 
 class ToolOutputFormat(Enum):
@@ -46,18 +67,22 @@ class ExternalToolsIntegration:
     def __init__(self):
         self.results_cache: Dict[str, ToolResult] = {}
     
-    def run_tool(self, tool_name: str, command: List[str], timeout: int = 60) -> ToolResult:
+    def run_tool(self, tool_name: str, command: List[str], timeout: Optional[int] = None) -> ToolResult:
         """
         Execute an external OSINT tool and capture output.
         
         Args:
             tool_name: Name of the tool being executed
             command: Command list to execute
-            timeout: Execution timeout in seconds
+            timeout: Execution timeout in seconds. When ``None`` (the default),
+                the configured ``<tool_name>.timeout`` from config.yaml is used,
+                falling back to ``DEFAULT_TOOL_TIMEOUT``.
             
         Returns:
             ToolResult with execution output and status
         """
+        if timeout is None:
+            timeout = _get_tool_timeout(tool_name)
         result = ToolResult(tool_name=tool_name, success=False, output="")
         
         try:
@@ -365,7 +390,7 @@ class NmapIntegration(ExternalToolsIntegration):
         else:
             command = ["nmap", "-p", ports, "-sV", "-sC", target]
         
-        result = self.run_tool("nmap", command, timeout=300)
+        result = self.run_tool("nmap", command)
         
         if result.success:
             # Parse Nmap output for open ports and services
