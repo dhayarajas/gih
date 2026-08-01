@@ -10,11 +10,13 @@ import subprocess
 import json
 import logging
 import re
+import threading
 from typing import Dict, List, Optional, Any
 from dataclasses import dataclass, field
 from enum import Enum
 
 from src.config.loader import get_config
+from src.utils.concurrency import io_slot
 from src.utils.tool_checker import check_tool_availability, skip_if_not_available
 
 logger = logging.getLogger(__name__)
@@ -88,12 +90,13 @@ class ExternalToolsIntegration:
         try:
             logger.info(f"Running {tool_name}: {' '.join(command)}")
             
-            process = subprocess.run(
-                command,
-                capture_output=True,
-                text=True,
-                timeout=timeout
-            )
+            with io_slot():
+                process = subprocess.run(
+                    command,
+                    capture_output=True,
+                    text=True,
+                    timeout=timeout
+                )
             
             result.success = process.returncode == 0
             result.output = process.stdout + process.stderr
@@ -531,6 +534,21 @@ def get_tool_integrations() -> Dict[str, ExternalToolsIntegration]:
     }
 
 
+# Per-run memoization of tool analyses. The BFS rediscovers the same
+# domain/email/username from multiple parents; without this each occurrence
+# re-runs the same subprocess/HTTP work before dedup happens at persistence
+# time. Keyed by (tool_name, analysis_type, target); cleared at the start of
+# each investigation via clear_tool_analysis_cache().
+_analysis_cache: Dict[tuple, ToolResult] = {}
+_analysis_cache_lock = threading.Lock()
+
+
+def clear_tool_analysis_cache() -> None:
+    """Reset the per-run tool-analysis memoization cache."""
+    with _analysis_cache_lock:
+        _analysis_cache.clear()
+
+
 def run_tool_analysis(tool_name: str, analysis_type: str, target: str) -> ToolResult:
     """
     Run analysis using a specific external tool.
@@ -543,6 +561,13 @@ def run_tool_analysis(tool_name: str, analysis_type: str, target: str) -> ToolRe
     Returns:
         ToolResult with analysis output and discovered artifacts
     """
+    cache_key = (tool_name, analysis_type, target)
+    with _analysis_cache_lock:
+        cached = _analysis_cache.get(cache_key)
+    if cached is not None:
+        logger.debug("Tool analysis cache hit: %s/%s for %s", tool_name, analysis_type, target)
+        return cached
+
     integrations = get_tool_integrations()
     
     if tool_name not in integrations:
@@ -588,4 +613,7 @@ def run_tool_analysis(tool_name: str, analysis_type: str, target: str) -> ToolRe
         return ToolResult(tool_name=tool_name, success=False, error_message="Unknown analysis type")
     
     method = analysis_methods[tool_name][analysis_type]
-    return method(target)
+    result = method(target)
+    with _analysis_cache_lock:
+        _analysis_cache[cache_key] = result
+    return result

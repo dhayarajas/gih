@@ -200,6 +200,55 @@ class TestBoundedProcessing:
         """Sanity check on the re-queue allowlist."""
         assert "username" in EXPANDABLE_ARTIFACT_TYPES
         assert "risk_indicator" not in EXPANDABLE_ARTIFACT_TYPES
+        # platform_presence must stay expandable so the profile_image plugin runs.
+        assert "platform_presence" in EXPANDABLE_ARTIFACT_TYPES
+
+    def test_budget_still_persists_metadata_and_presence(self, conn, monkeypatch):
+        """Hitting the budget must not drop already-collected writes.
+
+        Every processed artifact's metadata + platform presences should be
+        persisted even for results iterated after the artifact budget is
+        exhausted; only new-artifact expansion is suppressed.
+        """
+        def _fake(inv_id, artifact, config, plugin_manager=None):
+            res = ArtifactProcessResult(artifact=artifact)
+            res.source_metadata = f"meta:{artifact['value']}"
+            res.platform_presences = [{"platform_name": f"P-{artifact['value']}"}]
+            if artifact["depth"] == 0:
+                res.discovered = [
+                    {"type": "username", "value": f"child{i}", "source": "test"}
+                    for i in range(20)
+                ]
+            return res
+
+        monkeypatch.setattr(orchestrator, "_process_artifact", _fake)
+
+        config = InvestigationConfig(
+            max_depth=3,
+            check_breaches=False,
+            search_usernames=False,
+            check_external_tools=False,
+            max_total_artifacts=5,
+        )
+        # Multiple seeds so several results are iterated in the same level; the
+        # budget is exhausted partway through their discovered expansion.
+        result = run_investigation(
+            conn,
+            seeds=[
+                {"type": "username", "value": "seedA"},
+                {"type": "username", "value": "seedB"},
+                {"type": "username", "value": "seedC"},
+            ],
+            config=config,
+        )
+
+        presences = db.get_platform_presences(conn, result.investigation_id)
+        seed_presences = {
+            p["platform_name"] for p in presences
+            if p["platform_name"] in {"P-seedA", "P-seedB", "P-seedC"}
+        }
+        # All three seeds' presences persisted despite the budget being hit.
+        assert seed_presences == {"P-seedA", "P-seedB", "P-seedC"}
 
     def test_dedup_preserved_across_levels(self, conn, monkeypatch):
         """The same discovered value should be stored only once."""

@@ -172,16 +172,19 @@ def _apply_rate_limit():
     config = _get_http_config()
     min_interval = config["min_request_interval"]
     
+    # Reserve this request's slot under the lock, then sleep *outside* it so
+    # concurrent callers don't serialize on a thread that is merely sleeping.
+    # Each caller computes its own wake time relative to the previously reserved
+    # slot, which spaces requests by `min_interval` without holding the lock.
     with _rate_limit_lock:
-        current_time = time.time()
-        time_since_last = current_time - _last_request_time
-        
-        if time_since_last < min_interval:
-            sleep_time = min_interval - time_since_last
-            logger.debug("Rate limiting: sleeping for %.2f seconds", sleep_time)
-            time.sleep(sleep_time)
-        
-        _last_request_time = time.time()
+        now = time.time()
+        scheduled = max(now, _last_request_time + min_interval)
+        _last_request_time = scheduled
+
+    sleep_time = scheduled - now
+    if sleep_time > 0:
+        logger.debug("Rate limiting: sleeping for %.2f seconds", sleep_time)
+        time.sleep(sleep_time)
 
 
 def get_http_session() -> requests.Session:

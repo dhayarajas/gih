@@ -78,9 +78,14 @@ from src.modules.correlation_neo4j import Neo4jCorrelation
 from src.modules.google_dorks import run_google_dorks_search, check_google_dorks_availability
 from src.storage import database as db
 from src.utils.tool_checker import get_tool_checker, check_tool_availability
-from src.modules.external_tools import run_tool_analysis, get_tool_integrations
+from src.modules.external_tools import (
+    run_tool_analysis,
+    get_tool_integrations,
+    clear_tool_analysis_cache,
+)
 from src.plugins import PluginManager, PluginRegistry, Artifact as PluginArtifact, PluginConfig
 from src.config.loader import get_config
+from src.utils import concurrency
 
 logger = logging.getLogger(__name__)
 
@@ -119,12 +124,18 @@ def _get_investigation_defaults() -> dict:
 MAX_DEPTH = _get_orchestrator_config().get("max_depth", 2)
 _INV_DEFAULTS = _get_investigation_defaults()
 
-# Only these artifact types are re-queued for further (expensive) tool runs.
-# Everything else (risk_indicator, username_presence, open_port, dns_*,
-# historical_url, identity_match, ...) is a leaf result: it is still stored and
-# linked, but never triggers another round of module/external-tool processing.
+# Only these artifact types are re-queued for further processing. Everything
+# else (risk_indicator, open_port, dns_*, historical_url, identity_match, ...)
+# is a leaf result: it is still stored and linked, but never triggers another
+# round of module/external-tool processing.
+#
+# `platform_presence` is included because it runs no OSINT module or external
+# tool (see _process_artifact / _process_external_tools) -- it is cheap and is
+# the sole input to the profile_image plugin, which extracts profile pictures
+# from discovered social accounts. Dropping it would silently disable that step.
 EXPANDABLE_ARTIFACT_TYPES = frozenset({
     "phone", "email", "username", "image", "fullname", "domain", "ip_address",
+    "platform_presence",
 })
 
 
@@ -298,6 +309,10 @@ def run_investigation(
     # never touched from a worker thread and the `seen` dedup set is mutated
     # only here.
     start_time = time.monotonic()
+    # Bound total concurrent outbound I/O across all nested pools, and reset the
+    # per-run tool-analysis memoization so results aren't reused across runs.
+    concurrency.configure()
+    clear_tool_analysis_cache()
     runtime_budget_s = max(0.0, config.max_runtime_minutes * 60.0)
     max_total_artifacts = config.max_total_artifacts
     max_workers = max(1, config.max_parallel_workers)
@@ -364,8 +379,11 @@ def run_investigation(
                     conn, investigation_id=inv_id, artifact_id=current_id, **presence
                 )
 
-            # Only expand further while within the depth limit.
-            if current_depth >= config.max_depth:
+            # The metadata/presence writes above are unrelated to the artifact
+            # count and must always be applied for every already-processed
+            # result; only new-artifact expansion below is bounded by depth and
+            # the budget, so we `continue` (not `break`) once either is hit.
+            if current_depth >= config.max_depth or budget_reached:
                 continue
 
             for artifact in res.discovered:
@@ -414,9 +432,6 @@ def run_investigation(
                         "value": artifact["value"],
                         "depth": current_depth + 1,
                     })
-
-            if budget_reached:
-                break
 
         conn.commit()
         logger.info(
