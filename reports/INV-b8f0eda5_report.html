@@ -1,0 +1,858 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OSINT Investigation Report - INV-b8f0eda5</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, sans-serif;
+            background: #f5f7fa;
+            color: #2c3e50;
+            padding: 0;
+            line-height: 1.6;
+        }
+        .container { max-width: 1400px; margin: 0 auto; padding: 2rem; }
+        
+        /* Professional Header */
+        .header {
+            background: linear-gradient(135deg, #1e3a5f 0%, #2c5282 100%);
+            color: white;
+            padding: 2rem;
+            margin: -2rem -2rem 2rem -2rem;
+            border-bottom: 4px solid #c53030;
+        }
+        .header h1 { color: white; margin: 0; font-size: 1.8rem; font-weight: 600; }
+        .header .meta { color: #cbd5e0; font-size: 0.9rem; margin-top: 0.5rem; }
+        .classification {
+            display: inline-block;
+            background: #c53030;
+            color: white;
+            padding: 0.25rem 0.75rem;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-top: 1rem;
+        }
+        
+        /* Content Styling */
+        h2 { 
+            color: #1e3a5f; 
+            margin: 2rem 0 1rem; 
+            border-bottom: 2px solid #e2e8f0; 
+            padding-bottom: 0.5rem;
+            font-size: 1.4rem;
+            font-weight: 600;
+        }
+        h3 { 
+            color: #2c5282; 
+            margin: 1.5rem 0 0.75rem;
+            font-size: 1.1rem;
+            font-weight: 600;
+        }
+        .meta { color: #718096; font-size: 0.85rem; margin-bottom: 1rem; }
+        
+        /* Professional Cards */
+        .card {
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        
+        /* Professional Badges */
+        .badge {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            margin: 0.1rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .badge-phone { background: #fed7d7; color: #c53030; border: 1px solid #feb2b2; }
+        .badge-email { background: #bee3f8; color: #2b6cb0; border: 1px solid #90cdf4; }
+        .badge-username { background: #c6f6d5; color: #276749; border: 1px solid #9ae6b4; }
+        .badge-domain { background: #feebc8; color: #9c4221; border: 1px solid #fbd38d; }
+        .badge-ip { background: #e9d8fd; color: #553c9a; border: 1px solid #d6bcfa; }
+        .badge-platform { background: #e2e8f0; color: #4a5568; border: 1px solid #cbd5e0; }
+        .badge-risk { background: #c53030; color: white; border: 1px solid #9b2c2c; }
+        
+        /* Risk Levels */
+        .risk-critical { color: #c53030; font-weight: bold; background: #fed7d7; padding: 0.2rem 0.5rem; border-radius: 4px; }
+        .risk-high { color: #dd6b20; font-weight: bold; background: #feebc8; padding: 0.2rem 0.5rem; border-radius: 4px; }
+        .risk-medium { color: #d69e2e; background: #faf089; padding: 0.2rem 0.5rem; border-radius: 4px; }
+        .risk-low { color: #38a169; background: #c6f6d5; padding: 0.2rem 0.5rem; border-radius: 4px; }
+        .risk-minimal { color: #3182ce; background: #bee3f8; padding: 0.2rem 0.5rem; border-radius: 4px; }
+        
+        /* Professional Tables */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1rem 0;
+            background: white;
+        }
+        th, td {
+            padding: 0.75rem 1rem;
+            text-align: left;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        th { 
+            background: #f7fafc; 
+            color: #2d3748; 
+            font-weight: 600;
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            border-bottom: 2px solid #cbd5e0;
+        }
+        tr:hover { background: #f7fafc; }
+        
+        /* Links */
+        a { color: #3182ce; text-decoration: none; font-weight: 500; }
+        a:hover { text-decoration: underline; color: #2c5282; }
+        
+        /* Stats Grid */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin: 1rem 0;
+        }
+        .stat-card {
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            padding: 1.25rem;
+            text-align: center;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+        }
+        .stat-value { font-size: 2rem; font-weight: 700; color: #1e3a5f; }
+        .stat-label { font-size: 0.8rem; color: #718096; text-transform: uppercase; letter-spacing: 0.5px; }
+        
+        /* Evidence Chain */
+        .evidence-chain { 
+            font-family: 'Courier New', monospace; 
+            font-size: 0.85rem; 
+            color: #4a5568; 
+            background: #f7fafc;
+            padding: 1rem;
+            border-radius: 4px;
+            border-left: 3px solid #3182ce;
+        }
+        
+        /* Collapsible Sections */
+        .collapsible {
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            margin-bottom: 1rem;
+            overflow: hidden;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+        }
+        .collapsible-header {
+            background: #f7fafc;
+            padding: 1rem 1.5rem;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            user-select: none;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        .collapsible-header:hover { background: #edf2f7; }
+        .collapsible-header h4 { margin: 0; color: #2d3748; font-size: 0.95rem; font-weight: 600; }
+        .collapsible-content { padding: 1.5rem; display: none; }
+        .collapsible.active .collapsible-content { display: block; }
+        .collapsible-icon { color: #718096; font-size: 1.2rem; transition: transform 0.2s; }
+        .collapsible.active .collapsible-icon { transform: rotate(180deg); }
+        
+        /* Search Box */
+        .search-box {
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            padding: 1rem;
+            margin-bottom: 1.5rem;
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+        }
+        .search-input {
+            flex: 1;
+            padding: 0.75rem 1rem;
+            border: 1px solid #cbd5e0;
+            border-radius: 4px;
+            font-size: 0.9rem;
+        }
+        .search-input:focus { outline: none; border-color: #3182ce; box-shadow: 0 0 0 3px rgba(49, 130, 206, 0.1); }
+        .export-btn {
+            background: #3182ce;
+            color: white;
+            border: none;
+            padding: 0.75rem 1.25rem;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            font-weight: 600;
+            transition: background 0.2s;
+        }
+        .export-btn:hover { background: #2c5282; }
+        
+        /* Footer */
+        .footer {
+            background: #2d3748;
+            color: #cbd5e0;
+            padding: 1.5rem;
+            margin: 2rem -2rem -2rem -2rem;
+            text-align: center;
+            font-size: 0.85rem;
+        }
+        .footer a { color: #90cdf4; }
+        
+        /* Graph Container */
+        .graph-container {
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            padding: 1rem;
+            margin: 1rem 0;
+            min-height: 400px;
+        }
+        
+        /* Priority Queue */
+        .priority-critical { border-left: 4px solid #c53030; }
+        .priority-high { border-left: 4px solid #dd6b20; }
+        .priority-medium { border-left: 4px solid #d69e2e; }
+        .priority-low { border-left: 4px solid #38a169; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Professional Header -->
+        <div class="header">
+            <h1>OSINT Investigation Report</h1>
+            <div class="meta">
+                <strong>Investigation ID:</strong> INV-b8f0eda5 | 
+                <strong>Title:</strong> Investigation INV-b8f0eda5 | 
+                <strong>Status:</strong> Completed | 
+                <strong>Generated:</strong> 2026-08-01 10:18 UTC
+            </div>
+            <div class="classification">CONFIDENTIAL - FOR AUTHORIZED PERSONNEL ONLY</div>
+        </div>
+
+    <!-- Search Box -->
+    <div class="search-box">
+        <input type="text" id="searchInput" class="search-input" placeholder="Search report... (type to search, Enter to execute)">
+        <div class="export-buttons">
+            <button class="export-btn" onclick="exportToCSV()">Export Artifacts (CSV)</button>
+            <button class="export-btn" onclick="printReport()">Print / Save as PDF</button>
+        </div>
+    </div>
+
+    <!-- Summary -->
+    <h2>Summary</h2>
+    <div class="card">
+        <h3>Investigation Timeline</h3>
+        <table>
+            <thead>
+                <tr><th>Time</th><th>Type</th><th>Value</th><th>Source</th><th>Depth</th></tr>
+            </thead>
+            <tbody>
+                
+                <tr>
+                    <td>2026-08-01T10:18:12</td>
+                    <td><span class="badge badge-email">email</span></td>
+                    <td>dhayanidhi.r@gmail.com</td>
+                    <td>seed</td>
+                    <td>0</td>
+                </tr>
+                
+                <tr>
+                    <td>2026-08-01T10:18:12</td>
+                    <td><span class="badge badge-breach_data">breach_data</span></td>
+                    <td>Facebook (2019-04-04)</td>
+                    <td>haveibeenpwned</td>
+                    <td>1</td>
+                </tr>
+                
+                <tr>
+                    <td>2026-08-01T10:18:12</td>
+                    <td><span class="badge badge-breach_data">breach_data</span></td>
+                    <td>Adobe (2013-10-04)</td>
+                    <td>haveibeenpwned</td>
+                    <td>1</td>
+                </tr>
+                
+                <tr>
+                    <td>2026-08-01T10:18:12</td>
+                    <td><span class="badge badge-username">username</span></td>
+                    <td>dhayanidhi.r</td>
+                    <td>email_local_part</td>
+                    <td>1</td>
+                </tr>
+                
+                <tr>
+                    <td>2026-08-01T10:18:12</td>
+                    <td><span class="badge badge-domain">domain</span></td>
+                    <td>gmail.com</td>
+                    <td>email_domain_extraction</td>
+                    <td>1</td>
+                </tr>
+                
+                <tr>
+                    <td>2026-08-01T10:18:15</td>
+                    <td><span class="badge badge-ip">ip</span></td>
+                    <td>142.251.220.101</td>
+                    <td>plugin:DigPlugin</td>
+                    <td>2</td>
+                </tr>
+                
+                <tr>
+                    <td>2026-08-01T10:18:15</td>
+                    <td><span class="badge badge-mail_server">mail_server</span></td>
+                    <td>10 alt1.gmail-smtp-in.l.google.com.</td>
+                    <td>plugin:DigPlugin</td>
+                    <td>2</td>
+                </tr>
+                
+                <tr>
+                    <td>2026-08-01T10:18:15</td>
+                    <td><span class="badge badge-mail_server">mail_server</span></td>
+                    <td>20 alt2.gmail-smtp-in.l.google.com.</td>
+                    <td>plugin:DigPlugin</td>
+                    <td>2</td>
+                </tr>
+                
+                <tr>
+                    <td>2026-08-01T10:18:15</td>
+                    <td><span class="badge badge-mail_server">mail_server</span></td>
+                    <td>40 alt4.gmail-smtp-in.l.google.com.</td>
+                    <td>plugin:DigPlugin</td>
+                    <td>2</td>
+                </tr>
+                
+                <tr>
+                    <td>2026-08-01T10:18:15</td>
+                    <td><span class="badge badge-mail_server">mail_server</span></td>
+                    <td>30 alt3.gmail-smtp-in.l.google.com.</td>
+                    <td>plugin:DigPlugin</td>
+                    <td>2</td>
+                </tr>
+                
+            </tbody>
+        </table>
+    </div>
+
+    <div class="card">
+        <h3>Key Findings</h3>
+        <ul>
+            
+            <li>Found 13 high-confidence artifacts</li>
+            
+            <li>Total of 15 artifacts discovered with 14 connections</li>
+            
+        </ul>
+    </div>
+
+    <div class="card">
+        <h3>Summary Statistics</h3>
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-value">15</div>
+                <div class="stat-label">Artifacts Found</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value">14</div>
+                <div class="stat-label">Connections</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value">1</div>
+                <div class="stat-label">Identities</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value">0</div>
+                <div class="stat-label">Platforms</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Confidence Metrics</h3>
+        <table>
+            <thead>
+                <tr><th>Metric</th><th>Value</th></tr>
+            </thead>
+            <tbody>
+                <tr><td>Overall Confidence</td><td>84.0%</td></tr>
+                
+                <tr><td>Email</td><td>100.0%</td></tr>
+                
+                <tr><td>Breach_data</td><td>95.0%</td></tr>
+                
+                <tr><td>Username</td><td>50.0%</td></tr>
+                
+                <tr><td>Domain</td><td>70.0%</td></tr>
+                
+                <tr><td>Ip</td><td>90.0%</td></tr>
+                
+                <tr><td>Mail_server</td><td>85.0%</td></tr>
+                
+                <tr><td>Nameserver</td><td>85.0%</td></tr>
+                
+            </tbody>
+        </table>
+    </div>
+
+    <div class="card">
+        <h3>Risk Assessment Matrix</h3>
+        <table>
+            <thead>
+                <tr><th>Risk Level</th><th>Count</th><th>Percentage</th></tr>
+            </thead>
+            <tbody>
+                
+                <tr>
+                    <td><span class="risk-critical">Critical</span></td>
+                    <td>0</td>
+                    <td>0.0%</td>
+                </tr>
+                
+                <tr>
+                    <td><span class="risk-high">High</span></td>
+                    <td>0</td>
+                    <td>0.0%</td>
+                </tr>
+                
+                <tr>
+                    <td><span class="risk-medium">Medium</span></td>
+                    <td>0</td>
+                    <td>0.0%</td>
+                </tr>
+                
+                <tr>
+                    <td><span class="risk-low">Low</span></td>
+                    <td>0</td>
+                    <td>0.0%</td>
+                </tr>
+                
+                <tr>
+                    <td><span class="risk-minimal">Minimal</span></td>
+                    <td>1</td>
+                    <td>100.0%</td>
+                </tr>
+                
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Identity Profiles -->
+    <h2>Identity Profiles</h2>
+    
+    <div class="card">
+        <h3>Identity Profile #1</h3>
+        <p><strong>Profile ID:</strong> IDENTITY-001</p>
+        <p><strong>Confidence:</strong> 94.4%</p>
+        <p><strong>Artifacts:</strong> 0</p>
+        <p><strong>Risk Indicators:</strong> None</p>
+    </div>
+    
+
+    <!-- Platform Presence -->
+    <h2>Platform Presence</h2>
+    <div class="card">
+        <table>
+            <thead>
+                <tr><th>Platform</th><th>Profile URL</th><th>Username</th></tr>
+            </thead>
+            <tbody>
+                
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Relationship Graph -->
+    <h2>Relationship Graph</h2>
+    <div class="card">
+        <div class="graph-container">
+            <html>
+    <head>
+        <meta charset="utf-8">
+        
+            <script src="lib/bindings/utils.js"></script>
+            <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/vis-network/9.1.2/dist/dist/vis-network.min.css" integrity="sha512-WgxfT5LWjfszlPHXRmBWHkV2eceiWTOBvrKCNbdgDYTHrT2AeLCGbF4sZlZw3UMN3WtL0tGUoIAKsu8mllg/XA==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+            <script src="https://cdnjs.cloudflare.com/ajax/libs/vis-network/9.1.2/dist/vis-network.min.js" integrity="sha512-LnvoEWDFrqGHlHmDD2101OrLcbsfkrzoSpvtSQtxK3RMnRV0eOkhhBN2dXHKRrUU8p2DGRTk35n4O8nWSVe1mQ==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+            
+        
+<center>
+<h1></h1>
+</center>
+
+<!-- <link rel="stylesheet" href="../node_modules/vis/dist/vis.min.css" type="text/css" />
+<script type="text/javascript" src="../node_modules/vis/dist/vis.js"> </script>-->
+        <link
+          href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.0-beta3/dist/css/bootstrap.min.css"
+          rel="stylesheet"
+          integrity="sha384-eOJMYsd53ii+scO/bJGFsiCZc+5NDVN2yr8+0RDqr0Ql0h+rP48ckxlpbzKgwra6"
+          crossorigin="anonymous"
+        />
+        <script
+          src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.0-beta3/dist/js/bootstrap.bundle.min.js"
+          integrity="sha384-JEW9xMcG8R+pH31jmWH6WWP0WintQrMb4s7ZOdauHnUtxwoG2vI5DkLtS3qm9Ekf"
+          crossorigin="anonymous"
+        ></script>
+
+
+        <center>
+          <h1></h1>
+        </center>
+        <style type="text/css">
+
+             #mynetwork {
+                 width: 100%;
+                 height: 700px;
+                 background-color: #1a1a2e;
+                 border: 1px solid lightgray;
+                 position: relative;
+                 float: left;
+             }
+
+             
+
+             
+
+             
+        </style>
+    </head>
+
+
+    <body>
+        <div class="card" style="width: 100%">
+            
+            
+            <div id="mynetwork" class="card-body"></div>
+        </div>
+
+        
+        
+
+        <script type="text/javascript">
+
+              // initialize global variables.
+              var edges;
+              var nodes;
+              var allNodes;
+              var allEdges;
+              var nodeColors;
+              var originalNodes;
+              var network;
+              var container;
+              var options, data;
+              var filter = {
+                  item : '',
+                  property : '',
+                  value : []
+              };
+
+              
+
+              
+
+              // This method is responsible for drawing the graph, returns the drawn network
+              function drawGraph() {
+                  var container = document.getElementById('mynetwork');
+
+                  
+
+                  // parsing and collecting nodes and edges from the python
+                  nodes = new vis.DataSet([{"color": "#4ECDC4", "font": {"color": "#ffffff"}, "id": "ART-eede64ce", "label": "dhayanidhi.r@gmail.com", "shape": "diamond", "size": 30, "title": "Type: email\nValue: dhayanidhi.r@gmail.com\nSource: seed\nConfidence: 1.0\nDepth: 0"}, {"color": "#45B7D1", "font": {"color": "#ffffff"}, "id": "ART-1c2f0b20", "label": "dhayanidhi.r", "shape": "triangle", "size": 25, "title": "Type: username\nValue: dhayanidhi.r\nSource: email_local_part\nConfidence: 0.5\nDepth: 1"}, {"color": "#999999", "font": {"color": "#ffffff"}, "id": "ART-190caceb", "label": "gmail.com", "shape": "dot", "size": 20, "title": "Type: domain\nValue: gmail.com\nSource: email_domain_extraction\nConfidence: 0.7\nDepth: 1"}, {"color": "#999999", "font": {"color": "#ffffff"}, "id": "ART-40209675", "label": "142.251.220.101", "shape": "dot", "size": 20, "title": "Type: ip\nValue: 142.251.220.101\nSource: plugin:DigPlugin\nConfidence: 0.9\nDepth: 2"}, {"color": "#999999", "font": {"color": "#ffffff"}, "id": "ART-b5ef651f", "label": "10 alt1.gmail-smtp-in.l.goo...", "shape": "dot", "size": 20, "title": "Type: mail_server\nValue: 10 alt1.gmail-smtp-in.l.google.com.\nSource: plugin:DigPlugin\nConfidence: 0.85\nDepth: 2"}, {"color": "#999999", "font": {"color": "#ffffff"}, "id": "ART-da7a491c", "label": "20 alt2.gmail-smtp-in.l.goo...", "shape": "dot", "size": 20, "title": "Type: mail_server\nValue: 20 alt2.gmail-smtp-in.l.google.com.\nSource: plugin:DigPlugin\nConfidence: 0.85\nDepth: 2"}, {"color": "#999999", "font": {"color": "#ffffff"}, "id": "ART-865a66af", "label": "40 alt4.gmail-smtp-in.l.goo...", "shape": "dot", "size": 20, "title": "Type: mail_server\nValue: 40 alt4.gmail-smtp-in.l.google.com.\nSource: plugin:DigPlugin\nConfidence: 0.85\nDepth: 2"}, {"color": "#999999", "font": {"color": "#ffffff"}, "id": "ART-7592c012", "label": "30 alt3.gmail-smtp-in.l.goo...", "shape": "dot", "size": 20, "title": "Type: mail_server\nValue: 30 alt3.gmail-smtp-in.l.google.com.\nSource: plugin:DigPlugin\nConfidence: 0.85\nDepth: 2"}, {"color": "#999999", "font": {"color": "#ffffff"}, "id": "ART-f2b252b8", "label": "5 gmail-smtp-in.l.google.com.", "shape": "dot", "size": 20, "title": "Type: mail_server\nValue: 5 gmail-smtp-in.l.google.com.\nSource: plugin:DigPlugin\nConfidence: 0.85\nDepth: 2"}, {"color": "#999999", "font": {"color": "#ffffff"}, "id": "ART-206aae10", "label": "ns1.google.com.", "shape": "dot", "size": 20, "title": "Type: nameserver\nValue: ns1.google.com.\nSource: plugin:DigPlugin\nConfidence: 0.85\nDepth: 2"}, {"color": "#999999", "font": {"color": "#ffffff"}, "id": "ART-a9464d79", "label": "ns3.google.com.", "shape": "dot", "size": 20, "title": "Type: nameserver\nValue: ns3.google.com.\nSource: plugin:DigPlugin\nConfidence: 0.85\nDepth: 2"}, {"color": "#999999", "font": {"color": "#ffffff"}, "id": "ART-143ee8d3", "label": "ns2.google.com.", "shape": "dot", "size": 20, "title": "Type: nameserver\nValue: ns2.google.com.\nSource: plugin:DigPlugin\nConfidence: 0.85\nDepth: 2"}, {"color": "#999999", "font": {"color": "#ffffff"}, "id": "ART-986479d1", "label": "ns4.google.com.", "shape": "dot", "size": 20, "title": "Type: nameserver\nValue: ns4.google.com.\nSource: plugin:DigPlugin\nConfidence: 0.85\nDepth: 2"}]);
+                  edges = new vis.DataSet([{"color": "#555555", "from": "ART-eede64ce", "title": "possible_username (conf: 0.50)", "to": "ART-1c2f0b20", "width": 2}, {"color": "#555555", "from": "ART-eede64ce", "title": "domain_of_email (conf: 0.70)", "to": "ART-190caceb", "width": 2}, {"color": "#555555", "from": "ART-190caceb", "title": "discovered_from (conf: 0.90)", "to": "ART-40209675", "width": 3}, {"color": "#555555", "from": "ART-190caceb", "title": "discovered_from (conf: 0.85)", "to": "ART-b5ef651f", "width": 3}, {"color": "#555555", "from": "ART-190caceb", "title": "discovered_from (conf: 0.85)", "to": "ART-da7a491c", "width": 3}, {"color": "#555555", "from": "ART-190caceb", "title": "discovered_from (conf: 0.85)", "to": "ART-865a66af", "width": 3}, {"color": "#555555", "from": "ART-190caceb", "title": "discovered_from (conf: 0.85)", "to": "ART-7592c012", "width": 3}, {"color": "#555555", "from": "ART-190caceb", "title": "discovered_from (conf: 0.85)", "to": "ART-f2b252b8", "width": 3}, {"color": "#555555", "from": "ART-190caceb", "title": "discovered_from (conf: 0.85)", "to": "ART-206aae10", "width": 3}, {"color": "#555555", "from": "ART-190caceb", "title": "discovered_from (conf: 0.85)", "to": "ART-a9464d79", "width": 3}, {"color": "#555555", "from": "ART-190caceb", "title": "discovered_from (conf: 0.85)", "to": "ART-143ee8d3", "width": 3}, {"color": "#555555", "from": "ART-190caceb", "title": "discovered_from (conf: 0.85)", "to": "ART-986479d1", "width": 3}]);
+
+                  nodeColors = {};
+                  allNodes = nodes.get({ returnType: "Object" });
+                  for (nodeId in allNodes) {
+                    nodeColors[nodeId] = allNodes[nodeId].color;
+                  }
+                  allEdges = edges.get({ returnType: "Object" });
+                  // adding nodes and edges to the graph
+                  data = {nodes: nodes, edges: edges};
+
+                  var options = {"physics": {"forceAtlas2Based": {"gravitationalConstant": -50, "centralGravity": 0.01, "springLength": 200, "springConstant": 0.08}, "solver": "forceAtlas2Based", "stabilization": {"iterations": 150}}, "nodes": {"font": {"size": 12, "face": "monospace"}}, "edges": {"smooth": {"type": "continuous"}}};
+
+                  
+
+
+                  
+
+                  network = new vis.Network(container, data, options);
+
+                  
+
+                  
+
+                  
+
+
+                  
+
+                  return network;
+
+              }
+              drawGraph();
+        </script>
+    </body>
+</html>
+        </div>
+    </div>
+
+    <!-- Artifacts -->
+    <h2>Discovered Artifacts</h2>
+    <div class="card">
+        <table>
+            <thead>
+                <tr><th>Type</th><th>Value</th><th>Source</th><th>Confidence</th><th>Depth</th></tr>
+            </thead>
+            <tbody>
+                
+                <tr>
+                    <td><span class="badge badge-email">email</span></td>
+                    <td>dhayanidhi.r@gmail.com</td>
+                    <td>seed</td>
+                    <td>100%</td>
+                    <td>0</td>
+                </tr>
+                
+                <tr>
+                    <td><span class="badge badge-breach_data">breach_data</span></td>
+                    <td>Facebook (2019-04-04)</td>
+                    <td>haveibeenpwned</td>
+                    <td>95%</td>
+                    <td>1</td>
+                </tr>
+                
+                <tr>
+                    <td><span class="badge badge-breach_data">breach_data</span></td>
+                    <td>Adobe (2013-10-04)</td>
+                    <td>haveibeenpwned</td>
+                    <td>95%</td>
+                    <td>1</td>
+                </tr>
+                
+                <tr>
+                    <td><span class="badge badge-username">username</span></td>
+                    <td>dhayanidhi.r</td>
+                    <td>email_local_part</td>
+                    <td>50%</td>
+                    <td>1</td>
+                </tr>
+                
+                <tr>
+                    <td><span class="badge badge-domain">domain</span></td>
+                    <td>gmail.com</td>
+                    <td>email_domain_extraction</td>
+                    <td>70%</td>
+                    <td>1</td>
+                </tr>
+                
+                <tr>
+                    <td><span class="badge badge-ip">ip</span></td>
+                    <td>142.251.220.101</td>
+                    <td>plugin:DigPlugin</td>
+                    <td>90%</td>
+                    <td>2</td>
+                </tr>
+                
+                <tr>
+                    <td><span class="badge badge-mail_server">mail_server</span></td>
+                    <td>10 alt1.gmail-smtp-in.l.google.com.</td>
+                    <td>plugin:DigPlugin</td>
+                    <td>85%</td>
+                    <td>2</td>
+                </tr>
+                
+                <tr>
+                    <td><span class="badge badge-mail_server">mail_server</span></td>
+                    <td>20 alt2.gmail-smtp-in.l.google.com.</td>
+                    <td>plugin:DigPlugin</td>
+                    <td>85%</td>
+                    <td>2</td>
+                </tr>
+                
+                <tr>
+                    <td><span class="badge badge-mail_server">mail_server</span></td>
+                    <td>40 alt4.gmail-smtp-in.l.google.com.</td>
+                    <td>plugin:DigPlugin</td>
+                    <td>85%</td>
+                    <td>2</td>
+                </tr>
+                
+                <tr>
+                    <td><span class="badge badge-mail_server">mail_server</span></td>
+                    <td>30 alt3.gmail-smtp-in.l.google.com.</td>
+                    <td>plugin:DigPlugin</td>
+                    <td>85%</td>
+                    <td>2</td>
+                </tr>
+                
+                <tr>
+                    <td><span class="badge badge-mail_server">mail_server</span></td>
+                    <td>5 gmail-smtp-in.l.google.com.</td>
+                    <td>plugin:DigPlugin</td>
+                    <td>85%</td>
+                    <td>2</td>
+                </tr>
+                
+                <tr>
+                    <td><span class="badge badge-nameserver">nameserver</span></td>
+                    <td>ns1.google.com.</td>
+                    <td>plugin:DigPlugin</td>
+                    <td>85%</td>
+                    <td>2</td>
+                </tr>
+                
+                <tr>
+                    <td><span class="badge badge-nameserver">nameserver</span></td>
+                    <td>ns3.google.com.</td>
+                    <td>plugin:DigPlugin</td>
+                    <td>85%</td>
+                    <td>2</td>
+                </tr>
+                
+                <tr>
+                    <td><span class="badge badge-nameserver">nameserver</span></td>
+                    <td>ns2.google.com.</td>
+                    <td>plugin:DigPlugin</td>
+                    <td>85%</td>
+                    <td>2</td>
+                </tr>
+                
+                <tr>
+                    <td><span class="badge badge-nameserver">nameserver</span></td>
+                    <td>ns4.google.com.</td>
+                    <td>plugin:DigPlugin</td>
+                    <td>85%</td>
+                    <td>2</td>
+                </tr>
+                
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Recommendations -->
+    <h2>Recommendations</h2>
+    <div class="card">
+        
+    </div>
+
+    <!-- Footer -->
+    <div class="footer">
+        <p>OSINT Investigation Report | Generated by Ghost Identity Hunter | 2026-08-01 10:18 UTC</p>
+        <p>CONFIDENTIAL - FOR AUTHORIZED PERSONNEL ONLY</p>
+    </div>
+</div>
+
+<script>
+    function toggleCollapsible(element) {
+        element.classList.toggle('active');
+    }
+    
+    function exportToCSV() {
+        const investigationId = 'INV-b8f0eda5';
+        const artifacts = [{"artifact_id": "ART-eede64ce", "artifact_type": "email", "confidence": 1.0, "depth": 0, "discovered_at": "2026-08-01T10:18:12.501084+00:00", "investigation_id": "INV-b8f0eda5", "metadata": "{\"email\": \"dhayanidhi.r@gmail.com\", \"valid_format\": true, \"domain\": \"gmail.com\", \"local_part\": \"dhayanidhi.r\", \"is_disposable\": false, \"is_privacy_provider\": false, \"is_corporate\": false, \"mx_records\": [], \"platforms_found\": [], \"breaches\": [], \"breach_count\": 0, \"risk_indicators\": [], \"gravatar_url\": null, \"has_gravatar\": false}", "source": "seed", "value": "dhayanidhi.r@gmail.com"}, {"artifact_id": "ART-4befbd24", "artifact_type": "breach_data", "confidence": 0.95, "depth": 1, "discovered_at": "2026-08-01T10:18:12.531591+00:00", "investigation_id": "INV-b8f0eda5", "metadata": "{\"name\": \"Facebook\", \"domain\": \"facebook.com\", \"breach_date\": \"2019-04-04\", \"added_date\": \"2019-04-04\", \"pwn_count\": 533000000, \"data_classes\": [\"Email addresses\", \"Names\", \"Phone numbers\"], \"is_verified\": true, \"is_sensitive\": false}", "source": "haveibeenpwned", "value": "Facebook (2019-04-04)"}, {"artifact_id": "ART-f0a9360d", "artifact_type": "breach_data", "confidence": 0.95, "depth": 1, "discovered_at": "2026-08-01T10:18:12.532500+00:00", "investigation_id": "INV-b8f0eda5", "metadata": "{\"name\": \"Adobe\", \"domain\": \"adobe.com\", \"breach_date\": \"2013-10-04\", \"added_date\": \"2013-10-04\", \"pwn_count\": 152445165, \"data_classes\": [\"Email addresses\", \"Passwords\", \"Names\"], \"is_verified\": true, \"is_sensitive\": false}", "source": "haveibeenpwned", "value": "Adobe (2013-10-04)"}, {"artifact_id": "ART-1c2f0b20", "artifact_type": "username", "confidence": 0.5, "depth": 1, "discovered_at": "2026-08-01T10:18:12.532553+00:00", "investigation_id": "INV-b8f0eda5", "metadata": "{\"username\": \"dhayanidhi.r\", \"platforms_found\": [], \"platforms_not_found\": [], \"platforms_error\": [\"Reddit\", \"Instagram\", \"HackerNews\", \"Pinterest\", \"Keybase\", \"GitHub\", \"LinkedIn\", \"Twitter/X\", \"Medium\", \"GitLab\", \"Steam\", \"Mastodon\"], \"total_checked\": 12, \"found_count\": 0}", "source": "email_local_part", "value": "dhayanidhi.r"}, {"artifact_id": "ART-190caceb", "artifact_type": "domain", "confidence": 0.7, "depth": 1, "discovered_at": "2026-08-01T10:18:12.532603+00:00", "investigation_id": "INV-b8f0eda5", "metadata": null, "source": "email_domain_extraction", "value": "gmail.com"}, {"artifact_id": "ART-40209675", "artifact_type": "ip", "confidence": 0.9, "depth": 2, "discovered_at": "2026-08-01T10:18:15.992304+00:00", "investigation_id": "INV-b8f0eda5", "metadata": "{\"record_type\": \"A\", \"domain\": \"gmail.com\"}", "source": "plugin:DigPlugin", "value": "142.251.220.101"}, {"artifact_id": "ART-b5ef651f", "artifact_type": "mail_server", "confidence": 0.85, "depth": 2, "discovered_at": "2026-08-01T10:18:15.992502+00:00", "investigation_id": "INV-b8f0eda5", "metadata": "{\"record_type\": \"MX\", \"domain\": \"gmail.com\"}", "source": "plugin:DigPlugin", "value": "10 alt1.gmail-smtp-in.l.google.com."}, {"artifact_id": "ART-da7a491c", "artifact_type": "mail_server", "confidence": 0.85, "depth": 2, "discovered_at": "2026-08-01T10:18:15.994160+00:00", "investigation_id": "INV-b8f0eda5", "metadata": "{\"record_type\": \"MX\", \"domain\": \"gmail.com\"}", "source": "plugin:DigPlugin", "value": "20 alt2.gmail-smtp-in.l.google.com."}, {"artifact_id": "ART-865a66af", "artifact_type": "mail_server", "confidence": 0.85, "depth": 2, "discovered_at": "2026-08-01T10:18:15.994426+00:00", "investigation_id": "INV-b8f0eda5", "metadata": "{\"record_type\": \"MX\", \"domain\": \"gmail.com\"}", "source": "plugin:DigPlugin", "value": "40 alt4.gmail-smtp-in.l.google.com."}, {"artifact_id": "ART-7592c012", "artifact_type": "mail_server", "confidence": 0.85, "depth": 2, "discovered_at": "2026-08-01T10:18:15.994667+00:00", "investigation_id": "INV-b8f0eda5", "metadata": "{\"record_type\": \"MX\", \"domain\": \"gmail.com\"}", "source": "plugin:DigPlugin", "value": "30 alt3.gmail-smtp-in.l.google.com."}, {"artifact_id": "ART-f2b252b8", "artifact_type": "mail_server", "confidence": 0.85, "depth": 2, "discovered_at": "2026-08-01T10:18:15.994990+00:00", "investigation_id": "INV-b8f0eda5", "metadata": "{\"record_type\": \"MX\", \"domain\": \"gmail.com\"}", "source": "plugin:DigPlugin", "value": "5 gmail-smtp-in.l.google.com."}, {"artifact_id": "ART-206aae10", "artifact_type": "nameserver", "confidence": 0.85, "depth": 2, "discovered_at": "2026-08-01T10:18:15.995051+00:00", "investigation_id": "INV-b8f0eda5", "metadata": "{\"record_type\": \"NS\", \"domain\": \"gmail.com\"}", "source": "plugin:DigPlugin", "value": "ns1.google.com."}, {"artifact_id": "ART-a9464d79", "artifact_type": "nameserver", "confidence": 0.85, "depth": 2, "discovered_at": "2026-08-01T10:18:15.995245+00:00", "investigation_id": "INV-b8f0eda5", "metadata": "{\"record_type\": \"NS\", \"domain\": \"gmail.com\"}", "source": "plugin:DigPlugin", "value": "ns3.google.com."}, {"artifact_id": "ART-143ee8d3", "artifact_type": "nameserver", "confidence": 0.85, "depth": 2, "discovered_at": "2026-08-01T10:18:15.995307+00:00", "investigation_id": "INV-b8f0eda5", "metadata": "{\"record_type\": \"NS\", \"domain\": \"gmail.com\"}", "source": "plugin:DigPlugin", "value": "ns2.google.com."}, {"artifact_id": "ART-986479d1", "artifact_type": "nameserver", "confidence": 0.85, "depth": 2, "discovered_at": "2026-08-01T10:18:15.995367+00:00", "investigation_id": "INV-b8f0eda5", "metadata": "{\"record_type\": \"NS\", \"domain\": \"gmail.com\"}", "source": "plugin:DigPlugin", "value": "ns4.google.com."}];
+        
+        if (!artifacts || artifacts.length === 0) {
+            alert('No artifacts to export');
+            return;
+        }
+        
+        const headers = ['Type', 'Value', 'Source', 'Confidence', 'Depth', 'Discovered At'];
+        const rows = artifacts.map(a => [
+            a.artifact_type,
+            a.value,
+            a.source || '',
+            (a.confidence || 0).toFixed(2),
+            a.depth || 0,
+            a.discovered_at || ''
+        ]);
+        
+        const csvContent = [headers, ...rows].map(row => row.join(',')).join('
+');
+        const blob = new Blob([csvContent], { type: 'text/csv' });
+        const url = URL.createObjectURL(blob);
+        
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${investigationId}_artifacts.csv`;
+        document?.body?.appendChild(a);
+        a.click();
+        document?.body?.removeChild(a);
+        URL.revokeObjectURL(url);
+    }
+    
+    function printReport() {
+        window.print();
+    }
+    
+    function searchReport() {
+        const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+        const content = document.querySelector('.container');
+        
+        // Remove previous highlights
+        const highlights = document.querySelectorAll('.highlight');
+        highlights.forEach(h => {
+            const parent = h.parentNode;
+            parent.replaceChild(document.createTextNode(h.textContent), h);
+            parent.normalize();
+        });
+        
+        if (searchTerm.length < 2) return;
+        
+        // Find and highlight matches
+        const walker = document.createTreeWalker(content, NodeFilter.SHOW_TEXT, null, false);
+        const textNodes = [];
+        let node;
+        while (node = walker.nextNode()) {
+            if (node.textContent.toLowerCase().includes(searchTerm) && node.parentNode.tagName !== 'SCRIPT') {
+                textNodes.push(node);
+            }
+        }
+        
+        textNodes.forEach(node => {
+            const text = node.textContent;
+            const regex = new RegExp(`(${searchTerm})`, 'gi');
+            const highlighted = text.replace(regex, '<span class="highlight">$1</span>');
+            
+            const span = document.createElement('span');
+            span.innerHTML = highlighted;
+            node.parentNode.replaceChild(span, node);
+        });
+        
+        // Expand collapsibles that contain matches
+        document.querySelectorAll('.collapsible').forEach(collapsible => {
+            if (collapsible.textContent.toLowerCase().includes(searchTerm)) {
+                collapsible.classList.add('active');
+            }
+        });
+    }
+    
+    // Initialize
+    document.addEventListener('DOMContentLoaded', function() {
+        const searchInput = document.getElementById('searchInput');
+        if (searchInput) {
+            searchInput.addEventListener('input', searchReport);
+            searchInput.addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    searchReport();
+                }
+            });
+        }
+    });
+</script>
+</body>
+</html>

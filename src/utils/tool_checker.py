@@ -5,7 +5,6 @@ This module provides functionality to detect if external OSINT tools
 are installed on the system and gracefully handle missing dependencies.
 """
 
-import functools
 import shutil
 import subprocess
 import logging
@@ -34,6 +33,7 @@ class ToolInfo:
     status: ToolStatus = ToolStatus.NOT_INSTALLED
     version: Optional[str] = None
     error_message: Optional[str] = None
+    api_based: bool = False  # Reached over HTTP, so no local command is required
     # Whether availability has already been resolved this process run. Used to
     # memoize check_tool so the `<tool> --version` subprocess runs at most once
     # per tool (it is otherwise invoked per-artifact per-tool inside the BFS loop).
@@ -91,13 +91,13 @@ class ToolChecker:
             ToolInfo(name="exiftool", command="exiftool", description="Read and write file metadata"),
             
             # Historical and Archive Tools
-            ToolInfo(name="wayback_machine", command="wayback_machine", description="Historical web data access"),
+            ToolInfo(name="wayback_machine", command="wayback_machine", description="Historical web data access", api_based=True),
             
             # Blockchain and Crypto Tools
             ToolInfo(name="etherscan", command="etherscan", description="Blockchain investigation tool"),
             
             # Search and Dorking Tools
-            ToolInfo(name="google_dorks", command="google_dorks", description="Google Dorks for advanced username discovery"),
+            ToolInfo(name="google_dorks", command="google_dorks", description="Google Dorks for advanced username discovery", api_based=True),
             
             # Geolocation Tools
             ToolInfo(name="geonames", command="geonames", description="Geographical database and search"),
@@ -153,8 +153,11 @@ class ToolChecker:
     def _resolve_tool(self, tool: ToolInfo) -> ToolInfo:
         """Resolve a tool's availability and version (no caching logic)."""
         try:
+            if tool.api_based:
+                tool.status = ToolStatus.AVAILABLE
+                tool.version = "HTTP API"
             # Check if command exists
-            if shutil.which(tool.command):
+            elif shutil.which(tool.command):
                 tool.status = ToolStatus.AVAILABLE
                 # Try to get version
                 try:
@@ -204,18 +207,20 @@ class ToolChecker:
         return tool_info.status == ToolStatus.AVAILABLE
     
     def get_available_tools(self) -> List[str]:
-        """Get list of available tool names (resolving any unchecked tool)."""
-        return [
-            name for name in self.tools
-            if self.check_tool(name).status == ToolStatus.AVAILABLE
-        ]
+        """Get list of available tool names."""
+        available = []
+        for tool_name, tool_info in self.tools.items():
+            if tool_info.status == ToolStatus.AVAILABLE:
+                available.append(tool_name)
+        return available
     
     def get_missing_tools(self) -> List[str]:
-        """Get list of missing tool names (resolving any unchecked tool)."""
-        return [
-            name for name in self.tools
-            if self.check_tool(name).status != ToolStatus.AVAILABLE
-        ]
+        """Get list of missing tool names."""
+        missing = []
+        for tool_name, tool_info in self.tools.items():
+            if tool_info.status != ToolStatus.AVAILABLE:
+                missing.append(tool_name)
+        return missing
     
     def print_status(self):
         """Print status of all tools."""
@@ -263,7 +268,6 @@ def check_tool_availability(tool_name: str) -> bool:
 def skip_if_not_available(tool_name: str):
     """Decorator to skip function execution if tool is not available."""
     def decorator(func):
-        @functools.wraps(func)
         def wrapper(*args, **kwargs):
             if not check_tool_availability(tool_name):
                 logger.info(f"Skipping {func.__name__}: {tool_name} not available")

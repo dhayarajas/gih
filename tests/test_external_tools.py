@@ -1,134 +1,181 @@
-"""Tests for external OSINT tool integrations and their output parsers."""
+"""Tests for external OSINT tool parsers and their correlation into identity profiles."""
 
-from unittest.mock import patch
+import tempfile
+from pathlib import Path
 
-from src.modules import external_tools as et
+import pytest
+
+from src.correlation.linker import correlate_identities
+from src.modules.external_tools import (
+    ANALYSIS_METHODS,
+    ExifToolIntegration,
+    ToolResult,
+    _parse_found_accounts,
+    _parse_subdomains,
+    get_tool_coverage,
+    get_tool_integrations,
+)
+from src.storage import database as db
+from src.utils import tool_checker
+
+SHERLOCK_OUTPUT = """[*] Checking username octocat on:
+
+[+] 7Cups: https://www.7cups.com/@octocat
+[+] GitHub: https://github.com/octocat
+[+] GitHub: https://github.com/octocat
+[-] Facebook: Not Found!
+"""
+
+SUBFINDER_OUTPUT = """accelerator.github.com
+f.cloud.github.com
+github.com
+https://example.org/redirect?url=%2Fdocs.github.com
+"""
 
 
-def _tool_result(output: str, success: bool = True) -> et.ToolResult:
-    return et.ToolResult(tool_name="stub", success=success, output=output)
+class TestAccountParsing:
+    """Parsing of sherlock/maigret '[+] Platform: url' output."""
+
+    def test_extracts_found_accounts(self):
+        artifacts = _parse_found_accounts(SHERLOCK_OUTPUT, "octocat", "sherlock", 0.8)
+        values = [a["value"] for a in artifacts]
+
+        assert values == ["https://www.7cups.com/@octocat", "https://github.com/octocat"]
+        assert all(a["type"] == "username_presence" for a in artifacts)
+        assert all(a["source"] == "sherlock" for a in artifacts)
+        assert artifacts[1]["platform"] == "GitHub"
+        assert artifacts[1]["username"] == "octocat"
+
+    def test_ignores_not_found_lines(self):
+        artifacts = _parse_found_accounts("[-] Facebook: Not Found!", "octocat", "sherlock", 0.8)
+        assert artifacts == []
 
 
-class TestFoundLineParsing:
-    """Sherlock and maigret both print '[+] Site: url' lines."""
+class TestSubdomainParsing:
+    """Parsing of subfinder/sublist3r/amass/theHarvester output."""
 
-    def test_parses_site_and_url(self):
-        output = (
-            "[*] Checking username torvalds\n"
-            "[+] GitHub: https://github.com/torvalds\n"
-            "[+] WordPress: https://torvalds.wordpress.com/\n"
-            "[-] Facebook: Not Found!\n"
+    def test_extracts_unique_subdomains(self):
+        artifacts = _parse_subdomains(SUBFINDER_OUTPUT, "github.com", "subfinder")
+        values = [a["value"] for a in artifacts]
+
+        assert values == ["accelerator.github.com", "f.cloud.github.com"]
+        assert all(a["type"] == "subdomain" for a in artifacts)
+        assert all(a["source"] == "subfinder" for a in artifacts)
+
+    def test_ignores_percent_encoded_prefixes(self):
+        artifacts = _parse_subdomains("%2Fdocs.github.com", "github.com", "subfinder")
+        assert artifacts == []
+
+
+class TestToolCoverage:
+    """Every declared tool is either integrated or documented as unimplemented."""
+
+    def test_every_tool_has_a_status(self):
+        coverage = get_tool_coverage()
+
+        assert len(coverage) >= 30
+        for name, info in coverage.items():
+            assert isinstance(info["available"], bool), name
+            if info["integrated"]:
+                assert info["artifact_types"], name
+            else:
+                assert info["reason"], name
+
+    def test_integrations_expose_their_analysis_methods(self):
+        for name, integration in get_tool_integrations().items():
+            assert name in ANALYSIS_METHODS, name
+            for method_name in ANALYSIS_METHODS[name].values():
+                assert hasattr(integration, method_name), (name, method_name)
+
+
+@pytest.fixture
+def conn():
+    c = db.get_connection(Path(tempfile.mktemp(suffix=".db")))
+    yield c
+    c.close()
+
+
+class TestToolFindingCorrelation:
+    """Tool output linked to a seed lands in that seed's identity profile."""
+
+    def test_findings_attach_to_seed_identity(self, conn):
+        inv_id = db.create_investigation(conn)
+
+        username = db.add_artifact(conn, inv_id, "username", "octocat", source="seed")
+        domain = db.add_artifact(conn, inv_id, "domain", "github.com", source="whois")
+        subdomain = db.add_artifact(
+            conn, inv_id, "subdomain", "api.github.com", source="subfinder"
         )
-        assert et._parse_found_lines(output) == [
-            ("GitHub", "https://github.com/torvalds"),
-            ("WordPress", "https://torvalds.wordpress.com/"),
-        ]
-
-    def test_ignores_banner_lines_without_url(self):
-        output = "[+] MAIGRET - collect a dossier by username\n[+] GitHub: https://github.com/x\n"
-        assert et._parse_found_lines(output) == [("GitHub", "https://github.com/x")]
-
-    def test_deduplicates_urls(self):
-        output = "[+] GitHub: https://github.com/x\n[+] GitHub Mirror: https://github.com/x\n"
-        assert len(et._parse_found_lines(output)) == 1
-
-
-class TestSherlock:
-    def test_discovers_username_presence(self):
-        output = "[+] GitHub: https://github.com/torvalds\n"
-        with patch.object(et.SherlockIntegration, "run_tool", return_value=_tool_result(output)):
-            result = et.SherlockIntegration().search_username.__wrapped__(
-                et.SherlockIntegration(), "torvalds"
-            )
-        assert result.artifacts_discovered == [{
-            "type": "username_presence",
-            "value": "torvalds",
-            "platform": "GitHub",
-            "profile_url": "https://github.com/torvalds",
-            "source": "sherlock",
-            "confidence": 0.8,
-        }]
-
-
-class TestMaigret:
-    def test_reports_findings_even_when_exit_code_is_nonzero(self):
-        output = "[+] GitHub: https://github.com/torvalds\n"
-        with patch.object(
-            et.MaigretIntegration, "run_tool", return_value=_tool_result(output, success=False)
-        ):
-            result = et.MaigretIntegration().search_username.__wrapped__(
-                et.MaigretIntegration(), "torvalds"
-            )
-        assert result.success is True
-        assert result.artifacts_discovered[0]["source"] == "maigret"
-        assert result.artifacts_discovered[0]["profile_url"] == "https://github.com/torvalds"
-
-
-class TestHolehe:
-    def test_parses_used_services_and_skips_legend(self):
-        output = (
-            "[+] rambler.ru\n"
-            "[+] twitter.com\n"
-            "[+] Email used, [-] Email not used, [x] Rate limit\n"
-            "121 websites checked in 10.3 seconds\n"
+        presence = db.add_artifact(
+            conn, inv_id, "username_presence", "https://github.com/octocat",
+            source="sherlock", metadata='{"platform": "GitHub"}',
         )
-        with patch.object(et.HoleheIntegration, "run_tool", return_value=_tool_result(output)):
-            result = et.HoleheIntegration().check_email.__wrapped__(
-                et.HoleheIntegration(), "a@b.com"
-            )
-        assert [a["platform"] for a in result.artifacts_discovered] == [
-            "rambler.ru", "twitter.com",
-        ]
-        assert result.artifacts_discovered[0]["type"] == "email_account"
+        port = db.add_artifact(conn, inv_id, "open_port", "443/tcp https", source="nmap")
+
+        for target in (domain, presence):
+            db.add_link(conn, inv_id, username, target, "discovered_from")
+        db.add_link(conn, inv_id, domain, subdomain, "discovered_from")
+        db.add_link(conn, inv_id, domain, port, "discovered_from")
+
+        result = correlate_identities(conn, inv_id)
+        profile = next(p for p in result.identities if "octocat" in p.usernames)
+
+        assert "github.com" in profile.domains
+        assert "api.github.com" in profile.subdomains
+        assert "443/tcp https" in profile.open_ports
+        assert {"sherlock", "subfinder", "nmap", "whois"} <= set(profile.tools_used)
+        assert any(p["platform"] == "GitHub" for p in profile.platforms)
+
+    def test_image_metadata_attaches_to_image_identity(self, conn):
+        inv_id = db.create_investigation(conn)
+
+        image = db.add_artifact(conn, inv_id, "image", "/tmp/evidence.jpg", source="seed")
+        gps = db.add_artifact(
+            conn, inv_id, "gps_coordinates", "37.77 N, 122.41 W", source="exiftool"
+        )
+        camera = db.add_artifact(conn, inv_id, "camera_info", "Canon EOS 80D", source="exiftool")
+
+        for target in (gps, camera):
+            db.add_link(conn, inv_id, image, target, "discovered_from")
+
+        result = correlate_identities(conn, inv_id)
+        profile = next(p for p in result.identities if "/tmp/evidence.jpg" in p.images)
+
+        assert "37.77 N, 122.41 W" in profile.geolocations
+        assert "Canon EOS 80D" in profile.device_info
+        assert profile.tools_used == ["exiftool"]
 
 
-class TestSubfinder:
-    def test_keeps_only_subdomains_of_the_target(self):
-        output = "api.example.com\nwww.example.com\napi.example.com\nevil.other.com\n"
-        with patch.object(et.SubfinderIntegration, "run_tool", return_value=_tool_result(output)):
-            result = et.SubfinderIntegration().enumerate_subdomains.__wrapped__(
-                et.SubfinderIntegration(), "example.com"
-            )
-        assert [a["value"] for a in result.artifacts_discovered] == [
-            "api.example.com", "www.example.com",
-        ]
+class TestExifToolTargets:
+    """exiftool reads local files only; image artifacts may be remote URLs."""
 
+    @pytest.fixture(autouse=True)
+    def _exiftool_available(self, monkeypatch):
+        monkeypatch.setattr(tool_checker, "check_tool_availability", lambda name: True)
 
-class TestDig:
-    def test_a_records_also_yield_ip_address_artifacts(self):
-        with patch.object(
-            et.DigIntegration, "run_tool", return_value=_tool_result("140.82.116.3\n")
-        ):
-            result = et.DigIntegration().dns_lookup.__wrapped__(
-                et.DigIntegration(), "github.com"
-            )
-        types = [a["type"] for a in result.artifacts_discovered]
-        assert types == ["dns_a", "ip_address"]
+    def test_remote_url_is_not_scanned(self, monkeypatch):
+        integration = ExifToolIntegration()
+        monkeypatch.setattr(
+            integration, "run_tool",
+            lambda *a, **k: pytest.fail("exiftool must not run on a URL"),
+        )
 
+        result = integration.extract_metadata("https://cdn.example.com/avatar.jpg")
 
-class TestAnalysisDispatch:
-    def test_every_declared_analysis_belongs_to_its_own_integration(self):
-        integrations = et.get_tool_integrations()
-        for tool_name, analyses in et.ANALYSIS_METHODS.items():
-            integration = integrations[tool_name]
-            for method in analyses.values():
-                owner = method.__qualname__.split(".")[0]
-                assert type(integration).__name__ == owner
-                assert hasattr(integration, method.__name__)
+        assert not result.success
+        assert "Not a local file" in result.error_message
 
-    def test_unknown_analysis_type_is_reported(self):
-        result = et.run_tool_analysis("dig", "does_not_exist", "example.com")
-        assert result.success is False
-        assert result.error_message == "Unknown analysis type"
+    def test_local_file_is_scanned(self, monkeypatch, tmp_path):
+        image = tmp_path / "evidence.jpg"
+        image.write_bytes(b"")
+        integration = ExifToolIntegration()
+        commands = []
 
+        def _run(tool_name, command, **kwargs):
+            commands.append(command)
+            return ToolResult(tool_name=tool_name, success=False, output="")
 
-class TestToolTimeout:
-    def test_configured_timeout_is_passed_to_subprocess(self):
-        with patch.object(et, "_get_tool_timeout", return_value=42) as get_timeout, \
-                patch("src.modules.external_tools.subprocess.run") as run:
-            run.return_value.returncode = 0
-            run.return_value.stdout = ""
-            run.return_value.stderr = ""
-            et.ExternalToolsIntegration().run_tool("nmap", ["nmap", "-V"])
-        get_timeout.assert_called_once_with("nmap")
-        assert run.call_args.kwargs["timeout"] == 42
+        monkeypatch.setattr(integration, "run_tool", _run)
+        integration.extract_metadata(str(image))
+
+        assert commands == [["exiftool", "-json", str(image)]]

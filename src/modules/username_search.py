@@ -77,6 +77,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from typing import Optional
 
+from src.utils.concurrency import io_slot
 from src.utils.http_client import get_http_session
 
 from src.config.loader import get_config
@@ -245,7 +246,8 @@ def _check_platform(username: str, platform: dict) -> PlatformResult:
 
     try:
         session = get_http_session()
-        resp = session.get(url, timeout=10, allow_redirects=False)
+        with io_slot():
+            resp = session.get(url, timeout=10, allow_redirects=False)
 
         if platform["check_type"] == "api_status":
             if resp.status_code == platform["expected_status"]:

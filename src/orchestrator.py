@@ -66,7 +66,11 @@ import json
 import logging
 import sqlite3
 import time
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import (
+    ThreadPoolExecutor,
+    as_completed,
+    TimeoutError as FuturesTimeoutError,
+)
 from dataclasses import dataclass, field
 from datetime import datetime
 from collections import deque
@@ -78,9 +82,14 @@ from src.modules.correlation_neo4j import Neo4jCorrelation
 from src.modules.google_dorks import run_google_dorks_search, check_google_dorks_availability
 from src.storage import database as db
 from src.utils.tool_checker import get_tool_checker, check_tool_availability
-from src.modules.external_tools import run_tool_analysis, get_tool_integrations
+from src.modules.external_tools import (
+    run_tool_analysis,
+    get_tool_integrations,
+    clear_tool_analysis_cache,
+)
 from src.plugins import PluginManager, PluginRegistry, Artifact as PluginArtifact, PluginConfig
 from src.config.loader import get_config
+from src.utils import concurrency
 
 logger = logging.getLogger(__name__)
 
@@ -119,13 +128,79 @@ def _get_investigation_defaults() -> dict:
 MAX_DEPTH = _get_orchestrator_config().get("max_depth", 2)
 _INV_DEFAULTS = _get_investigation_defaults()
 
-# Only these artifact types are re-queued for further (expensive) tool runs.
-# Everything else (risk_indicator, username_presence, open_port, dns_*,
-# historical_url, identity_match, ...) is a leaf result: it is still stored and
-# linked, but never triggers another round of module/external-tool processing.
+# Only these artifact types are re-queued for further processing. Everything
+# else (risk_indicator, open_port, dns_*, historical_url, identity_match, ...)
+# is a leaf result: it is still stored and linked, but never triggers another
+# round of module/external-tool processing.
+#
+# `platform_presence` is included because it runs no OSINT module or external
+# tool (see _process_artifact / _process_external_tools) -- it is cheap and is
+# the sole input to the profile_image plugin, which extracts profile pictures
+# from discovered social accounts. Dropping it would silently disable that step.
 EXPANDABLE_ARTIFACT_TYPES = frozenset({
     "phone", "email", "username", "image", "fullname", "domain", "ip_address",
+    "platform_presence", "subdomain", "ip",
 })
+
+# Expandable types with no native OSINT module: _process_artifact hands them
+# straight to the external tools (and, for platform_presence, to the plugins).
+TOOL_ONLY_ARTIFACT_TYPES = frozenset({
+    "domain", "subdomain", "ip_address", "ip", "platform_presence",
+})
+
+# Artifact keys consumed by the persistence layer itself; everything else a tool
+# attaches to a finding (platform, username, parsed fields, ...) is metadata.
+_ARTIFACT_RESERVED_KEYS = frozenset({
+    "type", "value", "source", "confidence", "link_type", "metadata", "depth",
+})
+
+# Tool findings that describe an account on a platform rather than a new artifact
+# to expand; they are also recorded as platform_presence rows.
+ACCOUNT_ARTIFACT_TYPES = frozenset({"username_presence", "email_presence"})
+
+
+def _artifact_metadata(artifact: dict) -> Optional[str]:
+    """Serialize a discovered artifact's metadata, keeping tool-specific extras."""
+    metadata = artifact.get("metadata")
+    if not isinstance(metadata, dict):
+        metadata = {} if metadata is None else {"value": metadata}
+
+    extras = {k: v for k, v in artifact.items() if k not in _ARTIFACT_RESERVED_KEYS}
+    merged = {**extras, **metadata}
+
+    return json.dumps(merged, default=str) if merged else None
+
+
+def _account_presences(discovered: list[dict]) -> list[dict]:
+    """Build db.add_platform_presence kwargs for account discoveries.
+
+    Sherlock/Maigret/Holehe findings are artifacts, not platform rows, so without
+    this they never reach the Platform Presence Matrix.
+    """
+    presences = []
+    seen = set()
+
+    for found in discovered:
+        if found.get("type") not in ACCOUNT_ARTIFACT_TYPES:
+            continue
+
+        platform = found.get("platform")
+        if not platform:
+            continue
+
+        value = found["value"]
+        profile_url = value if value.startswith("http") else None
+        if (platform, profile_url) in seen:
+            continue
+        seen.add((platform, profile_url))
+
+        presences.append({
+            "platform_name": platform,
+            "profile_url": profile_url,
+            "username": found.get("username"),
+        })
+
+    return presences
 
 
 @dataclass
@@ -298,6 +373,10 @@ def run_investigation(
     # never touched from a worker thread and the `seen` dedup set is mutated
     # only here.
     start_time = time.monotonic()
+    # Bound total concurrent outbound I/O across all nested pools, and reset the
+    # per-run tool-analysis memoization so results aren't reused across runs.
+    concurrency.configure()
+    clear_tool_analysis_cache()
     runtime_budget_s = max(0.0, config.max_runtime_minutes * 60.0)
     max_total_artifacts = config.max_total_artifacts
     max_workers = max(1, config.max_parallel_workers)
@@ -326,22 +405,45 @@ def run_investigation(
         )
 
         # --- Parallel network/subprocess phase (NO DB writes) ---
+        # The wall-clock deadline is enforced *inside* the level, not just at
+        # level boundaries: a single large level (up to max_total_artifacts) can
+        # otherwise run for hours because as_completed() waits for every future.
+        # Once the budget is exhausted we stop collecting, abandon the remaining
+        # in-flight/pending work (workers never touch the DB, so this is safe)
+        # and process whatever completed in time.
         results: list[ArtifactProcessResult] = []
-        with ThreadPoolExecutor(max_workers=min(max_workers, len(current_level))) as executor:
+        deadline_hit = False
+        executor = ThreadPoolExecutor(max_workers=min(max_workers, len(current_level)))
+        try:
             futures = {
                 executor.submit(_process_artifact, inv_id, item, config, plugin_manager): item
                 for item in current_level
             }
-            for future in as_completed(futures):
-                item = futures[future]
-                processed_count += 1
-                try:
-                    results.append(future.result())
-                except Exception as e:
-                    logger.error(
-                        "Error processing artifact %s=%s: %s",
-                        item["type"], item["value"], e,
-                    )
+            remaining = None
+            if runtime_budget_s:
+                remaining = max(0.0, runtime_budget_s - (time.monotonic() - start_time))
+            try:
+                for future in as_completed(futures, timeout=remaining):
+                    item = futures[future]
+                    processed_count += 1
+                    try:
+                        results.append(future.result())
+                    except Exception as e:
+                        logger.error(
+                            "Error processing artifact %s=%s: %s",
+                            item["type"], item["value"], e,
+                        )
+            except FuturesTimeoutError:
+                deadline_hit = True
+                pending = sum(1 for f in futures if not f.done())
+                logger.warning(
+                    "Runtime budget of %.1f min reached mid-level; abandoning %d "
+                    "in-flight/pending artifact(s)",
+                    config.max_runtime_minutes, pending,
+                )
+        finally:
+            # Cancel queued tasks and return without blocking on in-flight ones.
+            executor.shutdown(wait=False, cancel_futures=True)
         parallel_s = time.monotonic() - level_start
 
         # --- Serial DB-write phase (main thread only) ---
@@ -364,8 +466,11 @@ def run_investigation(
                     conn, investigation_id=inv_id, artifact_id=current_id, **presence
                 )
 
-            # Only expand further while within the depth limit.
-            if current_depth >= config.max_depth:
+            # The metadata/presence writes above are unrelated to the artifact
+            # count and must always be applied for every already-processed
+            # result; only new-artifact expansion below is bounded by depth and
+            # the budget, so we `continue` (not `break`) once either is hit.
+            if current_depth >= config.max_depth or budget_reached:
                 continue
 
             for artifact in res.discovered:
@@ -382,9 +487,7 @@ def run_investigation(
                     break
                 seen.add(key)
 
-                metadata_value = artifact.get("metadata")
-                if metadata_value and isinstance(metadata_value, dict):
-                    metadata_value = json.dumps(metadata_value)
+                metadata_value = _artifact_metadata(artifact)
 
                 new_id = db.add_artifact(
                     conn,
@@ -415,9 +518,6 @@ def run_investigation(
                         "depth": current_depth + 1,
                     })
 
-            if budget_reached:
-                break
-
         conn.commit()
         logger.info(
             "BFS level %d done in %.1fs (parallel=%.1fs, db=%.1fs); processed=%d, "
@@ -426,7 +526,7 @@ def run_investigation(
             time.monotonic() - level_start - parallel_s,
             processed_count, len(seen), len(queue),
         )
-        if budget_reached:
+        if budget_reached or deadline_hit:
             break
 
     logger.info(
@@ -616,10 +716,10 @@ def _process_artifact(
     elif artifact_type == "fullname":
         logger.debug("Processing full name with image_match module")
         _process_fullname(value, config, result)
-    elif artifact_type == "platform_presence":
-        logger.debug("Processing platform presence URL with plugin system")
-        # Platform presence URLs are processed by plugins (e.g., profile image extraction)
-        pass
+    elif artifact_type in TOOL_ONLY_ARTIFACT_TYPES:
+        # No native module: these are expanded by external tools below, and
+        # platform_presence URLs additionally by the profile_image plugin.
+        logger.debug("No native module for %s; deferring to tools/plugins", artifact_type)
     else:
         logger.warning("Unknown artifact type: %s", artifact_type)
 
@@ -629,7 +729,8 @@ def _process_artifact(
     if config.check_external_tools:
         logger.debug("Processing artifact with external OSINT tools")
         external_discovered = _process_external_tools(inv_id, artifact, config)
-        result.discovered.extend(_normalize_tool_artifacts(external_discovered, result))
+        result.discovered.extend(external_discovered)
+        result.platform_presences.extend(_account_presences(external_discovered))
         logger.debug("External tools returned %d additional artifacts", len(external_discovered))
     
     # Process with plugin system if available
@@ -763,16 +864,39 @@ def _process_username(
         # Defer metadata write to the main thread.
         result.source_metadata = search_result.to_json()
 
+        # Resolve a profile image for every found platform. Prefer the avatar
+        # URL already returned by the platform's API (GitHub/GitLab); otherwise
+        # scrape the profile page using the image_match heuristics. Each scrape
+        # is an independent blocking HTTP fetch, so run them concurrently rather
+        # than serially -- a username found on N platforms otherwise paid N x
+        # (up to 10s) here. This is network I/O only; DB writes stay deferred.
+        platforms_found = search_result.platforms_found
+        profile_image_urls: dict[int, Optional[str]] = {
+            i: p.avatar_url for i, p in enumerate(platforms_found)
+        }
+        to_scrape = [
+            (i, p) for i, p in enumerate(platforms_found)
+            if not p.avatar_url and p.profile_url
+        ]
+        if to_scrape:
+            with ThreadPoolExecutor(max_workers=min(len(to_scrape), 8)) as img_executor:
+                img_futures = {
+                    img_executor.submit(
+                        image_match.extract_profile_image_from_url, p.profile_url
+                    ): i
+                    for i, p in to_scrape
+                }
+                for future in as_completed(img_futures):
+                    idx = img_futures[future]
+                    try:
+                        profile_image_urls[idx] = future.result()
+                    except Exception as e:
+                        logger.debug("Profile image extraction failed: %s", e)
+                        profile_image_urls[idx] = None
+
         # Queue platform presences for the main thread to persist.
-        for platform in search_result.platforms_found:
-            # Resolve a profile image for this platform. Prefer the avatar URL
-            # already returned by the platform's API (GitHub/GitLab); otherwise
-            # scrape the profile page using the image_match heuristics.
-            profile_image_url = platform.avatar_url
-            if not profile_image_url and platform.profile_url:
-                profile_image_url = image_match.extract_profile_image_from_url(
-                    platform.profile_url
-                )
+        for idx, platform in enumerate(platforms_found):
+            profile_image_url = profile_image_urls.get(idx)
 
             result.platform_presences.append({
                 "platform_name": platform.platform_name,
@@ -880,6 +1004,11 @@ def _process_external_tools(
 
     logger.debug("Processing artifact with external OSINT tools: %s=%s", artifact_type, value)
 
+    # Enumeration tools are only worth running on seed-level domains; re-running
+    # them on every discovered subdomain explodes the BFS frontier.
+    depth = artifact.get("depth") or 0
+    run_enumeration_tools = depth < 1 or artifact_type != "subdomain"
+
     # Build a list of independent (name, callable) tool tasks for this artifact.
     # Each callable performs one tool run and returns a list of discovered
     # artifacts; they are executed concurrently below.
@@ -901,7 +1030,6 @@ def _process_external_tools(
         if artifact_type == "username":
             if check_tool_availability("sherlock"):
                 tasks.append(("sherlock", _tool_task("sherlock", "username_search", "Sherlock")))
-
             if check_tool_availability("maigret"):
                 tasks.append(("maigret", _tool_task("maigret", "username_search", "Maigret")))
 
@@ -923,29 +1051,37 @@ def _process_external_tools(
                     return []
                 tasks.append(("google_dorks", _google_dorks))
 
-        elif artifact_type == "domain":
-            if check_tool_availability("theharvester"):
-                tasks.append(("theharvester_email",
-                              _tool_task("theharvester", "email_harvest", "theHarvester (email)")))
-                tasks.append(("theharvester_subdomain",
-                              _tool_task("theharvester", "subdomain_harvest", "theHarvester (subdomain)")))
-            if check_tool_availability("amass"):
-                tasks.append(("amass", _tool_task("amass", "subdomain_enum", "Amass")))
-            if check_tool_availability("subfinder"):
-                tasks.append(("subfinder", _tool_task("subfinder", "subdomain_enum", "subfinder")))
+        elif artifact_type in ("domain", "subdomain"):
             if check_tool_availability("whois"):
                 tasks.append(("whois", _tool_task("whois", "domain_lookup", "Whois")))
             if check_tool_availability("dig"):
                 tasks.append(("dig", _tool_task("dig", "dns_lookup", "Dig")))
-            # Wayback Machine uses a public API and runs regardless of local tools.
-            tasks.append(("wayback_machine",
-                          _tool_task("wayback_machine", "historical_urls", "Wayback Machine")))
+            if check_tool_availability("whatweb"):
+                tasks.append(("whatweb", _tool_task("whatweb", "tech_fingerprint", "WhatWeb")))
 
-        elif artifact_type == "ip_address":
-            if check_tool_availability("shodan"):
-                tasks.append(("shodan", _tool_task("shodan", "host_search", "Shodan")))
-            if check_tool_availability("nmap"):
-                tasks.append(("nmap", _tool_task("nmap", "host_scan", "Nmap")))
+            if run_enumeration_tools:
+                if check_tool_availability("theharvester"):
+                    tasks.append(("theharvester_email",
+                                  _tool_task("theharvester", "email_harvest", "theHarvester (email)")))
+                    tasks.append(("theharvester_subdomain",
+                                  _tool_task("theharvester", "subdomain_harvest", "theHarvester (subdomain)")))
+                if check_tool_availability("subfinder"):
+                    tasks.append(("subfinder", _tool_task("subfinder", "subdomain_enum", "Subfinder")))
+                if check_tool_availability("sublist3r"):
+                    tasks.append(("sublist3r", _tool_task("sublist3r", "subdomain_enum", "Sublist3r")))
+                if check_tool_availability("amass"):
+                    tasks.append(("amass", _tool_task("amass", "subdomain_enum", "Amass")))
+                # Wayback Machine uses a public API and runs regardless of local tools.
+                tasks.append(("wayback_machine",
+                              _tool_task("wayback_machine", "historical_urls", "Wayback Machine")))
+
+        elif artifact_type in ("ip_address", "ip"):
+            # Port scanning is expensive; keep it near the seeds.
+            if depth < 2:
+                if check_tool_availability("shodan"):
+                    tasks.append(("shodan", _tool_task("shodan", "host_search", "Shodan")))
+                if check_tool_availability("nmap"):
+                    tasks.append(("nmap", _tool_task("nmap", "host_scan", "Nmap")))
 
         elif artifact_type == "image":
             if check_tool_availability("exiftool"):
@@ -953,7 +1089,7 @@ def _process_external_tools(
 
         elif artifact_type == "email":
             if check_tool_availability("holehe"):
-                tasks.append(("holehe", _tool_task("holehe", "email_accounts", "holehe")))
+                tasks.append(("holehe", _tool_task("holehe", "email_check", "Holehe")))
 
             # Extract domain from email for domain-based analysis (no tool run).
             if "@" in value:
@@ -973,68 +1109,6 @@ def _process_external_tools(
         logger.error("External tools processing failed for %s: %s", value, e)
 
     return discovered
-
-
-# Keys of a tool artifact that map onto artifact columns; everything else the
-# tool reports (platform, ports, services, timestamps, ...) is folded into the
-# artifact's metadata so no tool output is lost.
-_ARTIFACT_CORE_KEYS = frozenset({"type", "value", "source", "confidence", "metadata", "link_type"})
-
-
-def _normalize_tool_artifacts(
-    tool_artifacts: list[dict],
-    result: ArtifactProcessResult,
-) -> list[dict]:
-    """Normalize raw external-tool artifacts for persistence.
-
-    Tool integrations return free-form dicts (``platform``, ``profile_url``,
-    ``service``, ``timestamp``, ...). Those extra fields are merged into the
-    artifact ``metadata`` JSON, and Sherlock/Maigret ``username_presence`` hits
-    additionally become ``platform_presence`` rows so tool-discovered accounts
-    show up in the Platform Presence Matrix alongside the built-in search.
-    """
-    normalized: list[dict] = []
-    seen_presence_urls = {
-        p.get("profile_url") for p in result.platform_presences if p.get("profile_url")
-    }
-
-    for raw in tool_artifacts:
-        artifact = {k: v for k, v in raw.items() if k in _ARTIFACT_CORE_KEYS}
-        extras = {k: v for k, v in raw.items() if k not in _ARTIFACT_CORE_KEYS}
-
-        metadata = artifact.get("metadata")
-        if isinstance(metadata, str):
-            try:
-                metadata = json.loads(metadata)
-            except json.JSONDecodeError:
-                metadata = {"raw": metadata}
-        metadata = metadata if isinstance(metadata, dict) else {}
-        metadata.update(extras)
-        if metadata:
-            artifact["metadata"] = json.dumps(metadata, default=str)
-
-        artifact.setdefault("link_type", f"found_by_{raw.get('source', 'external_tool')}")
-
-        if raw.get("type") == "username_presence":
-            profile_url = raw.get("profile_url")
-            # Keep one artifact per platform hit rather than one per username.
-            if profile_url:
-                artifact["value"] = profile_url
-            if profile_url and profile_url not in seen_presence_urls:
-                seen_presence_urls.add(profile_url)
-                result.platform_presences.append({
-                    "platform_name": raw.get("platform") or "unknown",
-                    "profile_url": profile_url,
-                    "username": raw.get("value"),
-                    "display_name": None,
-                    "bio": None,
-                    "follower_count": None,
-                    "profile_image_url": None,
-                })
-
-        normalized.append(artifact)
-
-    return normalized
 
 
 def _run_external_tool_tasks(tasks: "list[tuple[str, Any]]") -> list[dict]:

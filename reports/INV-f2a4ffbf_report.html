@@ -1,0 +1,1519 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ghost Identity Hunter - Investigation INV-f2a4ffbf</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', Tahoma, sans-serif;
+            background: #0f0f23;
+            color: #e0e0e0;
+            padding: 2rem;
+            line-height: 1.6;
+        }
+        .container { max-width: 1200px; margin: 0 auto; }
+        h1 { color: #4ECDC4; margin-bottom: 0.5rem; font-size: 2rem; }
+        h2 { color: #45B7D1; margin: 2rem 0 1rem; border-bottom: 1px solid #333; padding-bottom: 0.5rem; }
+        h3 { color: #96CEB4; margin: 1.5rem 0 0.5rem; }
+        .meta { color: #888; font-size: 0.9rem; margin-bottom: 2rem; }
+        .card {
+            background: #1a1a2e;
+            border: 1px solid #333;
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin-bottom: 1rem;
+        }
+        .badge {
+            display: inline-block;
+            padding: 0.2rem 0.6rem;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            font-weight: bold;
+            margin: 0.1rem;
+        }
+        .badge-phone { background: #FF6B6B22; color: #FF6B6B; border: 1px solid #FF6B6B; }
+        .badge-email { background: #4ECDC422; color: #4ECDC4; border: 1px solid #4ECDC4; }
+        .badge-username { background: #45B7D122; color: #45B7D1; border: 1px solid #45B7D1; }
+        .badge-risk { background: #DC143C22; color: #DC143C; border: 1px solid #DC143C; }
+        .badge-platform { background: #FFEAA722; color: #FFEAA7; border: 1px solid #FFEAA7; }
+        .risk-critical { color: #FF0000; font-weight: bold; }
+        .risk-high { color: #FF6B6B; font-weight: bold; }
+        .risk-medium { color: #FFA500; }
+        .risk-low { color: #FFD700; }
+        .risk-minimal { color: #4ECDC4; }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1rem 0;
+        }
+        th, td {
+            padding: 0.75rem;
+            text-align: left;
+            border-bottom: 1px solid #333;
+        }
+        th { color: #4ECDC4; font-weight: 600; }
+        a { color: #45B7D1; text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin: 1rem 0;
+        }
+        .stat-card {
+            background: #16213e;
+            border-radius: 8px;
+            padding: 1rem;
+            text-align: center;
+        }
+        .stat-value { font-size: 2rem; font-weight: bold; color: #4ECDC4; }
+        .stat-label { font-size: 0.85rem; color: #888; }
+        .evidence-chain { font-family: monospace; font-size: 0.85rem; color: #aaa; }
+        .collapsible {
+            background: #1a1a2e;
+            border: 1px solid #333;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+            overflow: hidden;
+        }
+        .collapsible-header {
+            background: #16213e;
+            padding: 1rem 1.5rem;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            user-select: none;
+        }
+        .collapsible-header:hover {
+            background: #1a2a4a;
+        }
+        .collapsible-content {
+            padding: 1.5rem;
+            display: none;
+        }
+        .collapsible.active .collapsible-content {
+            display: block;
+        }
+        .collapsible-toggle {
+            font-size: 1.2rem;
+            transition: transform 0.3s;
+        }
+        .collapsible.active .collapsible-toggle {
+            transform: rotate(180deg);
+        }
+        .search-box {
+            background: #16213e;
+            border: 1px solid #333;
+            border-radius: 8px;
+            padding: 1rem;
+            margin-bottom: 2rem;
+        }
+        .search-input {
+            width: 100%;
+            padding: 0.75rem;
+            background: #1a1a2e;
+            border: 1px solid #333;
+            border-radius: 4px;
+            color: #e0e0e0;
+            font-size: 1rem;
+        }
+        .search-input:focus {
+            outline: none;
+            border-color: #4ECDC4;
+        }
+        .highlight {
+            background-color: #FFD700;
+            color: #000;
+            padding: 2px 4px;
+            border-radius: 2px;
+        }
+        .export-buttons {
+            display: flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+            margin-top: 0.5rem;
+        }
+        .export-btn {
+            background: #4ECDC4;
+            color: #0f0f23;
+            border: none;
+            padding: 0.5rem 1rem;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            transition: background 0.3s;
+        }
+        .export-btn:hover {
+            background: #45B7D1;
+        }
+    </style>
+    <script>
+        function toggleCollapsible(element) {
+            element.classList.toggle('active');
+        }
+        
+        function searchReport() {
+            const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+            const content = document.querySelector('.container');
+            
+            // Remove previous highlights
+            const highlights = document.querySelectorAll('.highlight');
+            highlights.forEach(h => {
+                const parent = h.parentNode;
+                parent.replaceChild(document.createTextNode(h.textContent), h);
+                parent.normalize();
+            });
+            
+            if (searchTerm.length < 2) return;
+            
+            // Find and highlight matches
+            const walker = document.createTreeWalker(content, NodeFilter.SHOW_TEXT, null, false);
+            const textNodes = [];
+            let node;
+            while (node = walker.nextNode()) {
+                if (node.textContent.toLowerCase().includes(searchTerm) && node.parentNode.tagName !== 'SCRIPT') {
+                    textNodes.push(node);
+                }
+            }
+            
+            textNodes.forEach(node => {
+                const text = node.textContent;
+                const regex = new RegExp(`(${searchTerm})`, 'gi');
+                const highlighted = text.replace(regex, '<span class="highlight">$1</span>');
+                
+                const span = document.createElement('span');
+                span.innerHTML = highlighted;
+                node.parentNode.replaceChild(span, node);
+            });
+            
+            // Expand collapsibles that contain matches
+            document.querySelectorAll('.collapsible').forEach(collapsible => {
+                if (collapsible.textContent.toLowerCase().includes(searchTerm)) {
+                    collapsible.classList.add('active');
+                }
+            });
+        }
+        
+        function exportToCSV() {
+            const investigationId = 'INV-f2a4ffbf';
+            const artifacts = [{"artifact_id": "ART-9c18dc8d", "artifact_type": "email", "confidence": 1.0, "depth": 0, "discovered_at": "2026-08-01T09:06:52.916849+00:00", "investigation_id": "INV-f2a4ffbf", "metadata": "{\"email\": \"test@example.com\", \"valid_format\": true, \"domain\": \"example.com\", \"local_part\": \"test\", \"is_disposable\": false, \"is_privacy_provider\": false, \"is_corporate\": true, \"mx_records\": [], \"platforms_found\": [{\"platform\": \"GitHub\", \"username\": \"osintorg\", \"profile_url\": \"https://github.com/osintorg\", \"avatar_url\": \"https://avatars.githubusercontent.com/u/122098789?v=4\"}], \"breaches\": [], \"breach_count\": 0, \"risk_indicators\": [], \"gravatar_url\": null, \"has_gravatar\": false}", "source": "seed", "value": "test@example.com"}, {"artifact_id": "ART-a050d08a", "artifact_type": "username", "confidence": 0.9, "depth": 1, "discovered_at": "2026-08-01T09:06:53.130821+00:00", "investigation_id": "INV-f2a4ffbf", "metadata": "{\"username\": \"osintorg\", \"platforms_found\": [{\"platform_name\": \"GitHub\", \"found\": true, \"profile_url\": \"https://github.com/osintorg\", \"username\": \"osintorg\", \"display_name\": \"OSINTORG\", \"bio\": null, \"avatar_url\": \"https://avatars.githubusercontent.com/u/122098789?v=4\", \"follower_count\": 20, \"error\": null}, {\"platform_name\": \"Instagram\", \"found\": true, \"profile_url\": \"https://www.instagram.com/osintorg/\", \"username\": \"osintorg\", \"display_name\": null, \"bio\": null, \"avatar_url\": null, \"follower_count\": null, \"error\": null}, {\"platform_name\": \"Steam\", \"found\": true, \"profile_url\": \"https://steamcommunity.com/id/osintorg\", \"username\": \"osintorg\", \"display_name\": null, \"bio\": null, \"avatar_url\": null, \"follower_count\": null, \"error\": null}, {\"platform_name\": \"Medium\", \"found\": true, \"profile_url\": \"https://medium.com/@osintorg\", \"username\": \"osintorg\", \"display_name\": null, \"bio\": null, \"avatar_url\": null, \"follower_count\": null, \"error\": null}, {\"platform_name\": \"Pinterest\", \"found\": true, \"profile_url\": \"https://www.pinterest.com/osintorg/\", \"username\": \"osintorg\", \"display_name\": null, \"bio\": null, \"avatar_url\": null, \"follower_count\": null, \"error\": null}], \"platforms_not_found\": [\"Reddit\", \"Mastodon (mastodon.social)\", \"Twitter/X\", \"GitLab\", \"LinkedIn\", \"Keybase\", \"HackerNews\"], \"platforms_error\": [], \"total_checked\": 12, \"found_count\": 5}", "source": "email_osint_github", "value": "osintorg"}, {"artifact_id": "ART-b8292be0", "artifact_type": "breach_data", "confidence": 0.95, "depth": 1, "discovered_at": "2026-08-01T09:06:53.131008+00:00", "investigation_id": "INV-f2a4ffbf", "metadata": "{\"name\": \"LinkedIn\", \"domain\": \"linkedin.com\", \"breach_date\": \"2012-05-05\", \"added_date\": \"2016-05-25\", \"pwn_count\": 164611595, \"data_classes\": [\"Email addresses\", \"Passwords\"], \"is_verified\": true, \"is_sensitive\": false}", "source": "haveibeenpwned", "value": "LinkedIn (2012-05-05)"}, {"artifact_id": "ART-169cd6e2", "artifact_type": "breach_data", "confidence": 0.95, "depth": 1, "discovered_at": "2026-08-01T09:06:53.131063+00:00", "investigation_id": "INV-f2a4ffbf", "metadata": "{\"name\": \"Adobe\", \"domain\": \"adobe.com\", \"breach_date\": \"2013-10-04\", \"added_date\": \"2013-10-04\", \"pwn_count\": 152445165, \"data_classes\": [\"Email addresses\", \"Passwords\", \"Names\"], \"is_verified\": true, \"is_sensitive\": false}", "source": "haveibeenpwned", "value": "Adobe (2013-10-04)"}, {"artifact_id": "ART-f414884f", "artifact_type": "username", "confidence": 0.5, "depth": 1, "discovered_at": "2026-08-01T09:06:53.131105+00:00", "investigation_id": "INV-f2a4ffbf", "metadata": "{\"username\": \"test\", \"platforms_found\": [{\"platform_name\": \"GitHub\", \"found\": true, \"profile_url\": \"https://github.com/test\", \"username\": \"test\", \"display_name\": \"test\", \"bio\": null, \"avatar_url\": \"https://avatars.githubusercontent.com/u/383316?v=4\", \"follower_count\": 78, \"error\": null}, {\"platform_name\": \"Mastodon (mastodon.social)\", \"found\": true, \"profile_url\": \"https://mastodon.social/@test\", \"username\": \"test\", \"display_name\": null, \"bio\": null, \"avatar_url\": null, \"follower_count\": null, \"error\": null}, {\"platform_name\": \"Keybase\", \"found\": true, \"profile_url\": \"https://keybase.io/test\", \"username\": \"test\", \"display_name\": null, \"bio\": null, \"avatar_url\": null, \"follower_count\": null, \"error\": null}, {\"platform_name\": \"HackerNews\", \"found\": true, \"profile_url\": \"https://hacker-news.firebaseio.com/v0/user/test.json\", \"username\": \"test\", \"display_name\": \"test\", \"bio\": null, \"avatar_url\": null, \"follower_count\": null, \"error\": null}, {\"platform_name\": \"Medium\", \"found\": true, \"profile_url\": \"https://medium.com/@test\", \"username\": \"test\", \"display_name\": null, \"bio\": null, \"avatar_url\": null, \"follower_count\": null, \"error\": null}, {\"platform_name\": \"Pinterest\", \"found\": true, \"profile_url\": \"https://www.pinterest.com/test/\", \"username\": \"test\", \"display_name\": null, \"bio\": null, \"avatar_url\": null, \"follower_count\": null, \"error\": null}], \"platforms_not_found\": [\"Instagram\", \"Twitter/X\", \"Reddit\", \"GitLab\", \"LinkedIn\", \"Steam\"], \"platforms_error\": [], \"total_checked\": 12, \"found_count\": 6}", "source": "email_local_part", "value": "test"}, {"artifact_id": "ART-733fc531", "artifact_type": "domain", "confidence": 0.7, "depth": 1, "discovered_at": "2026-08-01T09:06:53.131153+00:00", "investigation_id": "INV-f2a4ffbf", "metadata": null, "source": "email_domain_extraction", "value": "example.com"}, {"artifact_id": "ART-5fdc1e76", "artifact_type": "platform_presence", "confidence": 0.85, "depth": 2, "discovered_at": "2026-08-01T09:06:55.491448+00:00", "investigation_id": "INV-f2a4ffbf", "metadata": "{\"platform_name\": \"GitHub\", \"found\": true, \"profile_url\": \"https://github.com/osintorg\", \"username\": \"osintorg\", \"display_name\": \"OSINTORG\", \"bio\": null, \"avatar_url\": \"https://avatars.githubusercontent.com/u/122098789?v=4\", \"follower_count\": 20, \"error\": null}", "source": "username_search_github", "value": "https://github.com/osintorg"}, {"artifact_id": "ART-0432c9cd", "artifact_type": "platform_presence", "confidence": 0.85, "depth": 2, "discovered_at": "2026-08-01T09:06:55.492307+00:00", "investigation_id": "INV-f2a4ffbf", "metadata": "{\"platform_name\": \"Instagram\", \"found\": true, \"profile_url\": \"https://www.instagram.com/osintorg/\", \"username\": \"osintorg\", \"display_name\": null, \"bio\": null, \"avatar_url\": null, \"follower_count\": null, \"error\": null}", "source": "username_search_instagram", "value": "https://www.instagram.com/osintorg/"}, {"artifact_id": "ART-9b78bbef", "artifact_type": "platform_presence", "confidence": 0.85, "depth": 2, "discovered_at": "2026-08-01T09:06:55.492608+00:00", "investigation_id": "INV-f2a4ffbf", "metadata": "{\"platform_name\": \"Steam\", \"found\": true, \"profile_url\": \"https://steamcommunity.com/id/osintorg\", \"username\": \"osintorg\", \"display_name\": null, \"bio\": null, \"avatar_url\": null, \"follower_count\": null, \"error\": null}", "source": "username_search_steam", "value": "https://steamcommunity.com/id/osintorg"}, {"artifact_id": "ART-3da2987d", "artifact_type": "platform_presence", "confidence": 0.85, "depth": 2, "discovered_at": "2026-08-01T09:06:55.492815+00:00", "investigation_id": "INV-f2a4ffbf", "metadata": "{\"platform_name\": \"Medium\", \"found\": true, \"profile_url\": \"https://medium.com/@osintorg\", \"username\": \"osintorg\", \"display_name\": null, \"bio\": null, \"avatar_url\": null, \"follower_count\": null, \"error\": null}", "source": "username_search_medium", "value": "https://medium.com/@osintorg"}, {"artifact_id": "ART-be5aabfa", "artifact_type": "platform_presence", "confidence": 0.85, "depth": 2, "discovered_at": "2026-08-01T09:06:55.493007+00:00", "investigation_id": "INV-f2a4ffbf", "metadata": "{\"platform_name\": \"Pinterest\", \"found\": true, \"profile_url\": \"https://www.pinterest.com/osintorg/\", \"username\": \"osintorg\", \"display_name\": null, \"bio\": null, \"avatar_url\": null, \"follower_count\": null, \"error\": null}", "source": "username_search_pinterest", "value": "https://www.pinterest.com/osintorg/"}, {"artifact_id": "ART-f8e9f269", "artifact_type": "platform_presence", "confidence": 0.85, "depth": 2, "discovered_at": "2026-08-01T09:06:57.998299+00:00", "investigation_id": "INV-f2a4ffbf", "metadata": "{\"platform_name\": \"GitHub\", \"found\": true, \"profile_url\": \"https://github.com/test\", \"username\": \"test\", \"display_name\": \"test\", \"bio\": null, \"avatar_url\": \"https://avatars.githubusercontent.com/u/383316?v=4\", \"follower_count\": 78, \"error\": null}", "source": "username_search_github", "value": "https://github.com/test"}, {"artifact_id": "ART-ec74a51e", "artifact_type": "platform_presence", "confidence": 0.85, "depth": 2, "discovered_at": "2026-08-01T09:06:57.998627+00:00", "investigation_id": "INV-f2a4ffbf", "metadata": "{\"platform_name\": \"Mastodon (mastodon.social)\", \"found\": true, \"profile_url\": \"https://mastodon.social/@test\", \"username\": \"test\", \"display_name\": null, \"bio\": null, \"avatar_url\": null, \"follower_count\": null, \"error\": null}", "source": "username_search_mastodon (mastodon.social)", "value": "https://mastodon.social/@test"}, {"artifact_id": "ART-7fcd1e7a", "artifact_type": "platform_presence", "confidence": 0.85, "depth": 2, "discovered_at": "2026-08-01T09:06:57.998742+00:00", "investigation_id": "INV-f2a4ffbf", "metadata": "{\"platform_name\": \"Keybase\", \"found\": true, \"profile_url\": \"https://keybase.io/test\", \"username\": \"test\", \"display_name\": null, \"bio\": null, \"avatar_url\": null, \"follower_count\": null, \"error\": null}", "source": "username_search_keybase", "value": "https://keybase.io/test"}, {"artifact_id": "ART-0bc535df", "artifact_type": "platform_presence", "confidence": 0.85, "depth": 2, "discovered_at": "2026-08-01T09:06:57.998875+00:00", "investigation_id": "INV-f2a4ffbf", "metadata": "{\"platform_name\": \"HackerNews\", \"found\": true, \"profile_url\": \"https://hacker-news.firebaseio.com/v0/user/test.json\", \"username\": \"test\", \"display_name\": \"test\", \"bio\": null, \"avatar_url\": null, \"follower_count\": null, \"error\": null}", "source": "username_search_hackernews", "value": "https://hacker-news.firebaseio.com/v0/user/test.json"}, {"artifact_id": "ART-8749edc3", "artifact_type": "platform_presence", "confidence": 0.85, "depth": 2, "discovered_at": "2026-08-01T09:06:57.998973+00:00", "investigation_id": "INV-f2a4ffbf", "metadata": "{\"platform_name\": \"Medium\", \"found\": true, \"profile_url\": \"https://medium.com/@test\", \"username\": \"test\", \"display_name\": null, \"bio\": null, \"avatar_url\": null, \"follower_count\": null, \"error\": null}", "source": "username_search_medium", "value": "https://medium.com/@test"}, {"artifact_id": "ART-11978f89", "artifact_type": "platform_presence", "confidence": 0.85, "depth": 2, "discovered_at": "2026-08-01T09:06:57.999076+00:00", "investigation_id": "INV-f2a4ffbf", "metadata": "{\"platform_name\": \"Pinterest\", \"found\": true, \"profile_url\": \"https://www.pinterest.com/test/\", \"username\": \"test\", \"display_name\": null, \"bio\": null, \"avatar_url\": null, \"follower_count\": null, \"error\": null}", "source": "username_search_pinterest", "value": "https://www.pinterest.com/test/"}, {"artifact_id": "ART-651d1126", "artifact_type": "ip", "confidence": 0.9, "depth": 2, "discovered_at": "2026-08-01T09:06:58.174142+00:00", "investigation_id": "INV-f2a4ffbf", "metadata": "{\"record_type\": \"A\", \"domain\": \"example.com\"}", "source": "plugin:DigPlugin", "value": "104.20.23.154"}, {"artifact_id": "ART-493262f3", "artifact_type": "ip", "confidence": 0.9, "depth": 2, "discovered_at": "2026-08-01T09:06:58.174385+00:00", "investigation_id": "INV-f2a4ffbf", "metadata": "{\"record_type\": \"A\", \"domain\": \"example.com\"}", "source": "plugin:DigPlugin", "value": "172.66.147.243"}, {"artifact_id": "ART-778a82bd", "artifact_type": "mail_server", "confidence": 0.85, "depth": 2, "discovered_at": "2026-08-01T09:06:58.175215+00:00", "investigation_id": "INV-f2a4ffbf", "metadata": "{\"record_type\": \"MX\", \"domain\": \"example.com\"}", "source": "plugin:DigPlugin", "value": "0 ."}, {"artifact_id": "ART-104af3e1", "artifact_type": "nameserver", "confidence": 0.85, "depth": 2, "discovered_at": "2026-08-01T09:06:58.175323+00:00", "investigation_id": "INV-f2a4ffbf", "metadata": "{\"record_type\": \"NS\", \"domain\": \"example.com\"}", "source": "plugin:DigPlugin", "value": "elliott.ns.cloudflare.com."}, {"artifact_id": "ART-7930d34f", "artifact_type": "nameserver", "confidence": 0.85, "depth": 2, "discovered_at": "2026-08-01T09:06:58.175485+00:00", "investigation_id": "INV-f2a4ffbf", "metadata": "{\"record_type\": \"NS\", \"domain\": \"example.com\"}", "source": "plugin:DigPlugin", "value": "hera.ns.cloudflare.com."}];
+            
+            if (!artifacts || artifacts.length === 0) {
+                alert('No artifacts to export');
+                return;
+            }
+            
+            const headers = ['Type', 'Value', 'Source', 'Confidence', 'Depth', 'Discovered At'];
+            const rows = artifacts.map(a => [
+                a.artifact_type,
+                a.value,
+                a.source || '',
+                (a.confidence || 0).toFixed(2),
+                a.depth || 0,
+                a.discovered_at || ''
+            ]);
+            
+            const csvContent = [headers, ...rows].map(row => row.join(',')).join('
+');
+            const blob = new Blob([csvContent], { type: 'text/csv' });
+            const url = URL.createObjectURL(blob);
+            
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${investigationId}_artifacts.csv`;
+            document?.body?.appendChild(a);
+            a.click();
+            document?.body?.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+        
+        function printReport() {
+            window.print();
+        }
+        
+        // Initialize all collapsibles
+        document.addEventListener('DOMContentLoaded', function() {
+            document.querySelectorAll('.collapsible-header').forEach(header => {
+                header.addEventListener('click', function() {
+                    toggleCollapsible(this.parentElement);
+                });
+            });
+            
+            // Add search functionality
+            const searchInput = document.getElementById('searchInput');
+            if (searchInput) {
+                searchInput.addEventListener('input', searchReport);
+                searchInput.addEventListener('keypress', function(e) {
+                    if (e.key === 'Enter') {
+                        searchReport();
+                    }
+                });
+            }
+        });
+    </script>
+</head>
+<body>
+<div class="container">
+    <h1>&#128373; Ghost Identity Hunter Report</h1>
+    <p class="meta">
+        Investigation: <strong>INV-f2a4ffbf</strong> |
+        Created: 2026-08-01T09:06:52.914385+00:00 |
+        Status: completed
+    </p>
+
+    <!-- Search Box -->
+    <div class="search-box">
+        <input type="text" id="searchInput" class="search-input" placeholder="Search report... (type to search, Enter to execute)">
+        <div class="export-buttons">
+            <button class="export-btn" onclick="exportToCSV()">Export Artifacts (CSV)</button>
+            <button class="export-btn" onclick="printReport()">Print / Save as PDF</button>
+        </div>
+    </div>
+
+    <!-- Executive Summary -->
+    <h2>Executive Summary</h2>
+    <div class="card">
+        <h3>Investigation Timeline</h3>
+        <table>
+            <thead>
+                <tr><th>Time</th><th>Type</th><th>Value</th><th>Source</th><th>Depth</th></tr>
+            </thead>
+            <tbody>
+                
+                <tr>
+                    <td>2026-08-01T09:06:52</td>
+                    <td><span class="badge badge-email">email</span></td>
+                    <td>test@example.com</td>
+                    <td>seed</td>
+                    <td>0</td>
+                </tr>
+                
+                <tr>
+                    <td>2026-08-01T09:06:53</td>
+                    <td><span class="badge badge-username">username</span></td>
+                    <td>osintorg</td>
+                    <td>email_osint_github</td>
+                    <td>1</td>
+                </tr>
+                
+                <tr>
+                    <td>2026-08-01T09:06:53</td>
+                    <td><span class="badge badge-breach_data">breach_data</span></td>
+                    <td>LinkedIn (2012-05-05)</td>
+                    <td>haveibeenpwned</td>
+                    <td>1</td>
+                </tr>
+                
+                <tr>
+                    <td>2026-08-01T09:06:53</td>
+                    <td><span class="badge badge-breach_data">breach_data</span></td>
+                    <td>Adobe (2013-10-04)</td>
+                    <td>haveibeenpwned</td>
+                    <td>1</td>
+                </tr>
+                
+                <tr>
+                    <td>2026-08-01T09:06:53</td>
+                    <td><span class="badge badge-username">username</span></td>
+                    <td>test</td>
+                    <td>email_local_part</td>
+                    <td>1</td>
+                </tr>
+                
+                <tr>
+                    <td>2026-08-01T09:06:53</td>
+                    <td><span class="badge badge-domain">domain</span></td>
+                    <td>example.com</td>
+                    <td>email_domain_extraction</td>
+                    <td>1</td>
+                </tr>
+                
+                <tr>
+                    <td>2026-08-01T09:06:55</td>
+                    <td><span class="badge badge-platform_presence">platform_presence</span></td>
+                    <td>https://github.com/osintorg</td>
+                    <td>username_search_github</td>
+                    <td>2</td>
+                </tr>
+                
+                <tr>
+                    <td>2026-08-01T09:06:55</td>
+                    <td><span class="badge badge-platform_presence">platform_presence</span></td>
+                    <td>https://www.instagram.com/osintorg/</td>
+                    <td>username_search_instagram</td>
+                    <td>2</td>
+                </tr>
+                
+                <tr>
+                    <td>2026-08-01T09:06:55</td>
+                    <td><span class="badge badge-platform_presence">platform_presence</span></td>
+                    <td>https://steamcommunity.com/id/osintorg</td>
+                    <td>username_search_steam</td>
+                    <td>2</td>
+                </tr>
+                
+                <tr>
+                    <td>2026-08-01T09:06:55</td>
+                    <td><span class="badge badge-platform_presence">platform_presence</span></td>
+                    <td>https://medium.com/@osintorg</td>
+                    <td>username_search_medium</td>
+                    <td>2</td>
+                </tr>
+                
+            </tbody>
+        </table>
+    </div>
+
+    <div class="card">
+        <h3>Key Findings</h3>
+        
+        <div style="margin-bottom: 1rem;">
+            <strong></strong> (<built-in method count of str object at 0x110bc3270> items)
+            <ul>
+                
+            </ul>
+        </div>
+        
+        <div style="margin-bottom: 1rem;">
+            <strong></strong> (<built-in method count of str object at 0x110b261f0> items)
+            <ul>
+                
+            </ul>
+        </div>
+        
+        <div style="margin-bottom: 1rem;">
+            <strong></strong> (<built-in method count of str object at 0x110b76d40> items)
+            <ul>
+                
+            </ul>
+        </div>
+        
+    </div>
+
+    <div class="card">
+        <h3>Confidence Metrics</h3>
+        <p><strong>Overall Confidence:</strong> 85%</p>
+        
+        
+        <h4>By Artifact Type</h4>
+        <table>
+            <thead>
+                <tr><th>Type</th><th>Average Confidence</th></tr>
+            </thead>
+            <tbody>
+                
+                <tr>
+                    <td>email</td>
+                    <td>100%</td>
+                </tr>
+                
+                <tr>
+                    <td>username</td>
+                    <td>70%</td>
+                </tr>
+                
+                <tr>
+                    <td>breach_data</td>
+                    <td>95%</td>
+                </tr>
+                
+                <tr>
+                    <td>domain</td>
+                    <td>70%</td>
+                </tr>
+                
+                <tr>
+                    <td>platform_presence</td>
+                    <td>85%</td>
+                </tr>
+                
+                <tr>
+                    <td>ip</td>
+                    <td>90%</td>
+                </tr>
+                
+                <tr>
+                    <td>mail_server</td>
+                    <td>85%</td>
+                </tr>
+                
+                <tr>
+                    <td>nameserver</td>
+                    <td>85%</td>
+                </tr>
+                
+            </tbody>
+        </table>
+        
+        
+        
+        <h4>By Data Source</h4>
+        <table>
+            <thead>
+                <tr><th>Source</th><th>Average Confidence</th></tr>
+            </thead>
+            <tbody>
+                
+                <tr>
+                    <td>seed</td>
+                    <td>100%</td>
+                </tr>
+                
+                <tr>
+                    <td>email_osint_github</td>
+                    <td>90%</td>
+                </tr>
+                
+                <tr>
+                    <td>haveibeenpwned</td>
+                    <td>95%</td>
+                </tr>
+                
+                <tr>
+                    <td>email_local_part</td>
+                    <td>50%</td>
+                </tr>
+                
+                <tr>
+                    <td>email_domain_extraction</td>
+                    <td>70%</td>
+                </tr>
+                
+                <tr>
+                    <td>username_search_github</td>
+                    <td>85%</td>
+                </tr>
+                
+                <tr>
+                    <td>username_search_instagram</td>
+                    <td>85%</td>
+                </tr>
+                
+                <tr>
+                    <td>username_search_steam</td>
+                    <td>85%</td>
+                </tr>
+                
+                <tr>
+                    <td>username_search_medium</td>
+                    <td>85%</td>
+                </tr>
+                
+                <tr>
+                    <td>username_search_pinterest</td>
+                    <td>85%</td>
+                </tr>
+                
+                <tr>
+                    <td>username_search_mastodon (mastodon.social)</td>
+                    <td>85%</td>
+                </tr>
+                
+                <tr>
+                    <td>username_search_keybase</td>
+                    <td>85%</td>
+                </tr>
+                
+                <tr>
+                    <td>username_search_hackernews</td>
+                    <td>85%</td>
+                </tr>
+                
+                <tr>
+                    <td>plugin:DigPlugin</td>
+                    <td>87%</td>
+                </tr>
+                
+            </tbody>
+        </table>
+        
+    </div>
+
+    <div class="card">
+        <h3>Risk Assessment Matrix</h3>
+        <p><strong>Total Identity Profiles:</strong> 1</p>
+        
+        <table>
+            <thead>
+                <tr><th>Risk Level</th><th>Count</th><th>Percentage</th></tr>
+            </thead>
+            <tbody>
+                
+                <tr>
+                    <td><span class="risk-critical">CRITICAL</span></td>
+                    <td>0</td>
+                    <td>0.0%</td>
+                </tr>
+                
+                <tr>
+                    <td><span class="risk-high">HIGH</span></td>
+                    <td>0</td>
+                    <td>0.0%</td>
+                </tr>
+                
+                <tr>
+                    <td><span class="risk-medium">MEDIUM</span></td>
+                    <td>0</td>
+                    <td>0.0%</td>
+                </tr>
+                
+                <tr>
+                    <td><span class="risk-low">LOW</span></td>
+                    <td>0</td>
+                    <td>0.0%</td>
+                </tr>
+                
+                <tr>
+                    <td><span class="risk-minimal">MINIMAL</span></td>
+                    <td>1</td>
+                    <td>100.0%</td>
+                </tr>
+                
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Recommendations -->
+    
+    <h2>Investigative Recommendations</h2>
+    
+    <div class="card" style="border-left: 4px solid #FFA500;">
+        <h3>
+            <span class="badge badge-risk">MEDIUM</span>
+            Platform Expansion
+        </h3>
+        <p><strong>Expand platform search coverage</strong></p>
+        <p style="color: #888; font-size: 0.9rem;">Currently found on 8 platforms. Consider additional platform searches for broader coverage</p>
+    </div>
+    
+    
+
+    <!-- Priority Queue -->
+    
+    <h2>Priority Artifact Queue</h2>
+    <div class="card">
+        <p>Artifacts ranked by investigation value and priority for follow-up.</p>
+        <table>
+            <thead>
+                <tr><th>Rank</th><th>Priority</th><th>Type</th><th>Value</th><th>Score</th><th>Factors</th></tr>
+            </thead>
+            <tbody>
+                
+                <tr>
+                    <td>1</td>
+                    <td><span class="badge badge-risk">CRITICAL</span></td>
+                    <td><span class="badge badge-email">email</span></td>
+                    <td>test@example.com</td>
+                    <td>85</td>
+                    <td style="font-size: 0.8rem; color: #888;">Confidence: 100%, Type: email, Depth: 0, Connections: 5</td>
+                </tr>
+                
+                <tr>
+                    <td>2</td>
+                    <td><span class="badge badge-risk">CRITICAL</span></td>
+                    <td><span class="badge badge-username">username</span></td>
+                    <td>osintorg</td>
+                    <td>81</td>
+                    <td style="font-size: 0.8rem; color: #888;">Confidence: 90%, Type: username, Depth: 1, Connections: 6</td>
+                </tr>
+                
+                <tr>
+                    <td>3</td>
+                    <td><span class="badge badge-risk">CRITICAL</span></td>
+                    <td><span class="badge badge-breach_data">breach_data</span></td>
+                    <td>LinkedIn (2012-05-05)</td>
+                    <td>81</td>
+                    <td style="font-size: 0.8rem; color: #888;">Confidence: 95%, Type: breach_data, Depth: 1, Connections: 1</td>
+                </tr>
+                
+                <tr>
+                    <td>4</td>
+                    <td><span class="badge badge-risk">CRITICAL</span></td>
+                    <td><span class="badge badge-breach_data">breach_data</span></td>
+                    <td>Adobe (2013-10-04)</td>
+                    <td>81</td>
+                    <td style="font-size: 0.8rem; color: #888;">Confidence: 95%, Type: breach_data, Depth: 1, Connections: 1</td>
+                </tr>
+                
+                <tr>
+                    <td>5</td>
+                    <td><span class="badge badge-risk">HIGH</span></td>
+                    <td><span class="badge badge-username">username</span></td>
+                    <td>test</td>
+                    <td>65</td>
+                    <td style="font-size: 0.8rem; color: #888;">Confidence: 50%, Type: username, Depth: 1, Connections: 7</td>
+                </tr>
+                
+                <tr>
+                    <td>6</td>
+                    <td><span class="badge badge-risk">HIGH</span></td>
+                    <td><span class="badge badge-platform_presence">platform_presence</span></td>
+                    <td>https://github.com/osintorg</td>
+                    <td>62</td>
+                    <td style="font-size: 0.8rem; color: #888;">Confidence: 85%, Type: platform_presence, Depth: 2, Connections: 1</td>
+                </tr>
+                
+                <tr>
+                    <td>7</td>
+                    <td><span class="badge badge-risk">HIGH</span></td>
+                    <td><span class="badge badge-platform_presence">platform_presence</span></td>
+                    <td>https://www.instagram.com/osintorg/</td>
+                    <td>62</td>
+                    <td style="font-size: 0.8rem; color: #888;">Confidence: 85%, Type: platform_presence, Depth: 2, Connections: 1</td>
+                </tr>
+                
+                <tr>
+                    <td>8</td>
+                    <td><span class="badge badge-risk">HIGH</span></td>
+                    <td><span class="badge badge-platform_presence">platform_presence</span></td>
+                    <td>https://steamcommunity.com/id/osintorg</td>
+                    <td>62</td>
+                    <td style="font-size: 0.8rem; color: #888;">Confidence: 85%, Type: platform_presence, Depth: 2, Connections: 1</td>
+                </tr>
+                
+                <tr>
+                    <td>9</td>
+                    <td><span class="badge badge-risk">HIGH</span></td>
+                    <td><span class="badge badge-platform_presence">platform_presence</span></td>
+                    <td>https://medium.com/@osintorg</td>
+                    <td>62</td>
+                    <td style="font-size: 0.8rem; color: #888;">Confidence: 85%, Type: platform_presence, Depth: 2, Connections: 1</td>
+                </tr>
+                
+                <tr>
+                    <td>10</td>
+                    <td><span class="badge badge-risk">HIGH</span></td>
+                    <td><span class="badge badge-platform_presence">platform_presence</span></td>
+                    <td>https://www.pinterest.com/osintorg/</td>
+                    <td>62</td>
+                    <td style="font-size: 0.8rem; color: #888;">Confidence: 85%, Type: platform_presence, Depth: 2, Connections: 1</td>
+                </tr>
+                
+            </tbody>
+        </table>
+    </div>
+    
+
+    <!-- Geographic Data -->
+    
+
+    <!-- Platform Heat Map -->
+    
+    <h2>Platform Distribution Heat Map</h2>
+    <div class="card">
+        <p><strong>Total Platforms:</strong> 8</p>
+        <table>
+            <thead>
+                <tr><th>Platform</th><th>Presence Count</th><th>Distribution</th><th>Heat Bar</th></tr>
+            </thead>
+            <tbody>
+                
+                <tr>
+                    <td>GitHub</td>
+                    <td>3</td>
+                    <td>25.0%</td>
+                    <td>
+                        <div style="background: #333; border-radius: 4px; width: 100px; height: 20px; overflow: hidden;">
+                            <div style="background: linear-gradient(90deg, #4ECDC4, #FF6B6B); height: 100%; width: 25.0%;"></div>
+                        </div>
+                    </td>
+                </tr>
+                
+                <tr>
+                    <td>Medium</td>
+                    <td>2</td>
+                    <td>16.7%</td>
+                    <td>
+                        <div style="background: #333; border-radius: 4px; width: 100px; height: 20px; overflow: hidden;">
+                            <div style="background: linear-gradient(90deg, #4ECDC4, #FF6B6B); height: 100%; width: 16.7%;"></div>
+                        </div>
+                    </td>
+                </tr>
+                
+                <tr>
+                    <td>Pinterest</td>
+                    <td>2</td>
+                    <td>16.7%</td>
+                    <td>
+                        <div style="background: #333; border-radius: 4px; width: 100px; height: 20px; overflow: hidden;">
+                            <div style="background: linear-gradient(90deg, #4ECDC4, #FF6B6B); height: 100%; width: 16.7%;"></div>
+                        </div>
+                    </td>
+                </tr>
+                
+                <tr>
+                    <td>Instagram</td>
+                    <td>1</td>
+                    <td>8.3%</td>
+                    <td>
+                        <div style="background: #333; border-radius: 4px; width: 100px; height: 20px; overflow: hidden;">
+                            <div style="background: linear-gradient(90deg, #4ECDC4, #FF6B6B); height: 100%; width: 8.3%;"></div>
+                        </div>
+                    </td>
+                </tr>
+                
+                <tr>
+                    <td>Steam</td>
+                    <td>1</td>
+                    <td>8.3%</td>
+                    <td>
+                        <div style="background: #333; border-radius: 4px; width: 100px; height: 20px; overflow: hidden;">
+                            <div style="background: linear-gradient(90deg, #4ECDC4, #FF6B6B); height: 100%; width: 8.3%;"></div>
+                        </div>
+                    </td>
+                </tr>
+                
+                <tr>
+                    <td>Mastodon (mastodon.social)</td>
+                    <td>1</td>
+                    <td>8.3%</td>
+                    <td>
+                        <div style="background: #333; border-radius: 4px; width: 100px; height: 20px; overflow: hidden;">
+                            <div style="background: linear-gradient(90deg, #4ECDC4, #FF6B6B); height: 100%; width: 8.3%;"></div>
+                        </div>
+                    </td>
+                </tr>
+                
+                <tr>
+                    <td>Keybase</td>
+                    <td>1</td>
+                    <td>8.3%</td>
+                    <td>
+                        <div style="background: #333; border-radius: 4px; width: 100px; height: 20px; overflow: hidden;">
+                            <div style="background: linear-gradient(90deg, #4ECDC4, #FF6B6B); height: 100%; width: 8.3%;"></div>
+                        </div>
+                    </td>
+                </tr>
+                
+                <tr>
+                    <td>HackerNews</td>
+                    <td>1</td>
+                    <td>8.3%</td>
+                    <td>
+                        <div style="background: #333; border-radius: 4px; width: 100px; height: 20px; overflow: hidden;">
+                            <div style="background: linear-gradient(90deg, #4ECDC4, #FF6B6B); height: 100%; width: 8.3%;"></div>
+                        </div>
+                    </td>
+                </tr>
+                
+            </tbody>
+        </table>
+    </div>
+    
+
+    <!-- Correlation Strength -->
+    
+    <h2>Correlation Strength Analysis</h2>
+    <div class="card">
+        <p><strong>Total Connections:</strong> 21 |
+           <strong>Average Confidence:</strong> 84.0%</p>
+        <table>
+            <thead>
+                <tr><th>Strength Level</th><th>Count</th><th>Distribution</th><th>Visual</th></tr>
+            </thead>
+            <tbody>
+                
+                <tr>
+                    <td><span class="badge badge-risk">Very Strong</span></td>
+                    <td>5</td>
+                    <td>23.8%</td>
+                    <td>
+                        <div style="background: #333; border-radius: 4px; width: 100px; height: 20px; overflow: hidden;">
+                            <div style="background: #FF0000; height: 100%; width: 23.8%;"></div>
+                        </div>
+                    </td>
+                </tr>
+                
+                <tr>
+                    <td><span class="badge badge-risk">Strong</span></td>
+                    <td>15</td>
+                    <td>71.4%</td>
+                    <td>
+                        <div style="background: #333; border-radius: 4px; width: 100px; height: 20px; overflow: hidden;">
+                            <div style="background: #FF6B6B; height: 100%; width: 71.4%;"></div>
+                        </div>
+                    </td>
+                </tr>
+                
+                <tr>
+                    <td><span class="badge badge-risk">Moderate</span></td>
+                    <td>1</td>
+                    <td>4.8%</td>
+                    <td>
+                        <div style="background: #333; border-radius: 4px; width: 100px; height: 20px; overflow: hidden;">
+                            <div style="background: #FFA500; height: 100%; width: 4.8%;"></div>
+                        </div>
+                    </td>
+                </tr>
+                
+                <tr>
+                    <td><span class="badge badge-risk">Weak</span></td>
+                    <td>0</td>
+                    <td>0.0%</td>
+                    <td>
+                        <div style="background: #333; border-radius: 4px; width: 100px; height: 20px; overflow: hidden;">
+                            <div style="background: #4ECDC4; height: 100%; width: 0.0%;"></div>
+                        </div>
+                    </td>
+                </tr>
+                
+                <tr>
+                    <td><span class="badge badge-risk">Very Weak</span></td>
+                    <td>0</td>
+                    <td>0.0%</td>
+                    <td>
+                        <div style="background: #333; border-radius: 4px; width: 100px; height: 20px; overflow: hidden;">
+                            <div style="background: #888888; height: 100%; width: 0.0%;"></div>
+                        </div>
+                    </td>
+                </tr>
+                
+            </tbody>
+        </table>
+    </div>
+    
+
+    <!-- Verification Status -->
+    
+    <h2>Verification Status Tracking</h2>
+    <div class="card">
+        <p><strong>Total Artifacts:</strong> 22 |
+           <strong>Verification Rate:</strong> 87.0%</p>
+        <table>
+            <thead>
+                <tr><th>Status</th><th>Count</th><th>Distribution</th><th>Visual</th></tr>
+            </thead>
+            <tbody>
+                
+                <tr>
+                    <td><span class="badge badge-risk">Verified</span></td>
+                    <td>20</td>
+                    <td>87.0%</td>
+                    <td>
+                        <div style="background: #333; border-radius: 4px; width: 100px; height: 20px; overflow: hidden;">
+                            <div style="background: #4ECDC4; height: 100%; width: 87.0%;"></div>
+                        </div>
+                    </td>
+                </tr>
+                
+                <tr>
+                    <td><span class="badge badge-risk">Likely</span></td>
+                    <td>1</td>
+                    <td>4.3%</td>
+                    <td>
+                        <div style="background: #333; border-radius: 4px; width: 100px; height: 20px; overflow: hidden;">
+                            <div style="background: #45B7D1; height: 100%; width: 4.3%;"></div>
+                        </div>
+                    </td>
+                </tr>
+                
+                <tr>
+                    <td><span class="badge badge-risk">Possible</span></td>
+                    <td>1</td>
+                    <td>4.3%</td>
+                    <td>
+                        <div style="background: #333; border-radius: 4px; width: 100px; height: 20px; overflow: hidden;">
+                            <div style="background: #FFA500; height: 100%; width: 4.3%;"></div>
+                        </div>
+                    </td>
+                </tr>
+                
+                <tr>
+                    <td><span class="badge badge-risk">Unverified</span></td>
+                    <td>0</td>
+                    <td>0.0%</td>
+                    <td>
+                        <div style="background: #333; border-radius: 4px; width: 100px; height: 20px; overflow: hidden;">
+                            <div style="background: #888888; height: 100%; width: 0.0%;"></div>
+                        </div>
+                    </td>
+                </tr>
+                
+                <tr>
+                    <td><span class="badge badge-risk">Needs Review</span></td>
+                    <td>1</td>
+                    <td>4.3%</td>
+                    <td>
+                        <div style="background: #333; border-radius: 4px; width: 100px; height: 20px; overflow: hidden;">
+                            <div style="background: #FF6B6B; height: 100%; width: 4.3%;"></div>
+                        </div>
+                    </td>
+                </tr>
+                
+            </tbody>
+        </table>
+    </div>
+    
+
+    <!-- Anomaly Detection -->
+    
+
+    <!-- Auto-Escalation Alerts -->
+    
+    <h2>Auto-Escalation Alerts</h2>
+    
+    <div class="card" style="border-left: 4px solid #FF6B6B; border-right: 4px solid #FF6B6B;">
+        <h3>
+            <span class="badge badge-risk">HIGH</span>
+            Risk Indicators
+        </h3>
+        <p><strong>2 high-risk artifact(s) found</strong></p>
+        <p style="color: #888; font-size: 0.9rem;">Recommended Action: Review breach data and risk indicators for potential impact</p>
+    </div>
+    
+    
+
+    <!-- Audit Trail -->
+    
+
+    <!-- Summary Statistics -->
+    <h2>Summary Statistics</h2>
+    <div class="stats-grid">
+        <div class="stat-card">
+            <div class="stat-value">22</div>
+            <div class="stat-label">Artifacts Found</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value">21</div>
+            <div class="stat-label">Connections</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value">12</div>
+            <div class="stat-label">Platform Presences</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value">1</div>
+            <div class="stat-label">Identity Profiles</div>
+        </div>
+    </div>
+
+    <!-- Interactive Identity Graph -->
+    
+    <h2>Interactive Identity Graph</h2>
+    <div class="card" style="padding: 0; overflow: hidden;">
+        <div style="height: 700px; width: 100%;">
+            <html>
+    <head>
+        <meta charset="utf-8">
+        
+            <script src="lib/bindings/utils.js"></script>
+            <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/vis-network/9.1.2/dist/dist/vis-network.min.css" integrity="sha512-WgxfT5LWjfszlPHXRmBWHkV2eceiWTOBvrKCNbdgDYTHrT2AeLCGbF4sZlZw3UMN3WtL0tGUoIAKsu8mllg/XA==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+            <script src="https://cdnjs.cloudflare.com/ajax/libs/vis-network/9.1.2/dist/vis-network.min.js" integrity="sha512-LnvoEWDFrqGHlHmDD2101OrLcbsfkrzoSpvtSQtxK3RMnRV0eOkhhBN2dXHKRrUU8p2DGRTk35n4O8nWSVe1mQ==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+            
+        
+<center>
+<h1></h1>
+</center>
+
+<!-- <link rel="stylesheet" href="../node_modules/vis/dist/vis.min.css" type="text/css" />
+<script type="text/javascript" src="../node_modules/vis/dist/vis.js"> </script>-->
+        <link
+          href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.0-beta3/dist/css/bootstrap.min.css"
+          rel="stylesheet"
+          integrity="sha384-eOJMYsd53ii+scO/bJGFsiCZc+5NDVN2yr8+0RDqr0Ql0h+rP48ckxlpbzKgwra6"
+          crossorigin="anonymous"
+        />
+        <script
+          src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.0-beta3/dist/js/bootstrap.bundle.min.js"
+          integrity="sha384-JEW9xMcG8R+pH31jmWH6WWP0WintQrMb4s7ZOdauHnUtxwoG2vI5DkLtS3qm9Ekf"
+          crossorigin="anonymous"
+        ></script>
+
+
+        <center>
+          <h1></h1>
+        </center>
+        <style type="text/css">
+
+             #mynetwork {
+                 width: 100%;
+                 height: 700px;
+                 background-color: #1a1a2e;
+                 border: 1px solid lightgray;
+                 position: relative;
+                 float: left;
+             }
+
+             
+
+             
+
+             
+        </style>
+    </head>
+
+
+    <body>
+        <div class="card" style="width: 100%">
+            
+            
+            <div id="mynetwork" class="card-body"></div>
+        </div>
+
+        
+        
+
+        <script type="text/javascript">
+
+              // initialize global variables.
+              var edges;
+              var nodes;
+              var allNodes;
+              var allEdges;
+              var nodeColors;
+              var originalNodes;
+              var network;
+              var container;
+              var options, data;
+              var filter = {
+                  item : '',
+                  property : '',
+                  value : []
+              };
+
+              
+
+              
+
+              // This method is responsible for drawing the graph, returns the drawn network
+              function drawGraph() {
+                  var container = document.getElementById('mynetwork');
+
+                  
+
+                  // parsing and collecting nodes and edges from the python
+                  nodes = new vis.DataSet([{"color": "#4ECDC4", "font": {"color": "#ffffff"}, "id": "ART-9c18dc8d", "label": "test@example.com", "shape": "diamond", "size": 30, "title": "Type: email\nValue: test@example.com\nSource: seed\nConfidence: 1.0\nDepth: 0"}, {"color": "#45B7D1", "font": {"color": "#ffffff"}, "id": "ART-a050d08a", "label": "osintorg", "shape": "triangle", "size": 25, "title": "Type: username\nValue: osintorg\nSource: email_osint_github\nConfidence: 0.9\nDepth: 1"}, {"color": "#45B7D1", "font": {"color": "#ffffff"}, "id": "ART-f414884f", "label": "test", "shape": "triangle", "size": 25, "title": "Type: username\nValue: test\nSource: email_local_part\nConfidence: 0.5\nDepth: 1"}, {"color": "#999999", "font": {"color": "#ffffff"}, "id": "ART-733fc531", "label": "example.com", "shape": "dot", "size": 20, "title": "Type: domain\nValue: example.com\nSource: email_domain_extraction\nConfidence: 0.7\nDepth: 1"}, {"color": "#FFEAA7", "font": {"color": "#ffffff"}, "id": "ART-5fdc1e76", "label": "https://github.com/osintorg", "shape": "star", "size": 20, "title": "Type: platform_presence\nValue: https://github.com/osintorg\nSource: username_search_github\nConfidence: 0.85\nDepth: 2"}, {"color": "#FFEAA7", "font": {"color": "#ffffff"}, "id": "ART-0432c9cd", "label": "https://www.instagram.com/o...", "shape": "star", "size": 20, "title": "Type: platform_presence\nValue: https://www.instagram.com/osintorg/\nSource: username_search_instagram\nConfidence: 0.85\nDepth: 2"}, {"color": "#FFEAA7", "font": {"color": "#ffffff"}, "id": "ART-9b78bbef", "label": "https://steamcommunity.com/...", "shape": "star", "size": 20, "title": "Type: platform_presence\nValue: https://steamcommunity.com/id/osintorg\nSource: username_search_steam\nConfidence: 0.85\nDepth: 2"}, {"color": "#FFEAA7", "font": {"color": "#ffffff"}, "id": "ART-3da2987d", "label": "https://medium.com/@osintorg", "shape": "star", "size": 20, "title": "Type: platform_presence\nValue: https://medium.com/@osintorg\nSource: username_search_medium\nConfidence: 0.85\nDepth: 2"}, {"color": "#FFEAA7", "font": {"color": "#ffffff"}, "id": "ART-be5aabfa", "label": "https://www.pinterest.com/o...", "shape": "star", "size": 20, "title": "Type: platform_presence\nValue: https://www.pinterest.com/osintorg/\nSource: username_search_pinterest\nConfidence: 0.85\nDepth: 2"}, {"color": "#FFEAA7", "font": {"color": "#ffffff"}, "id": "ART-f8e9f269", "label": "https://github.com/test", "shape": "star", "size": 20, "title": "Type: platform_presence\nValue: https://github.com/test\nSource: username_search_github\nConfidence: 0.85\nDepth: 2"}, {"color": "#FFEAA7", "font": {"color": "#ffffff"}, "id": "ART-ec74a51e", "label": "https://mastodon.social/@test", "shape": "star", "size": 20, "title": "Type: platform_presence\nValue: https://mastodon.social/@test\nSource: username_search_mastodon (mastodon.social)\nConfidence: 0.85\nDepth: 2"}, {"color": "#FFEAA7", "font": {"color": "#ffffff"}, "id": "ART-7fcd1e7a", "label": "https://keybase.io/test", "shape": "star", "size": 20, "title": "Type: platform_presence\nValue: https://keybase.io/test\nSource: username_search_keybase\nConfidence: 0.85\nDepth: 2"}, {"color": "#FFEAA7", "font": {"color": "#ffffff"}, "id": "ART-0bc535df", "label": "https://hacker-news.firebas...", "shape": "star", "size": 20, "title": "Type: platform_presence\nValue: https://hacker-news.firebaseio.com/v0/user/test.json\nSource: username_search_hackernews\nConfidence: 0.85\nDepth: 2"}, {"color": "#FFEAA7", "font": {"color": "#ffffff"}, "id": "ART-8749edc3", "label": "https://medium.com/@test", "shape": "star", "size": 20, "title": "Type: platform_presence\nValue: https://medium.com/@test\nSource: username_search_medium\nConfidence: 0.85\nDepth: 2"}, {"color": "#FFEAA7", "font": {"color": "#ffffff"}, "id": "ART-11978f89", "label": "https://www.pinterest.com/t...", "shape": "star", "size": 20, "title": "Type: platform_presence\nValue: https://www.pinterest.com/test/\nSource: username_search_pinterest\nConfidence: 0.85\nDepth: 2"}, {"color": "#999999", "font": {"color": "#ffffff"}, "id": "ART-651d1126", "label": "104.20.23.154", "shape": "dot", "size": 20, "title": "Type: ip\nValue: 104.20.23.154\nSource: plugin:DigPlugin\nConfidence: 0.9\nDepth: 2"}, {"color": "#999999", "font": {"color": "#ffffff"}, "id": "ART-493262f3", "label": "172.66.147.243", "shape": "dot", "size": 20, "title": "Type: ip\nValue: 172.66.147.243\nSource: plugin:DigPlugin\nConfidence: 0.9\nDepth: 2"}, {"color": "#999999", "font": {"color": "#ffffff"}, "id": "ART-778a82bd", "label": "0 .", "shape": "dot", "size": 20, "title": "Type: mail_server\nValue: 0 .\nSource: plugin:DigPlugin\nConfidence: 0.85\nDepth: 2"}, {"color": "#999999", "font": {"color": "#ffffff"}, "id": "ART-104af3e1", "label": "elliott.ns.cloudflare.com.", "shape": "dot", "size": 20, "title": "Type: nameserver\nValue: elliott.ns.cloudflare.com.\nSource: plugin:DigPlugin\nConfidence: 0.85\nDepth: 2"}, {"color": "#999999", "font": {"color": "#ffffff"}, "id": "ART-7930d34f", "label": "hera.ns.cloudflare.com.", "shape": "dot", "size": 20, "title": "Type: nameserver\nValue: hera.ns.cloudflare.com.\nSource: plugin:DigPlugin\nConfidence: 0.85\nDepth: 2"}]);
+                  edges = new vis.DataSet([{"color": "#555555", "from": "ART-9c18dc8d", "title": "discovered_from (conf: 0.90)", "to": "ART-a050d08a", "width": 3}, {"color": "#555555", "from": "ART-9c18dc8d", "title": "possible_username (conf: 0.50)", "to": "ART-f414884f", "width": 2}, {"color": "#555555", "from": "ART-9c18dc8d", "title": "domain_of_email (conf: 0.70)", "to": "ART-733fc531", "width": 2}, {"color": "#555555", "from": "ART-a050d08a", "title": "discovered_from (conf: 0.85)", "to": "ART-5fdc1e76", "width": 3}, {"color": "#555555", "from": "ART-a050d08a", "title": "discovered_from (conf: 0.85)", "to": "ART-0432c9cd", "width": 3}, {"color": "#555555", "from": "ART-a050d08a", "title": "discovered_from (conf: 0.85)", "to": "ART-9b78bbef", "width": 3}, {"color": "#555555", "from": "ART-a050d08a", "title": "discovered_from (conf: 0.85)", "to": "ART-3da2987d", "width": 3}, {"color": "#555555", "from": "ART-a050d08a", "title": "discovered_from (conf: 0.85)", "to": "ART-be5aabfa", "width": 3}, {"color": "#555555", "from": "ART-f414884f", "title": "discovered_from (conf: 0.85)", "to": "ART-f8e9f269", "width": 3}, {"color": "#555555", "from": "ART-f414884f", "title": "discovered_from (conf: 0.85)", "to": "ART-ec74a51e", "width": 3}, {"color": "#555555", "from": "ART-f414884f", "title": "discovered_from (conf: 0.85)", "to": "ART-7fcd1e7a", "width": 3}, {"color": "#555555", "from": "ART-f414884f", "title": "discovered_from (conf: 0.85)", "to": "ART-0bc535df", "width": 3}, {"color": "#555555", "from": "ART-f414884f", "title": "discovered_from (conf: 0.85)", "to": "ART-8749edc3", "width": 3}, {"color": "#555555", "from": "ART-f414884f", "title": "discovered_from (conf: 0.85)", "to": "ART-11978f89", "width": 3}, {"color": "#555555", "from": "ART-733fc531", "title": "discovered_from (conf: 0.90)", "to": "ART-651d1126", "width": 3}, {"color": "#555555", "from": "ART-733fc531", "title": "discovered_from (conf: 0.90)", "to": "ART-493262f3", "width": 3}, {"color": "#555555", "from": "ART-733fc531", "title": "discovered_from (conf: 0.85)", "to": "ART-778a82bd", "width": 3}, {"color": "#555555", "from": "ART-733fc531", "title": "discovered_from (conf: 0.85)", "to": "ART-104af3e1", "width": 3}, {"color": "#555555", "from": "ART-733fc531", "title": "discovered_from (conf: 0.85)", "to": "ART-7930d34f", "width": 3}]);
+
+                  nodeColors = {};
+                  allNodes = nodes.get({ returnType: "Object" });
+                  for (nodeId in allNodes) {
+                    nodeColors[nodeId] = allNodes[nodeId].color;
+                  }
+                  allEdges = edges.get({ returnType: "Object" });
+                  // adding nodes and edges to the graph
+                  data = {nodes: nodes, edges: edges};
+
+                  var options = {"physics": {"forceAtlas2Based": {"gravitationalConstant": -50, "centralGravity": 0.01, "springLength": 200, "springConstant": 0.08}, "solver": "forceAtlas2Based", "stabilization": {"iterations": 150}}, "nodes": {"font": {"size": 12, "face": "monospace"}}, "edges": {"smooth": {"type": "continuous"}}};
+
+                  
+
+
+                  
+
+                  network = new vis.Network(container, data, options);
+
+                  
+
+                  
+
+                  
+
+
+                  
+
+                  return network;
+
+              }
+              drawGraph();
+        </script>
+    </body>
+</html>
+        </div>
+    </div>
+    
+
+    <!-- Identity Profiles -->
+    <h2>Identity Profiles</h2>
+    
+    <div class="collapsible">
+        <div class="collapsible-header">
+            <h3>IDENTITY-001 (20 artifacts)</h3>
+            <span class="collapsible-toggle">▼</span>
+        </div>
+        <div class="collapsible-content">
+            <p>Confidence: <strong>94.9%</strong> |
+               Risk: <span class="risk-minimal">MINIMAL</span>
+            </p>
+
+            
+
+            
+            <p><strong>Emails:</strong>
+                <span class="badge badge-email">test@example.com</span>
+            </p>
+            
+
+            
+            <p><strong>Usernames:</strong>
+                <span class="badge badge-username">osintorg</span><span class="badge badge-username">test</span>
+            </p>
+            
+
+            
+            <p><strong>Platforms:</strong>
+                
+                <span class="badge badge-platform">
+                    <a href="https://github.com/osintorg">GitHub</a>
+                </span>
+                
+                <span class="badge badge-platform">
+                    <a href="https://www.instagram.com/osintorg/">Instagram</a>
+                </span>
+                
+                <span class="badge badge-platform">
+                    <a href="https://steamcommunity.com/id/osintorg">Steam</a>
+                </span>
+                
+                <span class="badge badge-platform">
+                    <a href="https://medium.com/@osintorg">Medium</a>
+                </span>
+                
+                <span class="badge badge-platform">
+                    <a href="https://www.pinterest.com/osintorg/">Pinterest</a>
+                </span>
+                
+                <span class="badge badge-platform">
+                    <a href="https://github.com/test">GitHub</a>
+                </span>
+                
+                <span class="badge badge-platform">
+                    <a href="https://mastodon.social/@test">Mastodon (mastodon.social)</a>
+                </span>
+                
+                <span class="badge badge-platform">
+                    <a href="https://keybase.io/test">Keybase</a>
+                </span>
+                
+                <span class="badge badge-platform">
+                    <a href="https://hacker-news.firebaseio.com/v0/user/test.json">HackerNews</a>
+                </span>
+                
+                <span class="badge badge-platform">
+                    <a href="https://medium.com/@test">Medium</a>
+                </span>
+                
+                <span class="badge badge-platform">
+                    <a href="https://www.pinterest.com/test/">Pinterest</a>
+                </span>
+                
+                <span class="badge badge-platform">
+                    <a href="https://github.com/osintorg">GitHub</a>
+                </span>
+                
+            </p>
+            
+
+            
+        </div>
+    </div>
+    
+
+    <!-- Platform Presence Matrix -->
+    
+    <div class="collapsible">
+        <div class="collapsible-header">
+            <h2>Platform Presence Matrix</h2>
+            <span class="collapsible-toggle">▼</span>
+        </div>
+        <div class="collapsible-content">
+            <table>
+                <thead>
+                    <tr><th>Platform</th><th>Username</th><th>Display Name</th><th>Profile URL</th></tr>
+                </thead>
+                <tbody>
+                    
+                    <tr>
+                        <td>GitHub</td>
+                        <td>osintorg</td>
+                        <td>-</td>
+                        <td><a href="https://github.com/osintorg">Link</a></td>
+                    </tr>
+                    
+                    <tr>
+                        <td>GitHub</td>
+                        <td>osintorg</td>
+                        <td>OSINTORG</td>
+                        <td><a href="https://github.com/osintorg">Link</a></td>
+                    </tr>
+                    
+                    <tr>
+                        <td>Instagram</td>
+                        <td>osintorg</td>
+                        <td>-</td>
+                        <td><a href="https://www.instagram.com/osintorg/">Link</a></td>
+                    </tr>
+                    
+                    <tr>
+                        <td>Steam</td>
+                        <td>osintorg</td>
+                        <td>-</td>
+                        <td><a href="https://steamcommunity.com/id/osintorg">Link</a></td>
+                    </tr>
+                    
+                    <tr>
+                        <td>Medium</td>
+                        <td>osintorg</td>
+                        <td>-</td>
+                        <td><a href="https://medium.com/@osintorg">Link</a></td>
+                    </tr>
+                    
+                    <tr>
+                        <td>Pinterest</td>
+                        <td>osintorg</td>
+                        <td>-</td>
+                        <td><a href="https://www.pinterest.com/osintorg/">Link</a></td>
+                    </tr>
+                    
+                    <tr>
+                        <td>GitHub</td>
+                        <td>test</td>
+                        <td>test</td>
+                        <td><a href="https://github.com/test">Link</a></td>
+                    </tr>
+                    
+                    <tr>
+                        <td>Mastodon (mastodon.social)</td>
+                        <td>test</td>
+                        <td>-</td>
+                        <td><a href="https://mastodon.social/@test">Link</a></td>
+                    </tr>
+                    
+                    <tr>
+                        <td>Keybase</td>
+                        <td>test</td>
+                        <td>-</td>
+                        <td><a href="https://keybase.io/test">Link</a></td>
+                    </tr>
+                    
+                    <tr>
+                        <td>HackerNews</td>
+                        <td>test</td>
+                        <td>test</td>
+                        <td><a href="https://hacker-news.firebaseio.com/v0/user/test.json">Link</a></td>
+                    </tr>
+                    
+                    <tr>
+                        <td>Medium</td>
+                        <td>test</td>
+                        <td>-</td>
+                        <td><a href="https://medium.com/@test">Link</a></td>
+                    </tr>
+                    
+                    <tr>
+                        <td>Pinterest</td>
+                        <td>test</td>
+                        <td>-</td>
+                        <td><a href="https://www.pinterest.com/test/">Link</a></td>
+                    </tr>
+                    
+                </tbody>
+            </table>
+        </div>
+    </div>
+    
+
+    <!-- All Artifacts -->
+    <div class="collapsible">
+        <div class="collapsible-header">
+            <h2>Artifact Inventory</h2>
+            <span class="collapsible-toggle">▼</span>
+        </div>
+        <div class="collapsible-content">
+            <table>
+                <thead>
+                    <tr><th>Type</th><th>Value</th><th>Source</th><th>Confidence</th><th>Depth</th></tr>
+                </thead>
+                <tbody>
+                    
+                    <tr>
+                        <td><span class="badge badge-email">email</span></td>
+                        <td>test@example.com</td>
+                        <td>seed</td>
+                        <td>100%</td>
+                        <td>0</td>
+                    </tr>
+                    
+                    <tr>
+                        <td><span class="badge badge-username">username</span></td>
+                        <td>osintorg</td>
+                        <td>email_osint_github</td>
+                        <td>90%</td>
+                        <td>1</td>
+                    </tr>
+                    
+                    <tr>
+                        <td><span class="badge badge-breach_data">breach_data</span></td>
+                        <td>LinkedIn (2012-05-05)</td>
+                        <td>haveibeenpwned</td>
+                        <td>95%</td>
+                        <td>1</td>
+                    </tr>
+                    
+                    <tr>
+                        <td><span class="badge badge-breach_data">breach_data</span></td>
+                        <td>Adobe (2013-10-04)</td>
+                        <td>haveibeenpwned</td>
+                        <td>95%</td>
+                        <td>1</td>
+                    </tr>
+                    
+                    <tr>
+                        <td><span class="badge badge-username">username</span></td>
+                        <td>test</td>
+                        <td>email_local_part</td>
+                        <td>50%</td>
+                        <td>1</td>
+                    </tr>
+                    
+                    <tr>
+                        <td><span class="badge badge-domain">domain</span></td>
+                        <td>example.com</td>
+                        <td>email_domain_extraction</td>
+                        <td>70%</td>
+                        <td>1</td>
+                    </tr>
+                    
+                    <tr>
+                        <td><span class="badge badge-platform_presence">platform_presence</span></td>
+                        <td>https://github.com/osintorg</td>
+                        <td>username_search_github</td>
+                        <td>85%</td>
+                        <td>2</td>
+                    </tr>
+                    
+                    <tr>
+                        <td><span class="badge badge-platform_presence">platform_presence</span></td>
+                        <td>https://www.instagram.com/osintorg/</td>
+                        <td>username_search_instagram</td>
+                        <td>85%</td>
+                        <td>2</td>
+                    </tr>
+                    
+                    <tr>
+                        <td><span class="badge badge-platform_presence">platform_presence</span></td>
+                        <td>https://steamcommunity.com/id/osintorg</td>
+                        <td>username_search_steam</td>
+                        <td>85%</td>
+                        <td>2</td>
+                    </tr>
+                    
+                    <tr>
+                        <td><span class="badge badge-platform_presence">platform_presence</span></td>
+                        <td>https://medium.com/@osintorg</td>
+                        <td>username_search_medium</td>
+                        <td>85%</td>
+                        <td>2</td>
+                    </tr>
+                    
+                    <tr>
+                        <td><span class="badge badge-platform_presence">platform_presence</span></td>
+                        <td>https://www.pinterest.com/osintorg/</td>
+                        <td>username_search_pinterest</td>
+                        <td>85%</td>
+                        <td>2</td>
+                    </tr>
+                    
+                    <tr>
+                        <td><span class="badge badge-platform_presence">platform_presence</span></td>
+                        <td>https://github.com/test</td>
+                        <td>username_search_github</td>
+                        <td>85%</td>
+                        <td>2</td>
+                    </tr>
+                    
+                    <tr>
+                        <td><span class="badge badge-platform_presence">platform_presence</span></td>
+                        <td>https://mastodon.social/@test</td>
+                        <td>username_search_mastodon (mastodon.social)</td>
+                        <td>85%</td>
+                        <td>2</td>
+                    </tr>
+                    
+                    <tr>
+                        <td><span class="badge badge-platform_presence">platform_presence</span></td>
+                        <td>https://keybase.io/test</td>
+                        <td>username_search_keybase</td>
+                        <td>85%</td>
+                        <td>2</td>
+                    </tr>
+                    
+                    <tr>
+                        <td><span class="badge badge-platform_presence">platform_presence</span></td>
+                        <td>https://hacker-news.firebaseio.com/v0/user/test.json</td>
+                        <td>username_search_hackernews</td>
+                        <td>85%</td>
+                        <td>2</td>
+                    </tr>
+                    
+                    <tr>
+                        <td><span class="badge badge-platform_presence">platform_presence</span></td>
+                        <td>https://medium.com/@test</td>
+                        <td>username_search_medium</td>
+                        <td>85%</td>
+                        <td>2</td>
+                    </tr>
+                    
+                    <tr>
+                        <td><span class="badge badge-platform_presence">platform_presence</span></td>
+                        <td>https://www.pinterest.com/test/</td>
+                        <td>username_search_pinterest</td>
+                        <td>85%</td>
+                        <td>2</td>
+                    </tr>
+                    
+                    <tr>
+                        <td><span class="badge badge-ip">ip</span></td>
+                        <td>104.20.23.154</td>
+                        <td>plugin:DigPlugin</td>
+                        <td>90%</td>
+                        <td>2</td>
+                    </tr>
+                    
+                    <tr>
+                        <td><span class="badge badge-ip">ip</span></td>
+                        <td>172.66.147.243</td>
+                        <td>plugin:DigPlugin</td>
+                        <td>90%</td>
+                        <td>2</td>
+                    </tr>
+                    
+                    <tr>
+                        <td><span class="badge badge-mail_server">mail_server</span></td>
+                        <td>0 .</td>
+                        <td>plugin:DigPlugin</td>
+                        <td>85%</td>
+                        <td>2</td>
+                    </tr>
+                    
+                    <tr>
+                        <td><span class="badge badge-nameserver">nameserver</span></td>
+                        <td>elliott.ns.cloudflare.com.</td>
+                        <td>plugin:DigPlugin</td>
+                        <td>85%</td>
+                        <td>2</td>
+                    </tr>
+                    
+                    <tr>
+                        <td><span class="badge badge-nameserver">nameserver</span></td>
+                        <td>hera.ns.cloudflare.com.</td>
+                        <td>plugin:DigPlugin</td>
+                        <td>85%</td>
+                        <td>2</td>
+                    </tr>
+                    
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <p class="meta" style="margin-top: 3rem; text-align: center;">
+        Generated by Ghost Identity Hunter | 2026-08-01 09:06 UTC
+    </p>
+</div>
+</body>
+</html>

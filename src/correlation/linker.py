@@ -119,37 +119,33 @@ MIN_ARTIFACT_CONFIDENCE = 0.3
 # Identity artifact types
 IDENTITY_ARTIFACT_TYPES = {"phone", "email", "username", "image", "fullname"}
 
-# Artifact types produced by the external OSINT tools. They are deliberately
-# kept out of the identity graph (they are findings *about* an identity, not
-# identifiers of one), but they are attached to the profile of the artifact
-# they were discovered from so the report can render them per identity.
-TOOL_ARTIFACT_TYPES = {
-    "username_presence": "Platform Accounts",
-    "email_account": "Registered Email Services",
-    "host_info": "Host Information",
-    "open_port": "Open Ports",
-    "domain_info": "Domain Registration",
-    "subdomain": "Subdomains",
-    "dns_a": "DNS A Records",
-    "dns_aaaa": "DNS AAAA Records",
-    "dns_mx": "DNS MX Records",
-    "dns_ns": "DNS NS Records",
-    "dns_txt": "DNS TXT Records",
-    "historical_url": "Historical URLs",
-    "gps_coordinates": "GPS Coordinates",
-    "camera_info": "Camera Information",
-    "creation_date": "Media Creation Dates",
+# Artifact types produced by external OSINT tools, mapped to the IdentityProfile
+# field they populate. These are infrastructure/context findings rather than
+# identity anchors, so they are attached to a profile instead of forming one.
+TOOL_ARTIFACT_FIELDS = {
+    "domain": "domains",
+    "domain_info": "domains",
+    "subdomain": "subdomains",
+    "ip_address": "ip_addresses",
+    "ip": "ip_addresses",
+    "dns_a": "ip_addresses",
+    "dns_mx": "dns_records",
+    "dns_ns": "dns_records",
+    "dns_txt": "dns_records",
+    "nameserver": "dns_records",
+    "mail_server": "dns_records",
+    "location": "geolocations",
+    "open_port": "open_ports",
+    "host_info": "hosts",
+    "historical_url": "historical_urls",
+    "web_technology": "web_technologies",
+    "gps_coordinates": "geolocations",
+    "camera_info": "device_info",
+    "creation_date": "device_info",
 }
 
-# Maximum number of findings retained per tool artifact type per identity, so a
-# noisy tool (e.g. Wayback with thousands of URLs) cannot swamp the report.
-MAX_FINDINGS_PER_TYPE = 25
-
-# How far a tool finding may sit from an identity artifact (email -> domain ->
-# dns_a is two hops) and how many findings are collected per artifact before
-# the walk stops.
-MAX_FINDING_HOPS = 3
-MAX_COLLECTED_FINDINGS = 500
+# Tool artifact types that represent an account on a platform.
+ACCOUNT_ARTIFACT_TYPES = {"username_presence", "email_presence"}
 
 
 def _extract_platform_from_url(url: str) -> str:
@@ -297,26 +293,42 @@ class IdentityProfile:
     risk_indicators: list[str] = field(default_factory=list)
     confidence: float = 0.0
     artifact_count: int = 0
-    # External-tool findings attached to this identity, keyed by artifact type
-    # (e.g. "open_port" -> [{"value": ..., "source": "nmap", ...}, ...]).
-    tool_findings: dict[str, list[dict]] = field(default_factory=dict)
+
+    # Findings contributed by external OSINT tools, attached to this identity
+    domains: list[str] = field(default_factory=list)
+    subdomains: list[str] = field(default_factory=list)
+    ip_addresses: list[str] = field(default_factory=list)
+    dns_records: list[str] = field(default_factory=list)
+    open_ports: list[str] = field(default_factory=list)
+    hosts: list[str] = field(default_factory=list)
+    historical_urls: list[str] = field(default_factory=list)
+    web_technologies: list[str] = field(default_factory=list)
+    geolocations: list[str] = field(default_factory=list)
+    device_info: list[str] = field(default_factory=list)
+    tool_findings: list[dict] = field(default_factory=list)
 
     @property
-    def tool_finding_sections(self) -> list[dict]:
-        """Tool findings as ordered, human-labelled sections for reporting."""
-        return [
-            {
-                "type": artifact_type,
-                "label": TOOL_ARTIFACT_TYPES.get(artifact_type, artifact_type),
-                "findings": findings,
-            }
-            for artifact_type, findings in sorted(self.tool_findings.items())
-            if findings
-        ]
+    def name(self) -> str:
+        """Human-readable label for the identity."""
+        for candidate in (self.usernames, self.emails, self.phones, self.images):
+            if candidate:
+                return candidate[0]
+        return self.profile_id
+
+    @property
+    def artifacts(self) -> list[str]:
+        """All identity-anchor values belonging to this profile."""
+        return self.phones + self.emails + self.usernames + self.images
+
+    @property
+    def tools_used(self) -> list[str]:
+        """Names of the external tools that contributed to this profile."""
+        return sorted({f["source"] for f in self.tool_findings if f.get("source")})
 
     def to_dict(self) -> dict:
         return {
             "profile_id": self.profile_id,
+            "name": self.name,
             "phones": self.phones,
             "emails": self.emails,
             "usernames": self.usernames,
@@ -325,7 +337,18 @@ class IdentityProfile:
             "risk_indicators": self.risk_indicators,
             "confidence": self.confidence,
             "artifact_count": self.artifact_count,
+            "domains": self.domains,
+            "subdomains": self.subdomains,
+            "ip_addresses": self.ip_addresses,
+            "dns_records": self.dns_records,
+            "open_ports": self.open_ports,
+            "hosts": self.hosts,
+            "historical_urls": self.historical_urls,
+            "web_technologies": self.web_technologies,
+            "geolocations": self.geolocations,
+            "device_info": self.device_info,
             "tool_findings": self.tool_findings,
+            "tools_used": self.tools_used,
         }
 
 
@@ -432,10 +455,9 @@ def correlate_identities(conn: sqlite3.Connection, investigation_id: str) -> Cor
         if aid:
             presence_by_artifact.setdefault(aid, []).append(p)
 
-    tool_findings_by_artifact = _collect_tool_findings(conn, investigation_id)
-
     valid_identities = []
     noise_artifacts = []
+    profile_components: list[tuple[IdentityProfile, set]] = []
     
     for i, component in enumerate(components):
         profile = IdentityProfile(profile_id=f"IDENTITY-{i + 1:03d}")
@@ -489,20 +511,6 @@ def correlate_identities(conn: sqlite3.Connection, investigation_id: str) -> Cor
                     if presence_image:
                         profile.images.append(presence_image)
 
-            # Attach external-tool findings discovered from this artifact.
-            for finding in tool_findings_by_artifact.get(node_id, []):
-                bucket = profile.tool_findings.setdefault(finding["artifact_type"], [])
-                if len(bucket) >= MAX_FINDINGS_PER_TYPE:
-                    continue
-                if any(existing["value"] == finding["value"] for existing in bucket):
-                    continue
-                bucket.append({
-                    "value": finding["value"],
-                    "source": finding["source"],
-                    "confidence": finding["confidence"],
-                    "details": finding["details"],
-                })
-
         # Deduplicate values
         profile.phones = sorted(set(profile.phones))
         profile.emails = sorted(set(profile.emails))
@@ -531,8 +539,14 @@ def correlate_identities(conn: sqlite3.Connection, investigation_id: str) -> Cor
         identity_type_count = sum(1 for field in [profile.phones, profile.emails, profile.usernames, profile.images] if field)
         
         # A valid identity should have at least one strong identity type
-        if identity_type_count >= 1 and (len(profile.emails) > 0 or len(profile.usernames) > 0 or len(profile.phones) > 0):
+        if identity_type_count >= 1 and (
+            len(profile.emails) > 0
+            or len(profile.usernames) > 0
+            or len(profile.phones) > 0
+            or len(profile.images) > 0
+        ):
             valid_identities.append(profile)
+            profile_components.append((profile, component))
         else:
             noise_artifacts.extend([G.nodes[n].get("value", "") for n in component])
 
@@ -547,6 +561,9 @@ def correlate_identities(conn: sqlite3.Connection, investigation_id: str) -> Cor
         noise_profile.risk_indicators = ["noise_artifacts"]
         valid_identities.append(noise_profile)
 
+    # Attach external tool findings to the identities they were discovered from
+    _attach_tool_findings(conn, investigation_id, profile_components, G)
+
     result.identities = valid_identities
 
     # Sort by artifact count (largest identity first)
@@ -559,73 +576,128 @@ def correlate_identities(conn: sqlite3.Connection, investigation_id: str) -> Cor
     return result
 
 
-def _collect_tool_findings(
+def _attach_tool_findings(
     conn: sqlite3.Connection,
     investigation_id: str,
-) -> dict[str, list[dict]]:
-    """Map each identity artifact to the external-tool findings linked to it.
-
-    Tool outputs (`open_port`, `subdomain`, `dns_a`, `historical_url`, ...) are
-    stored as artifacts linked to the artifact they were discovered from. They
-    never enter the identity graph, so they are resolved here by walking the
-    links table, up to ``MAX_FINDING_HOPS`` away, and keyed by the artifact the
-    walk started from.
+    profile_components: list[tuple[IdentityProfile, set]],
+    identity_graph: nx.Graph,
+) -> None:
     """
-    artifacts_by_id = {
-        a["artifact_id"]: a for a in db.get_artifacts(conn, investigation_id)
-    }
+    Attach artifacts discovered by external OSINT tools to their identity profile.
 
-    children: dict[str, list[str]] = {}
+    Tool outputs (subdomains, open ports, historical URLs, account presences, ...)
+    are not identity anchors, so they are excluded from the correlation graph.
+    They are still linked to the seed artifact that produced them, so each profile
+    is expanded over the full link graph - stopping at artifacts that belong to a
+    different identity - and everything reachable is attributed to that profile.
+    """
+    if not profile_components:
+        return
+
+    artifacts = {a["artifact_id"]: a for a in db.get_artifacts(conn, investigation_id)}
+
+    full_graph = nx.Graph()
+    full_graph.add_nodes_from(artifacts)
     for link in db.get_links(conn, investigation_id):
-        children.setdefault(link["source_artifact"], []).append(link["target_artifact"])
+        source, target = link["source_artifact"], link["target_artifact"]
+        if source in artifacts and target in artifacts:
+            full_graph.add_edge(source, target)
 
-    def _as_finding(artifact: dict) -> dict:
-        details = {}
-        if artifact.get("metadata"):
-            try:
-                parsed = json.loads(artifact["metadata"])
-                if isinstance(parsed, dict):
-                    details = parsed
-            except json.JSONDecodeError:
-                pass
-        return {
-            "artifact_type": artifact["artifact_type"],
-            "value": artifact["value"],
-            "source": artifact.get("source") or "external_tool",
-            "confidence": artifact.get("confidence") or 0.0,
-            "details": details,
-        }
+    identity_nodes = set(identity_graph.nodes)
 
-    findings: dict[str, list[dict]] = {}
-    for root_id in artifacts_by_id:
-        collected: list[dict] = []
-        visited = {root_id}
-        frontier = [(child, 1) for child in children.get(root_id, [])]
+    for profile, component in profile_components:
+        reachable = _expand_from_component(full_graph, component, identity_nodes)
 
-        # Findings are frequently one hop removed from the identity artifact
-        # (email -> domain -> dns_a / domain_info), so the walk continues
-        # through intermediate non-tool artifacts for a couple of hops.
-        while frontier and len(collected) < MAX_COLLECTED_FINDINGS:
-            node_id, hops = frontier.pop(0)
-            if node_id in visited:
-                continue
-            visited.add(node_id)
+        for node_id in reachable:
+            artifact = artifacts[node_id]
+            artifact_type = artifact["artifact_type"]
+            value = artifact["value"]
+            source = artifact.get("source") or "unknown"
 
-            artifact = artifacts_by_id.get(node_id)
-            if not artifact:
+            if artifact_type in ACCOUNT_ARTIFACT_TYPES:
+                platform = _platform_from_metadata(artifact) or _extract_platform_from_url(value)
+                profile.platforms.append({
+                    "platform": platform,
+                    "profile_url": value if value.startswith("http") else None,
+                    "username": _account_username(artifact, value),
+                    "display_name": None,
+                    "source": source,
+                })
+            elif artifact_type in TOOL_ARTIFACT_FIELDS:
+                getattr(profile, TOOL_ARTIFACT_FIELDS[artifact_type]).append(value)
+            else:
                 continue
 
-            if artifact["artifact_type"] in TOOL_ARTIFACT_TYPES:
-                collected.append(_as_finding(artifact))
+            profile.tool_findings.append({
+                "type": artifact_type,
+                "value": value,
+                "source": source,
+                "confidence": artifact.get("confidence"),
+            })
+
+        for field_name in set(TOOL_ARTIFACT_FIELDS.values()):
+            setattr(profile, field_name, sorted(set(getattr(profile, field_name))))
+
+        seen_platforms = set()
+        unique_platforms = []
+        for entry in profile.platforms:
+            key = (entry.get("platform"), entry.get("profile_url"))
+            if key in seen_platforms:
                 continue
+            seen_platforms.add(key)
+            unique_platforms.append(entry)
+        profile.platforms = unique_platforms
 
-            if hops < MAX_FINDING_HOPS:
-                frontier.extend((child, hops + 1) for child in children.get(node_id, []))
+        profile.tool_findings.sort(key=lambda f: (f["source"], f["type"], f["value"]))
 
-        if collected:
-            findings[root_id] = collected
 
-    return findings
+def _expand_from_component(full_graph: nx.Graph, component: set, identity_nodes: set) -> set:
+    """Return non-identity artifacts reachable from a component without crossing identities."""
+    visited = set(component)
+    queue = [n for n in component if full_graph.has_node(n)]
+    reachable = set()
+
+    while queue:
+        node = queue.pop()
+        for neighbor in full_graph.neighbors(node):
+            if neighbor in visited:
+                continue
+            visited.add(neighbor)
+            if neighbor in identity_nodes:
+                # Belongs to a different identity; do not traverse through it
+                continue
+            reachable.add(neighbor)
+            queue.append(neighbor)
+
+    return reachable
+
+
+def _platform_from_metadata(artifact: dict) -> str | None:
+    """Read the platform name a tool recorded in an artifact's metadata."""
+    metadata = artifact.get("metadata")
+    if not metadata:
+        return None
+    try:
+        parsed = json.loads(metadata) if isinstance(metadata, str) else metadata
+    except json.JSONDecodeError:
+        return None
+    return parsed.get("platform") if isinstance(parsed, dict) else None
+
+
+def _account_username(artifact: dict, value: str) -> str:
+    """Determine the account name a presence artifact refers to."""
+    metadata = artifact.get("metadata")
+    if metadata:
+        try:
+            parsed = json.loads(metadata) if isinstance(metadata, str) else metadata
+            if isinstance(parsed, dict) and parsed.get("username"):
+                return parsed["username"]
+        except json.JSONDecodeError:
+            pass
+
+    if value.startswith("http"):
+        return urlparse(value).path.strip("/").split("/")[-1]
+    return value
 
 
 def _compute_confidence(G: nx.Graph, component: set) -> float:

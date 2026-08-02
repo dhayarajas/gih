@@ -265,6 +265,7 @@ class ConfigLoader:
                 "max_depth": 2,
                 "max_runtime_minutes": 18,
                 "max_total_artifacts": 500,
+                "max_concurrent_io": 32,
                 "check_breaches": True,
                 "search_usernames": True,
                 "check_images": True,
