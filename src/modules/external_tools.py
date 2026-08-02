@@ -10,13 +10,36 @@ import subprocess
 import json
 import logging
 import re
+import threading
 from typing import Dict, List, Optional, Any
 from dataclasses import dataclass, field
 from enum import Enum
 
+from src.config.loader import get_config
+from src.utils.concurrency import io_slot
 from src.utils.tool_checker import check_tool_availability, skip_if_not_available
 
 logger = logging.getLogger(__name__)
+
+# Fallback timeout (seconds) used when a tool has no `timeout` configured.
+DEFAULT_TOOL_TIMEOUT = 60
+
+
+def _get_tool_timeout(tool_name: str, default: int = DEFAULT_TOOL_TIMEOUT) -> int:
+    """Resolve the configured per-tool subprocess timeout from config.yaml.
+
+    Per-tool timeouts live under the ``plugins.<tool_name>.timeout`` section
+    (with a top-level ``<tool_name>.timeout`` also honored as a fallback). This
+    ensures every integration uses its configured budget instead of the old
+    hardcoded 60s default (or nmap's hardcoded 300s).
+    """
+    try:
+        config = get_config()
+        plugins_cfg = config.get("plugins", {}) or {}
+        tool_cfg = plugins_cfg.get(tool_name) or config.get(tool_name) or {}
+        return int(tool_cfg.get("timeout", default))
+    except Exception:
+        return default
 
 
 class ToolOutputFormat(Enum):
@@ -46,29 +69,34 @@ class ExternalToolsIntegration:
     def __init__(self):
         self.results_cache: Dict[str, ToolResult] = {}
     
-    def run_tool(self, tool_name: str, command: List[str], timeout: int = 60) -> ToolResult:
+    def run_tool(self, tool_name: str, command: List[str], timeout: Optional[int] = None) -> ToolResult:
         """
         Execute an external OSINT tool and capture output.
         
         Args:
             tool_name: Name of the tool being executed
             command: Command list to execute
-            timeout: Execution timeout in seconds
+            timeout: Execution timeout in seconds. When ``None`` (the default),
+                the configured ``<tool_name>.timeout`` from config.yaml is used,
+                falling back to ``DEFAULT_TOOL_TIMEOUT``.
             
         Returns:
             ToolResult with execution output and status
         """
+        if timeout is None:
+            timeout = _get_tool_timeout(tool_name)
         result = ToolResult(tool_name=tool_name, success=False, output="")
         
         try:
             logger.info(f"Running {tool_name}: {' '.join(command)}")
             
-            process = subprocess.run(
-                command,
-                capture_output=True,
-                text=True,
-                timeout=timeout
-            )
+            with io_slot():
+                process = subprocess.run(
+                    command,
+                    capture_output=True,
+                    text=True,
+                    timeout=timeout
+                )
             
             result.success = process.returncode == 0
             result.output = process.stdout + process.stderr
@@ -365,7 +393,7 @@ class NmapIntegration(ExternalToolsIntegration):
         else:
             command = ["nmap", "-p", ports, "-sV", "-sC", target]
         
-        result = self.run_tool("nmap", command, timeout=300)
+        result = self.run_tool("nmap", command)
         
         if result.success:
             # Parse Nmap output for open ports and services
@@ -506,6 +534,21 @@ def get_tool_integrations() -> Dict[str, ExternalToolsIntegration]:
     }
 
 
+# Per-run memoization of tool analyses. The BFS rediscovers the same
+# domain/email/username from multiple parents; without this each occurrence
+# re-runs the same subprocess/HTTP work before dedup happens at persistence
+# time. Keyed by (tool_name, analysis_type, target); cleared at the start of
+# each investigation via clear_tool_analysis_cache().
+_analysis_cache: Dict[tuple, ToolResult] = {}
+_analysis_cache_lock = threading.Lock()
+
+
+def clear_tool_analysis_cache() -> None:
+    """Reset the per-run tool-analysis memoization cache."""
+    with _analysis_cache_lock:
+        _analysis_cache.clear()
+
+
 def run_tool_analysis(tool_name: str, analysis_type: str, target: str) -> ToolResult:
     """
     Run analysis using a specific external tool.
@@ -518,6 +561,13 @@ def run_tool_analysis(tool_name: str, analysis_type: str, target: str) -> ToolRe
     Returns:
         ToolResult with analysis output and discovered artifacts
     """
+    cache_key = (tool_name, analysis_type, target)
+    with _analysis_cache_lock:
+        cached = _analysis_cache.get(cache_key)
+    if cached is not None:
+        logger.debug("Tool analysis cache hit: %s/%s for %s", tool_name, analysis_type, target)
+        return cached
+
     integrations = get_tool_integrations()
     
     if tool_name not in integrations:
@@ -563,4 +613,7 @@ def run_tool_analysis(tool_name: str, analysis_type: str, target: str) -> ToolRe
         return ToolResult(tool_name=tool_name, success=False, error_message="Unknown analysis type")
     
     method = analysis_methods[tool_name][analysis_type]
-    return method(target)
+    result = method(target)
+    with _analysis_cache_lock:
+        _analysis_cache[cache_key] = result
+    return result

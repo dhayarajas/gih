@@ -65,21 +65,27 @@ VERSION:
 import json
 import logging
 import sqlite3
+import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from datetime import datetime
 from collections import deque
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
 from src.modules import phone_osint, email_osint, username_search, image_search, breach_check, correlation, image_match
 from src.modules.correlation_neo4j import Neo4jCorrelation
 from src.modules.google_dorks import run_google_dorks_search, check_google_dorks_availability
 from src.storage import database as db
 from src.utils.tool_checker import get_tool_checker, check_tool_availability
-from src.modules.external_tools import run_tool_analysis, get_tool_integrations
+from src.modules.external_tools import (
+    run_tool_analysis,
+    get_tool_integrations,
+    clear_tool_analysis_cache,
+)
 from src.plugins import PluginManager, PluginRegistry, Artifact as PluginArtifact, PluginConfig
 from src.config.loader import get_config
+from src.utils import concurrency
 
 logger = logging.getLogger(__name__)
 
@@ -90,11 +96,47 @@ def _get_orchestrator_config() -> dict:
     return config.get("orchestrator", {
         "bfs_batch_size": 10,
         "max_depth": 2,
-        "max_concurrent_artifacts": 5,  # Number of artifacts to process concurrently
+        "max_parallel_workers": 10,  # BFS-level artifact concurrency
     })
 
 
+def _get_investigation_defaults() -> dict:
+    """Resolve investigation-wide bounds (runtime, artifact budget, workers)."""
+    config = get_config()
+    inv = config.get("investigation", {}) or {}
+    orch = config.get("orchestrator", {}) or {}
+    plugin_settings = config.get("plugin_settings", {}) or {}
+
+    # Prefer a dedicated orchestrator setting, then fall back to the shared
+    # plugin worker count, then a sane default.
+    workers = orch.get(
+        "max_parallel_workers",
+        plugin_settings.get("max_parallel_workers", 10),
+    )
+
+    return {
+        "max_runtime_minutes": float(inv.get("max_runtime_minutes", 18.0)),
+        "max_total_artifacts": int(inv.get("max_total_artifacts", 500)),
+        "max_parallel_workers": max(1, int(workers)),
+    }
+
+
 MAX_DEPTH = _get_orchestrator_config().get("max_depth", 2)
+_INV_DEFAULTS = _get_investigation_defaults()
+
+# Only these artifact types are re-queued for further processing. Everything
+# else (risk_indicator, open_port, dns_*, historical_url, identity_match, ...)
+# is a leaf result: it is still stored and linked, but never triggers another
+# round of module/external-tool processing.
+#
+# `platform_presence` is included because it runs no OSINT module or external
+# tool (see _process_artifact / _process_external_tools) -- it is cheap and is
+# the sole input to the profile_image plugin, which extracts profile pictures
+# from discovered social accounts. Dropping it would silently disable that step.
+EXPANDABLE_ARTIFACT_TYPES = frozenset({
+    "phone", "email", "username", "image", "fullname", "domain", "ip_address",
+    "platform_presence",
+})
 
 
 @dataclass
@@ -118,6 +160,10 @@ class InvestigationConfig:
     google_cx: Optional[str] = None  # Google Custom Search Engine ID
     use_google_api: bool = False  # Use Google API instead of web scraping
     search_engine: str = "auto"  # Search engine for Google Dorks (auto, duckduckgo, google, bing)
+    # Bounds that guarantee the overall time budget
+    max_runtime_minutes: float = _INV_DEFAULTS["max_runtime_minutes"]  # Wall-clock deadline
+    max_total_artifacts: int = _INV_DEFAULTS["max_total_artifacts"]  # Cap on total artifacts
+    max_parallel_workers: int = _INV_DEFAULTS["max_parallel_workers"]  # BFS-level concurrency
 
 
 @dataclass
@@ -140,6 +186,25 @@ class InvestigationResult:
             "total_platforms": self.total_platforms,
             "risk_indicators": self.risk_indicators,
         }
+
+
+@dataclass
+class ArtifactProcessResult:
+    """Outcome of processing a single artifact.
+
+    Produced entirely from network/subprocess work in a worker thread. It
+    carries only *descriptions* of the DB mutations to perform; every actual
+    SQLite write is applied later, serially, on the main thread. This keeps the
+    single shared connection free of data races while the expensive I/O runs
+    concurrently.
+    """
+
+    artifact: dict
+    discovered: list[dict] = field(default_factory=list)
+    # JSON metadata to UPDATE onto the source artifact row (None = leave as-is).
+    source_metadata: Optional[str] = None
+    # kwargs (minus artifact_id) for db.add_platform_presence.
+    platform_presences: list[dict] = field(default_factory=list)
 
 
 def run_investigation(
@@ -236,172 +301,156 @@ def run_investigation(
 
     logger.info("Starting BFS processing with %d artifacts in queue", len(queue))
 
-    # BFS loop with concurrent processing (using separate DB connections per thread)
+    # BFS loop: each depth "level" (all artifacts currently queued) is processed
+    # concurrently. The expensive, I/O-bound work (_process_artifact: OSINT
+    # modules + external tools + plugins) runs in a bounded ThreadPoolExecutor,
+    # while every SQLite write is applied serially on this (main) thread after
+    # the parallel phase returns -- the single shared connection is therefore
+    # never touched from a worker thread and the `seen` dedup set is mutated
+    # only here.
+    start_time = time.monotonic()
+    # Bound total concurrent outbound I/O across all nested pools, and reset the
+    # per-run tool-analysis memoization so results aren't reused across runs.
+    concurrency.configure()
+    clear_tool_analysis_cache()
+    runtime_budget_s = max(0.0, config.max_runtime_minutes * 60.0)
+    max_total_artifacts = config.max_total_artifacts
+    max_workers = max(1, config.max_parallel_workers)
     processed_count = 0
-    orchestrator_config = _get_orchestrator_config()
-    max_concurrent = orchestrator_config.get("max_concurrent_artifacts", 5)
-    
+    level = 0
+
     while queue:
-        # Process artifacts in batches for concurrency
-        batch_size = min(max_concurrent, len(queue))
-        batch = []
-        
-        for _ in range(batch_size):
-            if queue:
-                batch.append(queue.popleft())
-        
-        if len(batch) == 1:
-            # Single artifact - process sequentially
-            current = batch[0]
+        # Enforce the overall wall-clock deadline at each level boundary.
+        elapsed = time.monotonic() - start_time
+        if runtime_budget_s and elapsed >= runtime_budget_s:
+            logger.warning(
+                "Runtime budget of %.1f min reached (%.1fs elapsed); stopping BFS "
+                "with %d artifact(s) still queued",
+                config.max_runtime_minutes, elapsed, len(queue),
+            )
+            break
+
+        # Drain the current level.
+        current_level = list(queue)
+        queue.clear()
+        level += 1
+        level_start = time.monotonic()
+        logger.info(
+            "Processing BFS level %d: %d artifact(s) (elapsed=%.1fs, workers=%d)",
+            level, len(current_level), elapsed, min(max_workers, len(current_level)),
+        )
+
+        # --- Parallel network/subprocess phase (NO DB writes) ---
+        results: list[ArtifactProcessResult] = []
+        with ThreadPoolExecutor(max_workers=min(max_workers, len(current_level))) as executor:
+            futures = {
+                executor.submit(_process_artifact, inv_id, item, config, plugin_manager): item
+                for item in current_level
+            }
+            for future in as_completed(futures):
+                item = futures[future]
+                processed_count += 1
+                try:
+                    results.append(future.result())
+                except Exception as e:
+                    logger.error(
+                        "Error processing artifact %s=%s: %s",
+                        item["type"], item["value"], e,
+                    )
+        parallel_s = time.monotonic() - level_start
+
+        # --- Serial DB-write phase (main thread only) ---
+        budget_reached = False
+        for res in results:
+            current = res.artifact
             current_depth = current["depth"]
             current_id = current["artifact_id"]
-            processed_count += 1
 
-            logger.info(
-                "Processing: %s=%s (depth=%d, queue_size=%d)",
-                current["type"], current["value"], current_depth, len(queue)
-            )
+            # Persist analysis metadata for the source artifact.
+            if res.source_metadata is not None:
+                conn.execute(
+                    "UPDATE artifacts SET metadata = ? WHERE artifact_id = ?",
+                    (res.source_metadata, current_id),
+                )
 
-            try:
-                discovered = _process_artifact(conn, inv_id, current, config, plugin_manager)
-                logger.debug("Discovered %d new artifacts from %s=%s", 
-                            len(discovered), current["type"], current["value"])
+            # Persist platform presences discovered for this artifact.
+            for presence in res.platform_presences:
+                db.add_platform_presence(
+                    conn, investigation_id=inv_id, artifact_id=current_id, **presence
+                )
 
-                # Add discovered artifacts to queue (if within depth limit)
-                if current_depth < config.max_depth:
-                    added_count = 0
-                    for artifact in discovered:
-                        key = f"{artifact['type']}:{artifact['value']}"
-                        if key in seen:
-                            logger.debug("Skipping duplicate artifact: %s", key)
-                            continue
-                        seen.add(key)
+            # The metadata/presence writes above are unrelated to the artifact
+            # count and must always be applied for every already-processed
+            # result; only new-artifact expansion below is bounded by depth and
+            # the budget, so we `continue` (not `break`) once either is hit.
+            if current_depth >= config.max_depth or budget_reached:
+                continue
 
-                        # Store new artifact
-                        metadata_value = artifact.get("metadata")
-                        if metadata_value and isinstance(metadata_value, dict):
-                            metadata_value = json.dumps(metadata_value)
-                        
-                        new_id = db.add_artifact(
-                            conn,
-                            investigation_id=inv_id,
-                            artifact_type=artifact["type"],
-                            value=artifact["value"],
-                            source=artifact.get("source", "discovered"),
-                            confidence=artifact.get("confidence", 0.8),
-                            metadata=metadata_value,
-                            depth=current_depth + 1,
-                        )
-
-                        # Create link from source to discovered
-                        db.add_link(
-                            conn,
-                            investigation_id=inv_id,
-                            source_artifact=current_id,
-                            target_artifact=new_id,
-                            link_type=artifact.get("link_type", "discovered_from"),
-                            confidence=artifact.get("confidence", 0.8),
-                            evidence=artifact.get("source", ""),
-                        )
-
-                        # Add to queue for further investigation
-                        queue.append({
-                            "artifact_id": new_id,
-                            "type": artifact["type"],
-                            "value": artifact["value"],
-                            "depth": current_depth + 1,
-                        })
-                        added_count += 1
-                    logger.debug("Added %d new artifacts to queue", added_count)
-
-            except Exception as e:
-                logger.error("Error processing artifact %s=%s: %s", current["type"], current["value"], e)
-
-            processed_count += 1
-        else:
-            # Multiple artifacts - process concurrently with separate DB connections
-            logger.info("Processing batch of %d artifacts concurrently", len(batch))
-            
-            def process_artifact_with_db(current):
-                """Process artifact with its own DB connection."""
-                db_conn = db.get_connection()
-                try:
-                    current_depth = current["depth"]
-                    current_id = current["artifact_id"]
-                    
-                    logger.info(
-                        "Processing: %s=%s (depth=%d, queue_size=%d)",
-                        current["type"], current["value"], current_depth, len(queue)
+            for artifact in res.discovered:
+                key = f"{artifact['type']}:{artifact['value']}"
+                if key in seen:
+                    logger.debug("Skipping duplicate artifact: %s", key)
+                    continue
+                if len(seen) >= max_total_artifacts:
+                    logger.warning(
+                        "Artifact budget of %d reached; no further artifacts will be enqueued",
+                        max_total_artifacts,
                     )
-                    
-                    discovered = _process_artifact(db_conn, inv_id, current, config, plugin_manager)
-                    logger.debug("Discovered %d new artifacts from %s=%s", 
-                                len(discovered), current["type"], current["value"])
-                    
-                    new_artifacts = []
-                    if current_depth < config.max_depth:
-                        for artifact in discovered:
-                            key = f"{artifact['type']}:{artifact['value']}"
-                            metadata_value = artifact.get("metadata")
-                            if metadata_value and isinstance(metadata_value, dict):
-                                metadata_value = json.dumps(metadata_value)
-                            
-                            new_id = db.add_artifact(
-                                db_conn,
-                                investigation_id=inv_id,
-                                artifact_type=artifact["type"],
-                                value=artifact["value"],
-                                source=artifact.get("source", "discovered"),
-                                confidence=artifact.get("confidence", 0.8),
-                                metadata=metadata_value,
-                                depth=current_depth + 1,
-                            )
-                            
-                            db.add_link(
-                                db_conn,
-                                investigation_id=inv_id,
-                                source_artifact=current_id,
-                                target_artifact=new_id,
-                                link_type=artifact.get("link_type", "discovered_from"),
-                                confidence=artifact.get("confidence", 0.8),
-                                evidence=artifact.get("source", ""),
-                            )
-                            
-                            new_artifacts.append({
-                                "artifact_id": new_id,
-                                "type": artifact["type"],
-                                "value": artifact["value"],
-                                "depth": current_depth + 1,
-                                "key": key,
-                            })
-                    
-                    db_conn.commit()
-                    return new_artifacts
-                except Exception as e:
-                    logger.error("Error processing artifact %s=%s: %s", current["type"], current["value"], e)
-                    db_conn.rollback()
-                    return []
-                finally:
-                    db_conn.close()
-            
-            with ThreadPoolExecutor(max_workers=len(batch)) as executor:
-                futures = {executor.submit(process_artifact_with_db, current): current for current in batch}
-                
-                for future in as_completed(futures):
-                    try:
-                        new_artifacts = future.result()
-                        for new_artifact in new_artifacts:
-                            if new_artifact["key"] not in seen:
-                                seen.add(new_artifact["key"])
-                                queue.append(new_artifact)
-                        processed_count += 1
-                    except Exception as e:
-                        logger.error("Error in concurrent processing: %s", e)
-                        processed_count += 1
+                    budget_reached = True
+                    break
+                seen.add(key)
 
-        logger.info("BFS processing complete. Processed %d artifacts", processed_count)
+                metadata_value = artifact.get("metadata")
+                if metadata_value and isinstance(metadata_value, dict):
+                    metadata_value = json.dumps(metadata_value)
+
+                new_id = db.add_artifact(
+                    conn,
+                    investigation_id=inv_id,
+                    artifact_type=artifact["type"],
+                    value=artifact["value"],
+                    source=artifact.get("source", "discovered"),
+                    confidence=artifact.get("confidence", 0.8),
+                    metadata=metadata_value,
+                    depth=current_depth + 1,
+                )
+                db.add_link(
+                    conn,
+                    investigation_id=inv_id,
+                    source_artifact=current_id,
+                    target_artifact=new_id,
+                    link_type=artifact.get("link_type", "discovered_from"),
+                    confidence=artifact.get("confidence", 0.8),
+                    evidence=artifact.get("source", ""),
+                )
+                # Store & link every discovery, but only re-queue expandable
+                # types so leaf results don't drive further expensive tool runs.
+                if artifact["type"] in EXPANDABLE_ARTIFACT_TYPES:
+                    queue.append({
+                        "artifact_id": new_id,
+                        "type": artifact["type"],
+                        "value": artifact["value"],
+                        "depth": current_depth + 1,
+                    })
+
+        conn.commit()
+        logger.info(
+            "BFS level %d done in %.1fs (parallel=%.1fs, db=%.1fs); processed=%d, "
+            "seen=%d, next_level=%d",
+            level, time.monotonic() - level_start, parallel_s,
+            time.monotonic() - level_start - parallel_s,
+            processed_count, len(seen), len(queue),
+        )
+        if budget_reached:
+            break
+
+    logger.info(
+        "BFS processing complete: %d artifact(s) processed across %d level(s) in %.1fs",
+        processed_count, level, time.monotonic() - start_time,
+    )
     
     # Finalize
+    finalize_start = time.monotonic()
     logger.debug("Finalizing investigation %s", inv_id)
     db.complete_investigation(conn, inv_id)
 
@@ -477,14 +526,16 @@ def run_investigation(
                         ", ".join(result.risk_indicators[5:]))
 
     logger.info(
-        "Investigation %s complete: %d artifacts, %d links, %d platforms, %d risk indicators",
-        inv_id, result.total_artifacts, result.total_links, result.total_platforms, len(result.risk_indicators)
+        "Investigation %s complete: %d artifacts, %d links, %d platforms, %d risk indicators "
+        "(finalize/correlation=%.1fs, total=%.1fs)",
+        inv_id, result.total_artifacts, result.total_links, result.total_platforms,
+        len(result.risk_indicators),
+        time.monotonic() - finalize_start, time.monotonic() - start_time,
     )
     return result
 
 
 def _process_artifacts_generator(
-    conn: sqlite3.Connection,
     inv_id: str,
     artifacts: list[dict],
     config: InvestigationConfig,
@@ -496,7 +547,6 @@ def _process_artifacts_generator(
     Yields discovered artifacts one at a time instead of building a large list.
     
     Args:
-        conn: Database connection
         inv_id: Investigation ID
         artifacts: List of artifacts to process
         config: Investigation configuration
@@ -506,8 +556,7 @@ def _process_artifacts_generator(
         Discovered artifacts one at a time
     """
     for artifact in artifacts:
-        discovered = _process_artifact(conn, inv_id, artifact, config, plugin_manager)
-        yield from discovered
+        yield from _process_artifact(inv_id, artifact, config, plugin_manager).discovered
 
 
 def _get_artifacts_stream(
@@ -549,14 +598,19 @@ def _get_artifacts_stream(
 
 
 def _process_artifact(
-    conn: sqlite3.Connection,
     inv_id: str,
     artifact: dict,
     config: InvestigationConfig,
     plugin_manager: PluginManager = None,
-) -> list[dict]:
-    """Process a single artifact through the appropriate OSINT module."""
-    discovered = []
+) -> ArtifactProcessResult:
+    """Process a single artifact through the appropriate OSINT module.
+
+    Performs only network/subprocess work (no DB writes). The type-specific
+    helpers populate ``result.source_metadata`` and ``result.platform_presences``
+    with descriptions of the writes the main thread should later apply, and
+    append any newly discovered artifacts to ``result.discovered``.
+    """
+    result = ArtifactProcessResult(artifact=artifact)
     artifact_type = artifact["type"]
     value = artifact["value"]
 
@@ -564,19 +618,19 @@ def _process_artifact(
 
     if artifact_type == "phone":
         logger.debug("Processing phone number with phone_osint module")
-        discovered.extend(_process_phone(conn, inv_id, artifact, value, config))
+        _process_phone(value, config, result)
     elif artifact_type == "email":
         logger.debug("Processing email address with email_osint module")
-        discovered.extend(_process_email(conn, inv_id, artifact, value, config))
+        _process_email(value, config, result)
     elif artifact_type == "username":
         logger.debug("Processing username with username_search module")
-        discovered.extend(_process_username(conn, inv_id, artifact, value, config))
+        _process_username(value, config, result)
     elif artifact_type == "image":
         logger.debug("Processing image with image_search module")
-        discovered.extend(_process_image(conn, inv_id, artifact, value, config))
+        _process_image(value, config, result)
     elif artifact_type == "fullname":
         logger.debug("Processing full name with image_match module")
-        discovered.extend(_process_fullname(conn, inv_id, artifact, value, config))
+        _process_fullname(value, config, result)
     elif artifact_type == "platform_presence":
         logger.debug("Processing platform presence URL with plugin system")
         # Platform presence URLs are processed by plugins (e.g., profile image extraction)
@@ -584,34 +638,31 @@ def _process_artifact(
     else:
         logger.warning("Unknown artifact type: %s", artifact_type)
 
-    logger.debug("OSINT module returned %d discovered artifacts", len(discovered))
+    logger.debug("OSINT module returned %d discovered artifacts", len(result.discovered))
     
     # Process with external OSINT tools if enabled
     if config.check_external_tools:
         logger.debug("Processing artifact with external OSINT tools")
-        external_discovered = _process_external_tools(conn, inv_id, artifact, config)
-        discovered.extend(external_discovered)
+        external_discovered = _process_external_tools(inv_id, artifact, config)
+        result.discovered.extend(external_discovered)
         logger.debug("External tools returned %d additional artifacts", len(external_discovered))
     
     # Process with plugin system if available
     if plugin_manager:
         logger.debug("Processing artifact with plugin system")
-        plugin_discovered = _process_with_plugins(conn, inv_id, artifact, config, plugin_manager)
-        discovered.extend(plugin_discovered)
+        plugin_discovered = _process_with_plugins(artifact, config, plugin_manager)
+        result.discovered.extend(plugin_discovered)
         logger.debug("Plugin system returned %d additional artifacts", len(plugin_discovered))
     
-    return discovered
+    return result
 
 
 def _process_phone(
-    conn: sqlite3.Connection,
-    inv_id: str,
-    artifact: dict,
     value: str,
     config: InvestigationConfig,
-) -> list[dict]:
-    """Process a phone number artifact."""
-    discovered = []
+    result: ArtifactProcessResult,
+) -> None:
+    """Process a phone number artifact (network only; DB writes deferred)."""
     try:
         logger.debug("Analyzing phone number: %s", value)
         analysis = phone_osint.analyze_phone(value)
@@ -619,18 +670,12 @@ def _process_phone(
         logger.debug("Phone analysis complete: valid=%s, carrier=%s, line_type=%s", 
                     analysis.valid, analysis.carrier_name, analysis.line_type)
 
-        # Store analysis metadata
-        metadata = analysis.to_json()
-        conn.execute(
-            "UPDATE artifacts SET metadata = ? WHERE artifact_id = ?",
-            (metadata, artifact["artifact_id"]),
-        )
-        conn.commit()
-        logger.debug("Stored phone analysis metadata for artifact %s", artifact["artifact_id"])
+        # Defer metadata write to the main thread.
+        result.source_metadata = analysis.to_json()
 
         # Extract discovered artifacts
         phone_artifacts = phone_osint.get_discovered_artifacts(analysis)
-        discovered.extend(phone_artifacts)
+        result.discovered.extend(phone_artifacts)
         logger.debug("Extracted %d artifacts from phone analysis", len(phone_artifacts))
 
         # Add risk indicators
@@ -638,7 +683,7 @@ def _process_phone(
             logger.debug("Found %d phone risk indicators: %s", 
                         len(analysis.risk_indicators), ", ".join(analysis.risk_indicators))
             for indicator in analysis.risk_indicators:
-                discovered.append({
+                result.discovered.append({
                     "type": "risk_indicator",
                     "value": indicator,
                     "source": "phone_osint",
@@ -649,18 +694,13 @@ def _process_phone(
     except Exception as e:
         logger.error("Phone OSINT failed for %s: %s", value, e)
 
-    return discovered
-
 
 def _process_email(
-    conn: sqlite3.Connection,
-    inv_id: str,
-    artifact: dict,
     value: str,
     config: InvestigationConfig,
-) -> list[dict]:
-    """Process an email artifact."""
-    discovered = []
+    result: ArtifactProcessResult,
+) -> None:
+    """Process an email artifact (network only; DB writes deferred)."""
     try:
         logger.debug("Analyzing email address: %s", value)
         analysis = email_osint.analyze_email(value)
@@ -668,32 +708,23 @@ def _process_email(
         logger.debug("Email analysis complete: valid=%s, disposable=%s, domain=%s", 
                     analysis.valid_format, analysis.is_disposable, analysis.domain)
 
-        # Store analysis metadata
-        metadata = analysis.to_json()
-        conn.execute(
-            "UPDATE artifacts SET metadata = ? WHERE artifact_id = ?",
-            (metadata, artifact["artifact_id"]),
-        )
-        conn.commit()
-        logger.debug("Stored email analysis metadata for artifact %s", artifact["artifact_id"])
+        # Defer metadata write to the main thread.
+        result.source_metadata = analysis.to_json()
 
-        # Record platform presences
+        # Queue platform presences for the main thread to persist.
         if analysis.platforms_found:
             logger.debug("Recording %d platform presences for email %s", 
                         len(analysis.platforms_found), value)
             for platform in analysis.platforms_found:
-                db.add_platform_presence(
-                    conn,
-                    investigation_id=inv_id,
-                    artifact_id=artifact["artifact_id"],
-                    platform_name=platform.get("platform", "unknown"),
-                    profile_url=platform.get("profile_url"),
-                    username=platform.get("username"),
-                )
+                result.platform_presences.append({
+                    "platform_name": platform.get("platform", "unknown"),
+                    "profile_url": platform.get("profile_url"),
+                    "username": platform.get("username"),
+                })
 
         # Extract discovered artifacts
         email_artifacts = email_osint.get_discovered_artifacts(analysis)
-        discovered.extend(email_artifacts)
+        result.discovered.extend(email_artifacts)
         logger.debug("Extracted %d artifacts from email analysis", len(email_artifacts))
 
         # Breach check
@@ -714,13 +745,13 @@ def _process_email(
             breach_artifacts = breach_check.get_discovered_artifacts(breach_result)
             for ba in breach_artifacts:
                 ba["link_type"] = "found_in_breach"
-            discovered.extend(breach_artifacts)
+            result.discovered.extend(breach_artifacts)
 
         # Try username from email local part
         local_part = value.split("@")[0]
         if config.search_usernames and len(local_part) >= 3:
             logger.debug("Extracted username from email local part: %s", local_part)
-            discovered.append({
+            result.discovered.append({
                 "type": "username",
                 "value": local_part,
                 "source": "email_local_part",
@@ -731,60 +762,48 @@ def _process_email(
     except Exception as e:
         logger.error("Email OSINT failed for %s: %s", value, e)
 
-    return discovered
-
 
 def _process_username(
-    conn: sqlite3.Connection,
-    inv_id: str,
-    artifact: dict,
     value: str,
     config: InvestigationConfig,
-) -> list[dict]:
-    """Process a username artifact."""
-    discovered = []
+    result: ArtifactProcessResult,
+) -> None:
+    """Process a username artifact (network only; DB writes deferred)."""
     try:
         if not config.search_usernames:
-            return discovered
+            return
 
         search_result = username_search.search_username(value)
 
-        # Store search result metadata
-        metadata = search_result.to_json()
-        conn.execute(
-            "UPDATE artifacts SET metadata = ? WHERE artifact_id = ?",
-            (metadata, artifact["artifact_id"]),
-        )
-        conn.commit()
+        # Defer metadata write to the main thread.
+        result.source_metadata = search_result.to_json()
 
-        # Record platform presences
+        # Queue platform presences for the main thread to persist.
         for platform in search_result.platforms_found:
             # Resolve a profile image for this platform. Prefer the avatar URL
             # already returned by the platform's API (GitHub/GitLab); otherwise
-            # scrape the profile page using the image_match heuristics.
+            # scrape the profile page using the image_match heuristics. This is
+            # network I/O only, so it stays in the worker; the write is deferred.
             profile_image_url = platform.avatar_url
             if not profile_image_url and platform.profile_url:
                 profile_image_url = image_match.extract_profile_image_from_url(
                     platform.profile_url
                 )
 
-            db.add_platform_presence(
-                conn,
-                investigation_id=inv_id,
-                artifact_id=artifact["artifact_id"],
-                platform_name=platform.platform_name,
-                profile_url=platform.profile_url,
-                username=platform.username,
-                display_name=platform.display_name,
-                bio=platform.bio,
-                follower_count=platform.follower_count,
-                profile_image_url=profile_image_url,
-            )
+            result.platform_presences.append({
+                "platform_name": platform.platform_name,
+                "profile_url": platform.profile_url,
+                "username": platform.username,
+                "display_name": platform.display_name,
+                "bio": platform.bio,
+                "follower_count": platform.follower_count,
+                "profile_image_url": profile_image_url,
+            })
 
             # Store the profile image as an image-type artifact linked to the
             # identity so it is available for correlation and reporting.
             if profile_image_url:
-                discovered.append({
+                result.discovered.append({
                     "type": "image",
                     "value": profile_image_url,
                     "source": f"profile_image_{platform.platform_name.lower().replace('/', '_')}",
@@ -798,23 +817,18 @@ def _process_username(
                 })
 
         # Extract platform presences as new artifacts
-        discovered.extend(username_search.get_discovered_artifacts(search_result))
+        result.discovered.extend(username_search.get_discovered_artifacts(search_result))
 
     except Exception as e:
         logger.error("Username search failed for %s: %s", value, e)
 
-    return discovered
-
 
 def _process_fullname(
-    conn: sqlite3.Connection,
-    inv_id: str,
-    artifact: dict,
     value: str,
     config: InvestigationConfig,
-) -> list[dict]:
-    """Process a full name artifact using image matching."""
-    discovered = []
+    result: ArtifactProcessResult,
+) -> None:
+    """Process a full name artifact using image matching (DB writes deferred)."""
     try:
         logger.debug("Processing full name with image matching: %s", value)
         
@@ -824,13 +838,8 @@ def _process_fullname(
             max_results=20
         )
         
-        # Store match result metadata
-        metadata = match_result.to_dict()
-        conn.execute(
-            "UPDATE artifacts SET metadata = ? WHERE artifact_id = ?",
-            (json.dumps(metadata), artifact["artifact_id"]),
-        )
-        conn.commit()
+        # Defer metadata write to the main thread.
+        result.source_metadata = json.dumps(match_result.to_dict())
         
         logger.info(
             "Image match complete for %s: %d images, %d face matches, probability=%.2f",
@@ -838,12 +847,12 @@ def _process_fullname(
         )
         
         # Extract discovered artifacts
-        discovered.extend(image_match.get_discovered_artifacts(match_result))
+        result.discovered.extend(image_match.get_discovered_artifacts(match_result))
         
         # Add high-probability face matches as identity artifacts
         for match in match_result.face_matches:
             if match.match_probability > 0.7:
-                discovered.append({
+                result.discovered.append({
                     "type": "identity_match",
                     "value": match.image_url,
                     "source": f"face_match_{match.source.lower().replace(' ', '_')}",
@@ -854,7 +863,7 @@ def _process_fullname(
         
         # Add overall probability as a risk/quality indicator
         if match_result.overall_probability > 0.8:
-            discovered.append({
+            result.discovered.append({
                 "type": "identity_confidence",
                 "value": f"high_confidence_{match_result.overall_probability:.2f}",
                 "source": "image_match",
@@ -865,178 +874,151 @@ def _process_fullname(
     
     except Exception as e:
         logger.error("Image match failed for %s: %s", value, e)
-    
-    return discovered
 
 
 def _process_external_tools(
-    conn: sqlite3.Connection,
     inv_id: str,
     artifact: dict,
     config: InvestigationConfig,
 ) -> list[dict]:
-    """Process artifact using external OSINT tools when available."""
-    discovered = []
+    """Process artifact using external OSINT tools when available.
+
+    The independent tool calls for an artifact are dispatched concurrently and
+    their discovered artifacts aggregated, so a run's latency is bounded by the
+    slowest tool rather than the sum of them. No DB writes happen here.
+    """
+    discovered: list[dict] = []
     artifact_type = artifact["type"]
     value = artifact["value"]
-    
+
     if not config.check_external_tools:
         return discovered
-    
+
     logger.debug("Processing artifact with external OSINT tools: %s=%s", artifact_type, value)
-    
+
+    # Build a list of independent (name, callable) tool tasks for this artifact.
+    # Each callable performs one tool run and returns a list of discovered
+    # artifacts; they are executed concurrently below.
+    tasks: list[tuple[str, Any]] = []
+
+    def _tool_task(tool: str, analysis: str, label: str):
+        def _run() -> list[dict]:
+            logger.debug("Running %s (%s) for: %s", tool, analysis, value)
+            res = run_tool_analysis(tool, analysis, value)
+            if res.success and res.artifacts_discovered:
+                logger.info("%s found %d artifacts for %s",
+                            label, len(res.artifacts_discovered), value)
+                return res.artifacts_discovered
+            logger.debug("%s skipped or found nothing for %s", label, value)
+            return []
+        return _run
+
     try:
-        # Username-based external tools
         if artifact_type == "username":
-            # Run Sherlock for comprehensive username search
             if check_tool_availability("sherlock"):
-                logger.debug("Running Sherlock username search for: %s", value)
-                sherlock_result = run_tool_analysis("sherlock", "username_search", value)
-                
-                if sherlock_result.success and sherlock_result.artifacts_discovered:
-                    discovered.extend(sherlock_result.artifacts_discovered)
-                    logger.info("Sherlock found %d artifacts for username %s", 
-                               len(sherlock_result.artifacts_discovered), value)
-                else:
-                    logger.debug("Sherlock skipped or failed for %s", value)
-            
-            # Run Google Dorks for advanced username discovery
+                tasks.append(("sherlock", _tool_task("sherlock", "username_search", "Sherlock")))
+
             if check_google_dorks_availability(config.google_api_key):
-                logger.debug("Running Google Dorks search for: %s", value)
-                google_dorks_result = run_google_dorks_search(
-                    username=value,
-                    api_key=config.google_api_key,
-                    cx=config.google_cx,
-                    use_api=config.use_google_api,
-                    search_engine=config.search_engine
-                )
-                
-                if google_dorks_result:
-                    discovered.extend(google_dorks_result)
-                    logger.info("Google Dorks found %d artifacts for username %s", 
-                               len(google_dorks_result), value)
-                else:
+                def _google_dorks() -> list[dict]:
+                    logger.debug("Running Google Dorks search for: %s", value)
+                    res = run_google_dorks_search(
+                        username=value,
+                        api_key=config.google_api_key,
+                        cx=config.google_cx,
+                        use_api=config.use_google_api,
+                        search_engine=config.search_engine,
+                    )
+                    if res:
+                        logger.info("Google Dorks found %d artifacts for username %s",
+                                    len(res), value)
+                        return res
                     logger.debug("Google Dorks found no results for %s", value)
-        
-        # Domain-based external tools
+                    return []
+                tasks.append(("google_dorks", _google_dorks))
+
         elif artifact_type == "domain":
-            # Run theHarvester for email and subdomain discovery
             if check_tool_availability("theharvester"):
-                logger.debug("Running theHarvester for domain: %s", value)
-                harvest_result = run_tool_analysis("theharvester", "email_harvest", value)
-                
-                if harvest_result.success and harvest_result.artifacts_discovered:
-                    discovered.extend(harvest_result.artifacts_discovered)
-                    logger.info("theHarvester found %d emails for domain %s", 
-                               len(harvest_result.artifacts_discovered), value)
-                
-                # Also harvest subdomains
-                subdomain_result = run_tool_analysis("theharvester", "subdomain_harvest", value)
-                if subdomain_result.success and subdomain_result.artifacts_discovered:
-                    discovered.extend(subdomain_result.artifacts_discovered)
-                    logger.info("theHarvester found %d subdomains for domain %s", 
-                               len(subdomain_result.artifacts_discovered), value)
-            
-            # Run Amass for subdomain enumeration
+                tasks.append(("theharvester_email",
+                              _tool_task("theharvester", "email_harvest", "theHarvester (email)")))
+                tasks.append(("theharvester_subdomain",
+                              _tool_task("theharvester", "subdomain_harvest", "theHarvester (subdomain)")))
             if check_tool_availability("amass"):
-                logger.debug("Running Amass subdomain enumeration for: %s", value)
-                amass_result = run_tool_analysis("amass", "subdomain_enum", value)
-                
-                if amass_result.success and amass_result.artifacts_discovered:
-                    discovered.extend(amass_result.artifacts_discovered)
-                    logger.info("Amass found %d subdomains for domain %s", 
-                               len(amass_result.artifacts_discovered), value)
-            
-            # Run Whois for domain information
+                tasks.append(("amass", _tool_task("amass", "subdomain_enum", "Amass")))
             if check_tool_availability("whois"):
-                logger.debug("Running Whois lookup for: %s", value)
-                whois_result = run_tool_analysis("whois", "domain_lookup", value)
-                
-                if whois_result.success and whois_result.artifacts_discovered:
-                    discovered.extend(whois_result.artifacts_discovered)
-                    logger.info("Whois found %d artifacts for domain %s", 
-                               len(whois_result.artifacts_discovered), value)
-            
-            # Run Dig for DNS records
+                tasks.append(("whois", _tool_task("whois", "domain_lookup", "Whois")))
             if check_tool_availability("dig"):
-                logger.debug("Running Dig DNS lookup for: %s", value)
-                dig_result = run_tool_analysis("dig", "dns_lookup", value)
-                
-                if dig_result.success and dig_result.artifacts_discovered:
-                    discovered.extend(dig_result.artifacts_discovered)
-                    logger.info("Dig found %d DNS records for domain %s", 
-                               len(dig_result.artifacts_discovered), value)
-            
-            # Run Wayback Machine for historical data
-            wayback_result = run_tool_analysis("wayback_machine", "historical_urls", value)
-            if wayback_result.success and wayback_result.artifacts_discovered:
-                discovered.extend(wayback_result.artifacts_discovered)
-                logger.info("Wayback Machine found %d historical URLs for %s", 
-                           len(wayback_result.artifacts_discovered), value)
-        
-        # IP-based external tools
+                tasks.append(("dig", _tool_task("dig", "dns_lookup", "Dig")))
+            # Wayback Machine uses a public API and runs regardless of local tools.
+            tasks.append(("wayback_machine",
+                          _tool_task("wayback_machine", "historical_urls", "Wayback Machine")))
+
         elif artifact_type == "ip_address":
-            # Run Shodan for host information
             if check_tool_availability("shodan"):
-                logger.debug("Running Shodan search for: %s", value)
-                shodan_result = run_tool_analysis("shodan", "host_search", value)
-                
-                if shodan_result.success and shodan_result.artifacts_discovered:
-                    discovered.extend(shodan_result.artifacts_discovered)
-                    logger.info("Shodan found %d artifacts for IP %s", 
-                               len(shodan_result.artifacts_discovered), value)
-            
-            # Run Nmap for port scanning
+                tasks.append(("shodan", _tool_task("shodan", "host_search", "Shodan")))
             if check_tool_availability("nmap"):
-                logger.debug("Running Nmap scan for: %s", value)
-                nmap_result = run_tool_analysis("nmap", "host_scan", value)
-                
-                if nmap_result.success and nmap_result.artifacts_discovered:
-                    discovered.extend(nmap_result.artifacts_discovered)
-                    logger.info("Nmap found %d open ports on %s", 
-                               len(nmap_result.artifacts_discovered), value)
-        
-        # Image-based external tools
+                tasks.append(("nmap", _tool_task("nmap", "host_scan", "Nmap")))
+
         elif artifact_type == "image":
-            # Run ExifTool for metadata extraction
             if check_tool_availability("exiftool"):
-                logger.debug("Running ExifTool on image: %s", value)
-                exif_result = run_tool_analysis("exiftool", "metadata_extract", value)
-                
-                if exif_result.success and exif_result.artifacts_discovered:
-                    discovered.extend(exif_result.artifacts_discovered)
-                    logger.info("ExifTool found %d artifacts in image %s", 
-                               len(exif_result.artifacts_discovered), value)
-        
-        # Email-based external tools
+                tasks.append(("exiftool", _tool_task("exiftool", "metadata_extract", "ExifTool")))
+
         elif artifact_type == "email":
-            # Extract domain from email for domain-based analysis
+            # Extract domain from email for domain-based analysis (no tool run).
             if "@" in value:
                 domain = value.split("@")[1]
-                domain_artifact = {
+                discovered.append({
                     "type": "domain",
                     "value": domain,
                     "source": "email_domain_extraction",
                     "confidence": 0.7,
-                    "link_type": "domain_of_email"
-                }
-                discovered.append(domain_artifact)
+                    "link_type": "domain_of_email",
+                })
                 logger.debug("Extracted domain from email: %s", domain)
-    
+
+        discovered.extend(_run_external_tool_tasks(tasks))
+
     except Exception as e:
         logger.error("External tools processing failed for %s: %s", value, e)
-    
+
     return discovered
 
 
+def _run_external_tool_tasks(tasks: "list[tuple[str, Any]]") -> list[dict]:
+    """Run independent external-tool callables concurrently and aggregate results.
+
+    Sherlock, Google Dorks, theHarvester, Amass, Whois, Dig, Wayback, etc. for a
+    single artifact are independent, so running them in parallel bounds latency
+    by the slowest tool instead of their sum.
+    """
+    aggregated: list[dict] = []
+    if not tasks:
+        return aggregated
+
+    if len(tasks) == 1:
+        name, fn = tasks[0]
+        try:
+            aggregated.extend(fn() or [])
+        except Exception as e:
+            logger.error("External tool %s failed: %s", name, e)
+        return aggregated
+
+    with ThreadPoolExecutor(max_workers=len(tasks)) as executor:
+        futures = {executor.submit(fn): name for name, fn in tasks}
+        for future in as_completed(futures):
+            name = futures[future]
+            try:
+                aggregated.extend(future.result() or [])
+            except Exception as e:
+                logger.error("External tool %s failed: %s", name, e)
+    return aggregated
+
+
 def _process_with_plugins(
-    conn: sqlite3.Connection,
-    inv_id: str,
     artifact: dict,
     config: InvestigationConfig,
     plugin_manager: PluginManager,
 ) -> list[dict]:
-    """Process artifact using the plugin system."""
+    """Process artifact using the plugin system (network only; no DB writes)."""
     discovered = []
     
     try:
@@ -1078,32 +1060,22 @@ def _process_with_plugins(
 
 
 def _process_image(
-    conn: sqlite3.Connection,
-    inv_id: str,
-    artifact: dict,
     value: str,
     config: InvestigationConfig,
-) -> list[dict]:
-    """Process an image artifact."""
-    discovered = []
+    result: ArtifactProcessResult,
+) -> None:
+    """Process an image artifact (network only; DB writes deferred)."""
     try:
         if not config.check_images:
-            return discovered
+            return
 
         analysis = image_search.analyze_image(value)
 
-        # Store analysis metadata
-        metadata = analysis.to_json()
-        conn.execute(
-            "UPDATE artifacts SET metadata = ? WHERE artifact_id = ?",
-            (metadata, artifact["artifact_id"]),
-        )
-        conn.commit()
+        # Defer metadata write to the main thread.
+        result.source_metadata = analysis.to_json()
 
         # Extract discovered artifacts
-        discovered.extend(image_search.get_discovered_artifacts(analysis))
+        result.discovered.extend(image_search.get_discovered_artifacts(analysis))
 
     except Exception as e:
         logger.error("Image analysis failed for %s: %s", value, e)
-
-    return discovered
