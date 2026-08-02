@@ -38,6 +38,7 @@ VERSION:
 1.2 - All configurations moved to config.yaml
 """
 
+import importlib.util
 import logging
 import random
 import time
@@ -52,6 +53,20 @@ from src.config.loader import get_config
 from src.utils.concurrency import io_slot
 
 logger = logging.getLogger(__name__)
+
+
+def _supported_encodings() -> str:
+    """Advertise only the content encodings urllib3 can actually decode.
+
+    Asking for br/zstd without the matching decoder installed yields responses
+    whose ``.text`` is undecoded binary, silently breaking every HTML parser
+    downstream.
+    """
+    encodings = ["gzip", "deflate"]
+    for module, encoding in (("brotli", "br"), ("brotlicffi", "br"), ("zstandard", "zstd")):
+        if encoding not in encodings and importlib.util.find_spec(module):
+            encodings.append(encoding)
+    return ", ".join(encodings)
 
 
 class _BoundedSession(requests.Session):
@@ -171,7 +186,7 @@ def _create_optimized_session() -> requests.Session:
     user_agents = config["user_agents"]
     session.headers.update({
         "Accept": "application/json, text/html, */*",
-        "Accept-Encoding": "gzip, deflate, br",
+        "Accept-Encoding": _supported_encodings(),
         "User-Agent": random.choice(user_agents),
         "Connection": "keep-alive",
     })
