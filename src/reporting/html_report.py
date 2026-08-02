@@ -80,6 +80,7 @@ from jinja2 import Environment, BaseLoader
 
 from src.correlation.linker import correlate_identities
 from src.correlation.scorer import compute_identity_risk_score, classify_risk_level
+from src.modules.external_tools import TOOL_ARTIFACT_TYPES
 from src.storage import database as db
 
 logger = logging.getLogger(__name__)
@@ -249,7 +250,21 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         }
         .stat-value { font-size: 2rem; font-weight: 700; color: #1e3a5f; }
         .stat-label { font-size: 0.8rem; color: #718096; text-transform: uppercase; letter-spacing: 0.5px; }
-        
+
+        /* Tool metrics infographic. Bars are plain divs sized with an inline
+           width percentage so the report stays a single self-contained file
+           with no chart library and prints correctly. */
+        .tool-chart { display: grid; grid-template-columns: 11rem 1fr 4rem; gap: 0.5rem 0.75rem; align-items: center; }
+        .tool-chart-name { font-size: 0.85rem; font-weight: 600; color: #2d3748; word-break: break-all; }
+        .tool-chart-track { background: #edf2f7; border-radius: 3px; height: 1.4rem; overflow: hidden; }
+        .tool-chart-bar { background: #3182ce; height: 100%; border-radius: 3px; min-width: 2px; }
+        .tool-chart-count { font-size: 0.85rem; color: #4a5568; text-align: right; font-variant-numeric: tabular-nums; }
+        .type-bar { display: flex; width: 100%; height: 1.6rem; border-radius: 3px; overflow: hidden; border: 1px solid #e2e8f0; margin-bottom: 0.75rem; }
+        .type-bar-slice { height: 100%; }
+        .type-legend { display: flex; flex-wrap: wrap; gap: 0.5rem 1rem; font-size: 0.8rem; color: #4a5568; }
+        .type-legend-swatch { display: inline-block; width: 0.7rem; height: 0.7rem; border-radius: 2px; margin-right: 0.35rem; }
+        .silent-tools { font-size: 0.85rem; color: #718096; }
+
         /* Evidence Chain */
         .evidence-chain { 
             font-family: 'Courier New', monospace; 
@@ -651,8 +666,93 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         </table>
     </div>
 
+    <!-- Tool Metrics -->
+    <h2>3. Tool Metrics</h2>
+    <p class="section-blurb">What each OSINT tool actually contributed to this investigation: how many artifacts it produced, of which types, at what average confidence, and how many identity profiles its output reached. Seeded artifacts are excluded, so the totals here count only discovered evidence.</p>
+    <div class="card">
+        {% if tool_metrics.tools %}
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-value">{{ tool_metrics.tool_count }}</div>
+                <div class="stat-label">Tools Producing Output</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value">{{ tool_metrics.attributed }}</div>
+                <div class="stat-label">Tool-Derived Artifacts</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value">{{ tool_metrics.top_tool }}</div>
+                <div class="stat-label">Highest Yield</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value">{{ tool_metrics.types | length }}</div>
+                <div class="stat-label">Artifact Types Covered</div>
+            </div>
+        </div>
+
+        <h3>Artifacts per Tool</h3>
+        <p class="subsection-blurb">Bar length is relative to the highest-yielding tool. Volume is not quality &mdash; a single domain_info record can outweigh fifty profile hits.</p>
+        <div class="tool-chart">
+            {% for tool in tool_metrics.tools %}
+            <div class="tool-chart-name">{{ tool.tool }}</div>
+            <div class="tool-chart-track">
+                <div class="tool-chart-bar" style="width: {{ (tool.count * 100 // tool_metrics.max_count) if tool_metrics.max_count else 0 }}%;"></div>
+            </div>
+            <div class="tool-chart-count">{{ tool.count }}</div>
+            {% endfor %}
+        </div>
+
+        <h3>Artifact Type Mix</h3>
+        <p class="subsection-blurb">Share of tool-derived artifacts by type across the whole investigation.</p>
+        <div class="type-bar">
+            {% for type in tool_metrics.types %}
+            <div class="type-bar-slice" style="width: {{ type.share }}%; background: {{ type.color }};"
+                 title="{{ type.type }}: {{ type.count }}"></div>
+            {% endfor %}
+        </div>
+        <div class="type-legend">
+            {% for type in tool_metrics.types %}
+            <span>
+                <span class="type-legend-swatch" style="background: {{ type.color }};"></span>
+                {{ type.type }} &mdash; {{ type.count }} ({{ type.share }}%)
+            </span>
+            {% endfor %}
+        </div>
+
+        <h3>Per-Tool Breakdown</h3>
+        <table>
+            <thead>
+                <tr><th>Tool</th><th>Artifacts</th><th>Share</th><th>Avg. confidence</th><th>Identities reached</th><th>Artifact types</th></tr>
+            </thead>
+            <tbody>
+                {% for tool in tool_metrics.tools %}
+                <tr>
+                    <td>{{ tool.tool }}</td>
+                    <td>{{ tool.count }}</td>
+                    <td>{{ tool.share }}%</td>
+                    <td>{{ "%.2f" | format(tool.avg_confidence) }}</td>
+                    <td>{{ tool.identities }}</td>
+                    <td>
+                        {% for type in tool.types %}
+                        <span class="badge badge-{{ type.type }}">{{ type.type }} {{ type.count }}</span>
+                        {% endfor %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+        {% if tool_metrics.silent_tools %}
+        <p class="silent-tools">Integrated but silent in this run ({{ tool_metrics.silent_tools | length }} of {{ tool_metrics.integrated_count }}):
+           {{ tool_metrics.silent_tools | join(', ') }}. A tool is silent when it is not installed, was never dispatched for the artifact types seen here, or ran and found nothing.</p>
+        {% endif %}
+        {% else %}
+        <p class="empty-note">No tool-derived artifacts in this investigation &mdash; every artifact came from the seeds.</p>
+        {% endif %}
+    </div>
+
     <!-- Platform Presence -->
-    <h2>3. Platform Presence</h2>
+    <h2>4. Platform Presence</h2>
     <p class="section-blurb">All discovered social media and online platform accounts with direct profile links for verification and understanding the target's online behavior and communication channels. Expand a platform to review the captured profile details.</p>
     <div class="card">
         {% if presences %}
@@ -702,7 +802,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     </div>
 
     <!-- Relationship Graph -->
-    <h2>4. Relationship Graph</h2>
+    <h2>5. Relationship Graph</h2>
     <p class="section-blurb">Visual network diagram showing connections between artifacts and identities, helping identify clusters, central nodes, and relationship patterns for understanding social connections and potential attack vectors.</p>
     <div class="card">
         <div class="graph-container">
@@ -711,7 +811,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     </div>
 
     <!-- Artifacts -->
-    <h2>5. Discovered Artifacts</h2>
+    <h2>6. Discovered Artifacts</h2>
     <p class="section-blurb">Complete inventory of all data points found (emails, usernames, phone numbers, domains, etc.) with source attribution, confidence scores, and discovery depth. Expand an artifact to review its full metadata and the links that connect it to the rest of the investigation.</p>
     <div class="card">
         {% if artifact_views %}
@@ -992,6 +1092,36 @@ TECHNICAL_TEMPLATE = """<!DOCTYPE html>
             </table>
         </div>
         
+        <h2>Tool Metrics</h2>
+        <div class="card">
+            {% if tool_metrics.tools %}
+            <p>{{ tool_metrics.tool_count }} tools produced {{ tool_metrics.attributed }} artifacts
+               across {{ tool_metrics.types | length }} artifact types.</p>
+            <table>
+                <thead>
+                    <tr><th>Tool</th><th>Artifacts</th><th>Share</th><th>Avg. confidence</th><th>Identities reached</th><th>Artifact types</th></tr>
+                </thead>
+                <tbody>
+                    {% for tool in tool_metrics.tools %}
+                    <tr>
+                        <td>{{ tool.tool }}</td>
+                        <td>{{ tool.count }}</td>
+                        <td>{{ tool.share }}%</td>
+                        <td>{{ "%.2f" | format(tool.avg_confidence) }}</td>
+                        <td>{{ tool.identities }}</td>
+                        <td>{% for type in tool.types %}{{ type.type }} ({{ type.count }}){% if not loop.last %}, {% endif %}{% endfor %}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% if tool_metrics.silent_tools %}
+            <p>Integrated but silent in this run: {{ tool_metrics.silent_tools | join(', ') }}.</p>
+            {% endif %}
+            {% else %}
+            <p>No tool-derived artifacts in this investigation.</p>
+            {% endif %}
+        </div>
+
         <h2>External Tool Findings by Identity</h2>
         {% for identity in correlation.identities %}
         <div class="card">
@@ -1358,6 +1488,9 @@ def generate_html_report(
     # Generate audit trail
     audit_trail = db.get_audit_trail(conn, investigation_id)
 
+    # Per-tool contribution metrics for the infographic
+    tool_metrics = _generate_tool_metrics(artifacts, correlation)
+
     # Build drill-down views (parsed metadata, connected links, identity attribution)
     artifact_views = _build_artifact_views(artifacts, links, correlation)
     identity_artifacts = _build_identity_artifacts(artifact_views, correlation)
@@ -1391,6 +1524,7 @@ def generate_html_report(
         anomaly_detection=anomaly_detection,
         auto_escalation=auto_escalation,
         audit_trail=audit_trail,
+        tool_metrics=tool_metrics,
         generated_at=datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC"),
     )
 
@@ -1898,6 +2032,116 @@ def _generate_auto_escalation(artifacts: list, links: list, risk_levels: list, c
     }
 
 
+# Slice colours for the artifact-type mix bar, cycled in rank order.
+_TYPE_COLORS = (
+    "#3182ce", "#38a169", "#dd6b20", "#805ad5", "#319795",
+    "#d53f8c", "#718096", "#b7791f", "#2b6cb0", "#c53030",
+)
+
+
+def _normalize_tool_source(source: Optional[str]) -> Optional[str]:
+    """Reduce an artifact's `source` to the tool that produced it.
+
+    Sources are written by three different layers and none of them agree on a
+    format: the external-tool path writes the bare tool name, the plugin path
+    prefixes `plugin:` and uses the class name, and the built-in scrapers append
+    the platform they scraped (`username_search_github`). Without folding those
+    together the same tool shows up as three separate rows.
+    """
+    if not source:
+        return None
+
+    name = source.strip()
+    if name in ("seed", "manual", "user"):
+        return None
+
+    if name.startswith("plugin:"):
+        return name[len("plugin:"):].removesuffix("Plugin").lower()
+
+    for prefix in ("username_search", "profile_image", "image_match", "image_search",
+                   "google_dorks"):
+        if name.startswith(prefix + "_"):
+            return prefix
+
+    return name.lower()
+
+
+def _generate_tool_metrics(artifacts: list, correlation) -> dict:
+    """Per-tool contribution metrics: what each tool actually produced."""
+    per_tool: dict = {}
+    per_type: dict = {}
+    attributed = 0
+
+    for artifact in artifacts:
+        tool = _normalize_tool_source(artifact.get("source"))
+        if not tool:
+            continue
+
+        attributed += 1
+        artifact_type = artifact.get("artifact_type") or "unknown"
+        entry = per_tool.setdefault(
+            tool,
+            {"tool": tool, "count": 0, "types": {}, "confidence_sum": 0.0, "identities": set()},
+        )
+        entry["count"] += 1
+        entry["types"][artifact_type] = entry["types"].get(artifact_type, 0) + 1
+        entry["confidence_sum"] += artifact.get("confidence") or 0.0
+        per_type[artifact_type] = per_type.get(artifact_type, 0) + 1
+
+    for identity in correlation.identities:
+        for finding in getattr(identity, "tool_findings", []) or []:
+            tool = _normalize_tool_source(finding.get("source"))
+            if tool in per_tool:
+                per_tool[tool]["identities"].add(identity.profile_id)
+
+    def _share(count: int, total: int) -> float:
+        return round(count * 100.0 / total, 1) if total else 0.0
+
+    tools = []
+    for entry in per_tool.values():
+        count = entry["count"]
+        tools.append({
+            "tool": entry["tool"],
+            "count": count,
+            "share": _share(count, attributed),
+            "avg_confidence": round(entry["confidence_sum"] / count, 2) if count else 0.0,
+            "identities": len(entry["identities"]),
+            "types": [
+                {"type": t, "count": c}
+                for t, c in sorted(entry["types"].items(), key=lambda kv: (-kv[1], kv[0]))
+            ],
+        })
+    tools.sort(key=lambda t: (-t["count"], t["tool"]))
+
+    types = [
+        {
+            "type": t,
+            "count": c,
+            "share": _share(c, attributed),
+            "color": _TYPE_COLORS[i % len(_TYPE_COLORS)],
+        }
+        for i, (t, c) in enumerate(sorted(per_type.items(), key=lambda kv: (-kv[1], kv[0])))
+    ]
+
+    produced = {t["tool"] for t in tools}
+    # An integrated tool missing here either was not installed, was not dispatched
+    # for any artifact type in this run, or ran and found nothing -- the report
+    # cannot tell those apart, so it only names them.
+    silent = sorted(set(TOOL_ARTIFACT_TYPES) - produced)
+
+    return {
+        "tools": tools,
+        "types": types,
+        "attributed": attributed,
+        "unattributed": len(artifacts) - attributed,
+        "tool_count": len(tools),
+        "max_count": tools[0]["count"] if tools else 0,
+        "top_tool": tools[0]["tool"] if tools else None,
+        "integrated_count": len(TOOL_ARTIFACT_TYPES),
+        "silent_tools": silent,
+    }
+
+
 def generate_json_report(
     conn: sqlite3.Connection,
     investigation_id: str,
@@ -1926,6 +2170,7 @@ def generate_json_report(
             "total_platforms": len(presences),
             "identity_count": len(correlation.identities),
         },
+        "tool_metrics": _generate_tool_metrics(artifacts, correlation),
         "identities": [i.to_dict() for i in correlation.identities],
         "artifacts": artifacts,
         "links": links,

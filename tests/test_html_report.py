@@ -2,6 +2,7 @@
 
 import json
 import tempfile
+from types import SimpleNamespace
 from pathlib import Path
 
 import pytest
@@ -11,6 +12,8 @@ from src.reporting.html_report import (
     HTML_TEMPLATE,
     LEGAL_TEMPLATE,
     TECHNICAL_TEMPLATE,
+    _generate_tool_metrics,
+    _normalize_tool_source,
     _select_template,
     generate_html_report,
     generate_json_report,
@@ -110,6 +113,111 @@ class TestEmptyInvestigation:
         html = render(conn, inv_id, tmp_path)
         assert "No artifacts were discovered" in html
         assert "No platform presence recorded" in html
+
+
+class TestToolMetrics:
+    """The infographic groups artifacts by the tool that produced them."""
+
+    @staticmethod
+    def _correlation(*identities):
+        return SimpleNamespace(identities=list(identities))
+
+    @staticmethod
+    def _artifact(artifact_type, source, confidence=0.8):
+        return {"artifact_type": artifact_type, "source": source, "confidence": confidence}
+
+    def test_source_normalization_folds_the_three_source_formats(self):
+        assert _normalize_tool_source("nmap") == "nmap"
+        assert _normalize_tool_source("plugin:MaigretPlugin") == "maigret"
+        assert _normalize_tool_source("username_search_github") == "username_search"
+        assert _normalize_tool_source("profile_image_steam") == "profile_image"
+
+    def test_seeds_are_not_counted_as_a_tool(self):
+        assert _normalize_tool_source("seed") is None
+        assert _normalize_tool_source(None) is None
+
+        metrics = _generate_tool_metrics(
+            [self._artifact("username", "seed"), self._artifact("subdomain", "amass")],
+            self._correlation(),
+        )
+        assert metrics["attributed"] == 1
+        assert metrics["unattributed"] == 1
+        assert [t["tool"] for t in metrics["tools"]] == ["amass"]
+
+    def test_tools_ranked_by_yield_with_type_breakdown(self):
+        artifacts = [
+            self._artifact("username_presence", "sherlock", 0.9),
+            self._artifact("username_presence", "sherlock", 0.7),
+            self._artifact("username_presence", "plugin:MaigretPlugin"),
+            self._artifact("open_port", "nmap"),
+            self._artifact("domain_info", "whois"),
+        ]
+        metrics = _generate_tool_metrics(artifacts, self._correlation())
+
+        assert [t["tool"] for t in metrics["tools"]] == ["sherlock", "maigret", "nmap", "whois"]
+        sherlock = metrics["tools"][0]
+        assert sherlock["count"] == 2
+        assert sherlock["share"] == 40.0
+        assert sherlock["avg_confidence"] == 0.8
+        assert sherlock["types"] == [{"type": "username_presence", "count": 2}]
+        assert metrics["max_count"] == 2
+        assert metrics["top_tool"] == "sherlock"
+
+    def test_type_mix_shares_and_colors(self):
+        artifacts = [self._artifact("username_presence", "sherlock") for _ in range(3)]
+        artifacts.append(self._artifact("open_port", "nmap"))
+        metrics = _generate_tool_metrics(artifacts, self._correlation())
+
+        assert [(t["type"], t["share"]) for t in metrics["types"]] == [
+            ("username_presence", 75.0),
+            ("open_port", 25.0),
+        ]
+        assert all(t["color"].startswith("#") for t in metrics["types"])
+
+    def test_identities_reached_counts_distinct_profiles(self):
+        identities = (
+            SimpleNamespace(profile_id="IDENTITY-001",
+                            tool_findings=[{"source": "sherlock"}, {"source": "nmap"}]),
+            SimpleNamespace(profile_id="IDENTITY-002", tool_findings=[{"source": "sherlock"}]),
+        )
+        metrics = _generate_tool_metrics(
+            [self._artifact("username_presence", "sherlock"), self._artifact("open_port", "nmap")],
+            self._correlation(*identities),
+        )
+        by_tool = {t["tool"]: t for t in metrics["tools"]}
+        assert by_tool["sherlock"]["identities"] == 2
+        assert by_tool["nmap"]["identities"] == 1
+
+    def test_integrated_tools_without_output_are_reported_as_silent(self):
+        metrics = _generate_tool_metrics(
+            [self._artifact("open_port", "nmap")], self._correlation()
+        )
+        assert "nmap" not in metrics["silent_tools"]
+        assert "sherlock" in metrics["silent_tools"]
+        assert metrics["integrated_count"] >= len(metrics["silent_tools"])
+
+    def test_seed_only_investigation_renders_the_empty_note(self, conn, tmp_path):
+        inv_id = db.create_investigation(conn, title="Seeds only")
+        db.add_artifact(conn, inv_id, "username", "ghostuser", source="seed", confidence=0.95)
+        html = render(conn, inv_id, tmp_path)
+        assert "No tool-derived artifacts" in html
+
+    def test_section_renders_bars_and_breakdown(self, conn, investigation, tmp_path):
+        html = render(conn, investigation, tmp_path)
+        assert "Tool Metrics" in html
+        assert "Artifacts per Tool" in html
+        assert "tool-chart-bar" in html
+        assert "holehe" in html and "amass" in html
+
+    def test_technical_template_includes_the_breakdown(self, conn, investigation, tmp_path):
+        html = render(conn, investigation, tmp_path, template_type="technical")
+        assert "Tool Metrics" in html
+        assert "Identities reached" in html
+
+    def test_json_report_carries_the_same_metrics(self, conn, investigation, tmp_path):
+        path = generate_json_report(conn, investigation, str(tmp_path / "report.json"))
+        metrics = json.loads(Path(path).read_text())["tool_metrics"]
+        assert {t["tool"] for t in metrics["tools"]} == {"holehe", "phone_osint", "amass"}
 
 
 class TestJsonReport:
