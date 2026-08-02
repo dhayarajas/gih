@@ -241,6 +241,20 @@ investigation:
   # Global cap on concurrent outbound I/O (HTTP + subprocess) across all the
   # nested thread pools, to prevent oversubscription.
   max_concurrent_io: 32
+  # Only report findings that carry the target's exact value. Turning this off
+  # restores the previous behaviour, where near matches (a handle that merely
+  # contains the target, a page that mentions it, a guessed name variant) are
+  # also recorded.
+  strict_match:
+    enabled: true
+    # Drop platform hits proven only by an HTTP 200 with no content evidence.
+    require_validated_presence: true
+    # Expand a full name into guessed usernames (first.last, flast, ...). Set
+    # to false to accept nothing but the exact seed value; a fullname seed then
+    # reaches no username tool at all.
+    allow_name_variants: true
+    # Minimum face-match probability for an identity_match artifact.
+    min_image_probability: 0.9
   check_breaches: true
   search_usernames: true
   check_images: true

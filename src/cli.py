@@ -60,6 +60,7 @@ VERSION:
 import logging
 import os
 import sys
+from dataclasses import replace
 from pathlib import Path
 from typing import Optional
 
@@ -74,6 +75,7 @@ from src.graph.visualizer import generate_interactive_graph, get_graph_stats
 from src.reporting.html_report import generate_html_report, generate_json_report
 from src.storage.database import get_connection, list_investigations, get_investigation
 from src.plugins.manager import PluginRegistry, PluginManager
+from src.utils.matching import get_match_policy
 
 
 def setup_logging(verbose: bool = False) -> None:
@@ -183,6 +185,8 @@ def _print_tool_coverage() -> None:
 @click.option("--use-external-tools", is_flag=True, default=True, help="Use external OSINT tools if available (default: enabled)")
 @click.option("--no-external-tools", is_flag=True, help="Skip external OSINT tools")
 @click.option("--check-tools", is_flag=True, help="Check available external tools")
+@click.option("--strict-match/--no-strict-match", default=None,
+              help="Only record findings that carry the target's exact value (default from config)")
 @click.option("--use-neo4j", is_flag=True, help="Use Neo4j for graph correlation (requires Neo4j database)")
 @click.option("--neo4j-uri", default="bolt://localhost:7687", help="Neo4j connection URI (default: bolt://localhost:7687)")
 @click.option("--neo4j-user", default="neo4j", help="Neo4j username (default: neo4j)")
@@ -216,6 +220,7 @@ def investigate(
     use_external_tools: bool,
     no_external_tools: bool,
     check_tools: bool,
+    strict_match: Optional[bool],
     use_neo4j: bool,
     neo4j_uri: str,
     neo4j_user: str,
@@ -281,7 +286,12 @@ def investigate(
         sys.exit(1)
 
     # Configure investigation
+    match_policy = get_match_policy()
+    if strict_match is not None:
+        match_policy = replace(match_policy, enabled=strict_match)
+
     config = InvestigationConfig(
+        match_policy=match_policy,
         max_depth=depth,
         check_breaches=not no_breach,
         search_usernames=not no_username_search,

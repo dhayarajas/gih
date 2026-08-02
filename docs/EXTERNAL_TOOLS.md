@@ -96,3 +96,27 @@ scheduled:
   single subprocess: `TheHarvesterIntegration._harvest` memoizes the raw
   `ToolResult` per domain under a lock, and each analysis parses a copy of that
   output.
+
+## Strict matching
+
+Tools disagree about what counts as a hit: a search engine returns pages that
+merely mention a handle, a status-200 profile check proves nothing on sites with
+soft 404s, and a full name expands into guessed username variants. The
+`investigation.strict_match` block in `config.yaml` (overridable per run with
+`--strict-match` / `--no-strict-match`) applies one rule to every source:
+
+| Setting | Default | Effect |
+|---|---|---|
+| `enabled` | `true` | Only findings carrying the target's exact value are recorded |
+| `require_validated_presence` | `true` | Platform hits proven by a bare HTTP 200 are dropped (tool-derived rows, which are exact by construction, are kept) |
+| `allow_name_variants` | `true` | A `fullname` seed still expands into username candidates; set false to search the seed value alone |
+| `min_image_probability` | `0.9` | Face matches below this probability are not recorded |
+
+The filter lives in `src/utils/matching.py` and is applied by the orchestrator to
+every module, external-tool and plugin result (`_apply_match_policy` /
+`_keep_full_matches`), so no integration has to implement its own rule. A value
+counts as a full match only when the target appears as a whole token — separated
+by URL or punctuation boundaries — so `octocat` matches
+`https://github.com/octocat` but not `octocat-bot`, `octocat99` or
+`the_octocat`. Types that describe infrastructure rather than an identity claim
+(subdomains, ports, DNS records, breaches) are never filtered.
