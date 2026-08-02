@@ -317,7 +317,10 @@ google_dorks:
 
 # Username Search Settings
 username_search:
-  max_parallel_workers: 10
+  # Must be >= the number of platforms below so every platform is checked in a
+  # single parallel batch. With fewer workers the checks run in multiple waves,
+  # so each username search waits ~2x the slowest platform's timeout.
+  max_parallel_workers: 15
   platforms:
     - name: "GitHub"
       url_template: "https://api.github.com/users/{username}"

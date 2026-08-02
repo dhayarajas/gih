@@ -66,7 +66,11 @@ import json
 import logging
 import sqlite3
 import time
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import (
+    ThreadPoolExecutor,
+    as_completed,
+    TimeoutError as FuturesTimeoutError,
+)
 from dataclasses import dataclass, field
 from datetime import datetime
 from collections import deque
@@ -395,22 +399,45 @@ def run_investigation(
         )
 
         # --- Parallel network/subprocess phase (NO DB writes) ---
+        # The wall-clock deadline is enforced *inside* the level, not just at
+        # level boundaries: a single large level (up to max_total_artifacts) can
+        # otherwise run for hours because as_completed() waits for every future.
+        # Once the budget is exhausted we stop collecting, abandon the remaining
+        # in-flight/pending work (workers never touch the DB, so this is safe)
+        # and process whatever completed in time.
         results: list[ArtifactProcessResult] = []
-        with ThreadPoolExecutor(max_workers=min(max_workers, len(current_level))) as executor:
+        deadline_hit = False
+        executor = ThreadPoolExecutor(max_workers=min(max_workers, len(current_level)))
+        try:
             futures = {
                 executor.submit(_process_artifact, inv_id, item, config, plugin_manager): item
                 for item in current_level
             }
-            for future in as_completed(futures):
-                item = futures[future]
-                processed_count += 1
-                try:
-                    results.append(future.result())
-                except Exception as e:
-                    logger.error(
-                        "Error processing artifact %s=%s: %s",
-                        item["type"], item["value"], e,
-                    )
+            remaining = None
+            if runtime_budget_s:
+                remaining = max(0.0, runtime_budget_s - (time.monotonic() - start_time))
+            try:
+                for future in as_completed(futures, timeout=remaining):
+                    item = futures[future]
+                    processed_count += 1
+                    try:
+                        results.append(future.result())
+                    except Exception as e:
+                        logger.error(
+                            "Error processing artifact %s=%s: %s",
+                            item["type"], item["value"], e,
+                        )
+            except FuturesTimeoutError:
+                deadline_hit = True
+                pending = sum(1 for f in futures if not f.done())
+                logger.warning(
+                    "Runtime budget of %.1f min reached mid-level; abandoning %d "
+                    "in-flight/pending artifact(s)",
+                    config.max_runtime_minutes, pending,
+                )
+        finally:
+            # Cancel queued tasks and return without blocking on in-flight ones.
+            executor.shutdown(wait=False, cancel_futures=True)
         parallel_s = time.monotonic() - level_start
 
         # --- Serial DB-write phase (main thread only) ---
@@ -493,7 +520,7 @@ def run_investigation(
             time.monotonic() - level_start - parallel_s,
             processed_count, len(seen), len(queue),
         )
-        if budget_reached:
+        if budget_reached or deadline_hit:
             break
 
     logger.info(
@@ -831,17 +858,39 @@ def _process_username(
         # Defer metadata write to the main thread.
         result.source_metadata = search_result.to_json()
 
+        # Resolve a profile image for every found platform. Prefer the avatar
+        # URL already returned by the platform's API (GitHub/GitLab); otherwise
+        # scrape the profile page using the image_match heuristics. Each scrape
+        # is an independent blocking HTTP fetch, so run them concurrently rather
+        # than serially -- a username found on N platforms otherwise paid N x
+        # (up to 10s) here. This is network I/O only; DB writes stay deferred.
+        platforms_found = search_result.platforms_found
+        profile_image_urls: dict[int, Optional[str]] = {
+            i: p.avatar_url for i, p in enumerate(platforms_found)
+        }
+        to_scrape = [
+            (i, p) for i, p in enumerate(platforms_found)
+            if not p.avatar_url and p.profile_url
+        ]
+        if to_scrape:
+            with ThreadPoolExecutor(max_workers=min(len(to_scrape), 8)) as img_executor:
+                img_futures = {
+                    img_executor.submit(
+                        image_match.extract_profile_image_from_url, p.profile_url
+                    ): i
+                    for i, p in to_scrape
+                }
+                for future in as_completed(img_futures):
+                    idx = img_futures[future]
+                    try:
+                        profile_image_urls[idx] = future.result()
+                    except Exception as e:
+                        logger.debug("Profile image extraction failed: %s", e)
+                        profile_image_urls[idx] = None
+
         # Queue platform presences for the main thread to persist.
-        for platform in search_result.platforms_found:
-            # Resolve a profile image for this platform. Prefer the avatar URL
-            # already returned by the platform's API (GitHub/GitLab); otherwise
-            # scrape the profile page using the image_match heuristics. This is
-            # network I/O only, so it stays in the worker; the write is deferred.
-            profile_image_url = platform.avatar_url
-            if not profile_image_url and platform.profile_url:
-                profile_image_url = image_match.extract_profile_image_from_url(
-                    platform.profile_url
-                )
+        for idx, platform in enumerate(platforms_found):
+            profile_image_url = profile_image_urls.get(idx)
 
             result.platform_presences.append({
                 "platform_name": platform.platform_name,
