@@ -281,6 +281,38 @@ class MaigretIntegration(ExternalToolsIntegration):
         return result
 
 
+def _parse_email_accounts(output: str, email: str) -> List[Dict[str, Any]]:
+    """Parse the '[+] service.tld' lines holehe emits for used accounts."""
+    artifacts = []
+    seen = set()
+
+    for line in output.splitlines():
+        line = line.strip()
+        if not line.startswith("[+]"):
+            continue
+
+        platform = line[3:].strip()
+        if not platform or " " in platform or platform in seen:
+            continue
+        seen.add(platform)
+
+        artifacts.append({
+            # Platform-qualified so each account is a distinct artifact; a bare
+            # email would collapse every hit into a single graph node.
+            "type": "email_presence",
+            "value": f"{platform}:{email}",
+            "platform": platform,
+            "username": email,
+            "source": "holehe",
+            "confidence": 0.8,
+        })
+
+        if len(artifacts) >= MAX_ARTIFACTS_PER_TOOL:
+            break
+
+    return artifacts
+
+
 class HoleheIntegration(ExternalToolsIntegration):
     """Integration for Holehe email account discovery."""
 
@@ -291,26 +323,7 @@ class HoleheIntegration(ExternalToolsIntegration):
         result = self.run_tool("holehe", command)
 
         if result.success:
-            for line in result.output.splitlines():
-                line = line.strip()
-                if not line.startswith("[+]"):
-                    continue
-
-                platform = line[3:].strip()
-                if not platform or " " in platform:
-                    continue
-
-                result.artifacts_discovered.append({
-                    "type": "email_presence",
-                    "value": email,
-                    "platform": platform,
-                    "source": "holehe",
-                    "confidence": 0.8,
-                })
-
-                if len(result.artifacts_discovered) >= MAX_ARTIFACTS_PER_TOOL:
-                    break
-
+            result.artifacts_discovered.extend(_parse_email_accounts(result.output, email))
             logger.info(f"Holehe found {len(result.artifacts_discovered)} accounts for {email}")
 
         return result
