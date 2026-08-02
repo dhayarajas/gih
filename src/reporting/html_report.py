@@ -9,7 +9,7 @@ document findings, evidence chains, risk assessments, and identity correlation r
 
 FUNCTIONALITY:
 --------------
-- Professional HTML report generation with dark theme styling
+- Professional HTML report generation with a light, print-friendly theme
 - Structured JSON export for integration with SIEM/CTI systems
 - Investigation summary with key metrics and statistics
 - Identity profile documentation with confidence scores
@@ -31,10 +31,10 @@ REPORT SECTIONS:
 
 HTML FEATURES:
 --------------
-- Dark theme optimized for security professional viewing
+- Light professional theme optimized for analyst review and printing
 - Responsive design for desktop and mobile devices
 - Color-coded risk indicators and confidence scores
-- Collapsible sections for detailed information
+- Native details/summary drill-downs on artifacts, platforms and identities
 - Print-optimized CSS for physical report generation
 - Accessibility compliance with semantic HTML structure
 
@@ -222,6 +222,9 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             text-transform: uppercase;
             letter-spacing: 0.5px;
             border-bottom: 2px solid #cbd5e0;
+            position: sticky;
+            top: 0;
+            z-index: 1;
         }
         tr:hover { background: #f7fafc; }
         
@@ -283,6 +286,103 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         .collapsible.active .collapsible-content { display: block; }
         .collapsible-icon { color: #718096; font-size: 1.2rem; transition: transform 0.2s; }
         .collapsible.active .collapsible-icon { transform: rotate(180deg); }
+
+        /* Drill-down (native details/summary) */
+        details.drilldown {
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            background: white;
+            margin-bottom: 0.5rem;
+        }
+        details.drilldown > summary {
+            list-style: none;
+            cursor: pointer;
+            padding: 0.65rem 1rem;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.75rem;
+            align-items: center;
+            background: #fbfdff;
+            border-radius: 6px;
+        }
+        details.drilldown > summary::-webkit-details-marker { display: none; }
+        details.drilldown > summary::before {
+            content: '\\25B8';
+            color: #718096;
+            font-size: 0.8rem;
+            width: 0.8rem;
+        }
+        details.drilldown[open] > summary::before { content: '\\25BE'; }
+        details.drilldown > summary:hover { background: #edf2f7; }
+        details.drilldown[open] > summary { border-bottom: 1px solid #e2e8f0; }
+        .drilldown-body { padding: 1rem 1.5rem; }
+        .drilldown-body h5 {
+            margin: 1rem 0 0.4rem 0;
+            color: #2d3748;
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .drilldown-body h5:first-child { margin-top: 0; }
+        .summary-value { font-weight: 600; color: #1e3a5f; }
+        .summary-meta { color: #718096; font-size: 0.85rem; }
+        .kv-table td:first-child {
+            width: 30%;
+            color: #4a5568;
+            font-weight: 600;
+            vertical-align: top;
+            word-break: break-word;
+        }
+        .kv-table td { font-size: 0.85rem; word-break: break-word; }
+        .empty-note { color: #718096; font-size: 0.85rem; font-style: italic; }
+        .thumb {
+            width: 72px;
+            height: 72px;
+            object-fit: cover;
+            border-radius: 6px;
+            border: 1px solid #e2e8f0;
+        }
+
+        /* Report metadata banner */
+        .report-banner {
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-left: 4px solid #1e3a5f;
+            border-radius: 6px;
+            padding: 1rem 1.5rem;
+            margin-bottom: 1.5rem;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 0.5rem 1.5rem;
+            font-size: 0.85rem;
+            color: #4a5568;
+        }
+        .report-banner strong { color: #2d3748; }
+
+        /* Expand / collapse controls */
+        .drilldown-controls { margin: 0.5rem 0 1rem 0; }
+        .drilldown-controls button {
+            font: inherit;
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: #2c5282;
+            background: white;
+            border: 1px solid #cbd5e0;
+            border-radius: 4px;
+            padding: 0.35rem 0.9rem;
+            margin-right: 0.5rem;
+            cursor: pointer;
+        }
+        .drilldown-controls button:hover { background: #edf2f7; }
+
+        /* Print */
+        @media print {
+            body { background: white; }
+            .drilldown-controls { display: none; }
+            details.drilldown > summary { background: white; }
+            details.drilldown, .card { break-inside: avoid; }
+            th { position: static; }
+        }
         
         /* Footer */
         .footer {
@@ -323,11 +423,27 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                 <strong>Status:</strong> {{ (investigation.status or 'Unknown') | title }} | 
                 <strong>Generated:</strong> {{ generated_at }}
             </div>
+            <div class="classification">Confidential &mdash; Investigative Use Only</div>
         </div>
 
+    <!-- Report Metadata -->
+    <div class="report-banner">
+        <div><strong>Case reference:</strong> {{ investigation.investigation_id }}</div>
+        <div><strong>Opened:</strong> {{ (investigation.created_at or '-')[:19] }}</div>
+        <div><strong>Report generated:</strong> {{ generated_at }}</div>
+        <div><strong>Artifacts / links:</strong> {{ artifacts | length }} / {{ links | length }}</div>
+        <div><strong>Identity profiles:</strong> {{ correlation.identities | length }}</div>
+        <div><strong>Handling:</strong> Automated analysis &mdash; requires analyst review</div>
+    </div>
+
+    <div class="drilldown-controls">
+        <button type="button" id="expand-all">Expand all details</button>
+        <button type="button" id="collapse-all">Collapse all details</button>
+    </div>
+
     <!-- Identity Profiles -->
-    <h2>Identity Profiles</h2>
-    <p class="section-blurb">Correlated personas that link multiple artifacts to single identities, showing confidence scores, associated risk indicators, and profile images for understanding the target's digital footprint.</p>
+    <h2>1. Identity Profiles</h2>
+    <p class="section-blurb">Correlated personas that link multiple artifacts to single identities, showing confidence scores, associated risk indicators, and profile images for understanding the target's digital footprint. Expand a profile to review its complete evidence basis.</p>
     {% for identity in correlation.identities %}
     <div class="card">
         <h3>Identity Profile #{{ loop.index }}</h3>
@@ -390,10 +506,38 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                 {% endif %}
             </div>
         </div>
+        {% set profile_artifacts = identity_artifacts.get(identity.profile_id) or [] %}
+        <details class="drilldown" style="margin-top: 1rem;">
+            <summary><strong>Complete Evidence Basis ({{ profile_artifacts | length }} artifacts)</strong></summary>
+            <div class="drilldown-body">
+                {% if profile_artifacts %}
+                <table>
+                    <thead>
+                        <tr><th>Type</th><th>Value</th><th>Source</th><th>Confidence</th><th>Depth</th><th>Discovered</th></tr>
+                    </thead>
+                    <tbody>
+                        {% for a in profile_artifacts %}
+                        <tr>
+                            <td><span class="badge badge-{{ a.artifact_type }}">{{ a.artifact_type }}</span></td>
+                            <td>{{ a.value }}</td>
+                            <td>{{ a.source or '-' }}</td>
+                            <td>{{ "%.0f%%" | format((a.confidence or 0) * 100) }}</td>
+                            <td>{{ a.depth }}</td>
+                            <td>{{ a.discovered_at[:19] if a.discovered_at else '-' }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                {% else %}
+                <p class="empty-note">No artifacts attributed to this profile.</p>
+                {% endif %}
+            </div>
+        </details>
         {% if identity.tool_findings %}
-        <details style="margin-top: 1rem;">
+        <details class="drilldown">
             <summary><strong>External Tool Findings ({{ identity.tool_findings | length }})</strong>
                      &mdash; tools: {{ identity.tools_used | join(', ') }}</summary>
+            <div class="drilldown-body">
             <table>
                 <thead>
                     <tr><th>Tool</th><th>Artifact Type</th><th>Value</th><th>Confidence</th></tr>
@@ -409,13 +553,14 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                     {% endfor %}
                 </tbody>
             </table>
+            </div>
         </details>
         {% endif %}
     </div>
     {% endfor %}
 
     <!-- Summary -->
-    <h2>Summary</h2>
+    <h2>2. Summary</h2>
     <p class="section-blurb">Investigation overview including timeline of discoveries, key findings, statistical metrics, confidence scores, and risk assessment matrix.</p>
     <div class="card">
         <h3>Investigation Timeline</h3>
@@ -507,27 +652,57 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     </div>
 
     <!-- Platform Presence -->
-    <h2>Platform Presence</h2>
-    <p class="section-blurb">All discovered social media and online platform accounts with direct profile links for verification and understanding the target's online behavior and communication channels.</p>
+    <h2>3. Platform Presence</h2>
+    <p class="section-blurb">All discovered social media and online platform accounts with direct profile links for verification and understanding the target's online behavior and communication channels. Expand a platform to review the captured profile details.</p>
     <div class="card">
-        <table>
-            <thead>
-                <tr><th>Platform</th><th>Profile URL</th><th>Username</th></tr>
-            </thead>
-            <tbody>
-                {% for presence in presences %}
-                <tr>
-                    <td>{{ presence.platform_name }}</td>
-                    <td><a href="{{ presence.profile_url }}" target="_blank">{{ presence.profile_url }}</a></td>
-                    <td>{{ presence.username }}</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
+        {% if presences %}
+        {% for presence in presences %}
+        <details class="drilldown">
+            <summary>
+                <span class="summary-value">{{ presence.platform_name or 'Unknown platform' }}</span>
+                <span class="summary-meta">{{ presence.username or 'no username' }}</span>
+                {% if presence.is_verified %}<span class="badge">Verified</span>{% endif %}
+                {% if presence.profile_url %}
+                <span class="summary-meta">{{ presence.profile_url }}</span>
+                {% endif %}
+            </summary>
+            <div class="drilldown-body">
+                <div style="display: flex; gap: 1.5rem; align-items: flex-start;">
+                    {% if presence.profile_image_url %}
+                    <img class="thumb" src="{{ presence.profile_image_url }}" alt="{{ presence.platform_name }} profile image"
+                         onerror="this.style.display='none';">
+                    {% endif %}
+                    <table class="kv-table">
+                        <tbody>
+                            <tr><td>Platform</td><td>{{ presence.platform_name or '-' }}</td></tr>
+                            <tr><td>Username</td><td>{{ presence.username or '-' }}</td></tr>
+                            <tr><td>Display name</td><td>{{ presence.display_name or '-' }}</td></tr>
+                            <tr>
+                                <td>Profile URL</td>
+                                <td>
+                                    {% if presence.profile_url %}
+                                    <a href="{{ presence.profile_url }}" target="_blank" rel="noopener">{{ presence.profile_url }}</a>
+                                    {% else %}-{% endif %}
+                                </td>
+                            </tr>
+                            <tr><td>Verified</td><td>{{ 'Yes' if presence.is_verified else 'No' }}</td></tr>
+                            <tr><td>Followers</td><td>{{ presence.follower_count if presence.follower_count is not none else '-' }}</td></tr>
+                            <tr><td>Account created</td><td>{{ presence.account_created or '-' }}</td></tr>
+                            <tr><td>Last active</td><td>{{ presence.last_active or '-' }}</td></tr>
+                            <tr><td>Bio</td><td>{{ presence.bio or '-' }}</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </details>
+        {% endfor %}
+        {% else %}
+        <p class="empty-note">No platform presence recorded for this investigation.</p>
+        {% endif %}
     </div>
 
     <!-- Relationship Graph -->
-    <h2>Relationship Graph</h2>
+    <h2>4. Relationship Graph</h2>
     <p class="section-blurb">Visual network diagram showing connections between artifacts and identities, helping identify clusters, central nodes, and relationship patterns for understanding social connections and potential attack vectors.</p>
     <div class="card">
         <div class="graph-container">
@@ -536,25 +711,75 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     </div>
 
     <!-- Artifacts -->
-    <h2>Discovered Artifacts</h2>
-    <p class="section-blurb">Complete inventory of all data points found (emails, usernames, phone numbers, domains, etc.) with source attribution, confidence scores, and discovery depth for comprehensive analysis and evidence documentation.</p>
+    <h2>5. Discovered Artifacts</h2>
+    <p class="section-blurb">Complete inventory of all data points found (emails, usernames, phone numbers, domains, etc.) with source attribution, confidence scores, and discovery depth. Expand an artifact to review its full metadata and the links that connect it to the rest of the investigation.</p>
     <div class="card">
-        <table>
-            <thead>
-                <tr><th>Type</th><th>Value</th><th>Source</th><th>Confidence</th><th>Depth</th></tr>
-            </thead>
-            <tbody>
-                {% for a in artifacts %}
-                <tr>
-                    <td><span class="badge badge-{{ a.artifact_type }}">{{ a.artifact_type }}</span></td>
-                    <td>{{ a.value }}</td>
-                    <td>{{ a.source or '-' }}</td>
-                    <td>{{ "%.0f%%" | format((a.confidence or 0) * 100) }}</td>
-                    <td>{{ a.depth }}</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
+        {% if artifact_views %}
+        {% for a in artifact_views %}
+        <details class="drilldown">
+            <summary>
+                <span class="badge badge-{{ a.artifact_type }}">{{ a.artifact_type }}</span>
+                <span class="summary-value">{{ a.value }}</span>
+                <span class="summary-meta">Source: {{ a.source or '-' }}</span>
+                <span class="summary-meta">Confidence: {{ "%.0f%%" | format((a.confidence or 0) * 100) }}</span>
+                <span class="summary-meta">Depth: {{ a.depth }}</span>
+                <span class="summary-meta">{{ a.connections | length }} link(s)</span>
+            </summary>
+            <div class="drilldown-body">
+                <h5>Artifact Detail</h5>
+                <table class="kv-table">
+                    <tbody>
+                        <tr><td>Artifact ID</td><td>{{ a.artifact_id }}</td></tr>
+                        <tr><td>Type</td><td>{{ a.artifact_type }}</td></tr>
+                        <tr><td>Value</td><td>{{ a.value }}</td></tr>
+                        <tr><td>Source</td><td>{{ a.source or '-' }}</td></tr>
+                        <tr><td>Confidence</td><td>{{ "%.0f%%" | format((a.confidence or 0) * 100) }}</td></tr>
+                        <tr><td>Discovery depth</td><td>{{ a.depth }}</td></tr>
+                        <tr><td>Discovered at</td><td>{{ a.discovered_at[:19] if a.discovered_at else '-' }}</td></tr>
+                        <tr><td>Attributed identity</td><td>{{ a.identity_label or 'Not attributed' }}</td></tr>
+                    </tbody>
+                </table>
+
+                <h5>Metadata</h5>
+                {% if a.metadata_items %}
+                <table class="kv-table">
+                    <tbody>
+                        {% for item in a.metadata_items %}
+                        <tr><td>{{ item.key }}</td><td>{{ item.value }}</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                {% else %}
+                <p class="empty-note">No metadata recorded for this artifact.</p>
+                {% endif %}
+
+                <h5>Connected Artifacts</h5>
+                {% if a.connections %}
+                <table>
+                    <thead>
+                        <tr><th>Direction</th><th>Link Type</th><th>Connected Artifact</th><th>Confidence</th><th>Evidence</th></tr>
+                    </thead>
+                    <tbody>
+                        {% for c in a.connections %}
+                        <tr>
+                            <td>{{ c.direction }}</td>
+                            <td>{{ c.link_type }}</td>
+                            <td><span class="badge badge-{{ c.other_type }}">{{ c.other_type }}</span> {{ c.other_value }}</td>
+                            <td>{{ "%.0f%%" | format(c.confidence * 100) }}</td>
+                            <td>{{ c.evidence or '-' }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                {% else %}
+                <p class="empty-note">No links connect this artifact to other findings.</p>
+                {% endif %}
+            </div>
+        </details>
+        {% endfor %}
+        {% else %}
+        <p class="empty-note">No artifacts were discovered in this investigation.</p>
+        {% endif %}
     </div>
 
     <!-- Footer -->
@@ -567,10 +792,24 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     function toggleCollapsible(element) {
         element.classList.toggle('active');
     }
-    
-    // Initialize
-    document.addEventListener('DOMContentLoaded', function() {
-        // Any initialization code here
+
+    document.addEventListener('DOMContentLoaded', function () {
+        document.querySelectorAll('.collapsible-header').forEach(function (header) {
+            header.addEventListener('click', function () {
+                toggleCollapsible(header.parentElement);
+            });
+        });
+
+        function setAllDetails(open) {
+            document.querySelectorAll('details.drilldown').forEach(function (item) {
+                item.open = open;
+            });
+        }
+
+        var expandAll = document.getElementById('expand-all');
+        var collapseAll = document.getElementById('collapse-all');
+        if (expandAll) { expandAll.addEventListener('click', function () { setAllDetails(true); }); }
+        if (collapseAll) { collapseAll.addEventListener('click', function () { setAllDetails(false); }); }
     });
 </script>
 </body>
@@ -930,8 +1169,9 @@ LEGAL_TEMPLATE = """<!DOCTYPE html>
 
 
 def _select_template(template_type: str) -> str:
-    """Select the appropriate template based on type."""
+    """Select the appropriate HTML template based on report type."""
     templates = {
+        'standard': HTML_TEMPLATE,
         'html': HTML_TEMPLATE,
         'executive': EXECUTIVE_TEMPLATE,
         'technical': TECHNICAL_TEMPLATE,
@@ -940,41 +1180,97 @@ def _select_template(template_type: str) -> str:
     return templates.get(template_type, HTML_TEMPLATE)
 
 
-def _generate_key_findings(artifacts: list, links: list, presences: list, correlation) -> list:
-    """Generate key findings summary."""
-    findings = []
-    
-    # High-confidence artifacts
-    high_conf = [a for a in artifacts if (a.get('confidence') or 0) > 0.8]
-    if high_conf:
-        findings.append(f"Found {len(high_conf)} high-confidence artifacts")
-    
-    # Platform presence
-    if presences:
-        platforms = set(p.get('platform_name') for p in presences)
-        findings.append(f"Detected presence on {len(platforms)} platforms: {', '.join(platforms)}")
-    
-    # Identity profiles
-    if correlation and correlation.identities:
-        findings.append(f"Identified {len(correlation.identities)} potential identity profiles")
-    
-    # Links/connections
-    if links:
-        findings.append(f"Discovered {len(links)} connections between artifacts")
-    
-    return findings
+def _parse_metadata(raw) -> dict:
+    """Parse an artifact metadata field into a dict, tolerating null/invalid JSON."""
+    if isinstance(raw, dict):
+        return raw
+    if not raw or not isinstance(raw, str):
+        return {}
+    try:
+        parsed = json.loads(raw)
+    except (ValueError, TypeError):
+        return {'raw': raw}
+    if isinstance(parsed, dict):
+        return parsed
+    return {'value': parsed}
 
 
-def _select_template(template_type: str) -> str:
-    """Select the appropriate HTML template based on report type."""
-    if template_type == "executive":
-        return EXECUTIVE_TEMPLATE
-    elif template_type == "technical":
-        return TECHNICAL_TEMPLATE
-    elif template_type == "legal":
-        return LEGAL_TEMPLATE
-    else:
-        return HTML_TEMPLATE
+def _format_metadata_value(value) -> str:
+    """Render a metadata value as a compact, human-readable string."""
+    if isinstance(value, (dict, list)):
+        return json.dumps(value, default=str)
+    if value is None:
+        return '-'
+    return str(value)
+
+
+def _build_artifact_views(artifacts: list, links: list, correlation) -> list:
+    """
+    Build per-artifact drill-down views for the HTML template.
+
+    Each view carries the original artifact fields plus parsed metadata, the
+    identity it was attributed to, and its incoming/outgoing links resolved to
+    the artifact on the other end.
+    """
+    by_id = {a.get('artifact_id'): a for a in artifacts}
+
+    identity_by_value = {}
+    for index, identity in enumerate(getattr(correlation, 'identities', None) or [], start=1):
+        label = f"Identity Profile #{index} ({identity.name})"
+        for value in identity.artifacts:
+            identity_by_value.setdefault(
+                value, {'profile_id': identity.profile_id, 'label': label}
+            )
+
+    views = []
+    for artifact in artifacts:
+        artifact_id = artifact.get('artifact_id')
+        metadata = _parse_metadata(artifact.get('metadata'))
+
+        connections = []
+        for link in links:
+            source_id = link.get('source_artifact')
+            target_id = link.get('target_artifact')
+            if artifact_id not in (source_id, target_id):
+                continue
+            outgoing = source_id == artifact_id
+            other_id = target_id if outgoing else source_id
+            other = by_id.get(other_id) or {}
+            connections.append({
+                'direction': 'outgoing' if outgoing else 'incoming',
+                'link_type': link.get('link_type') or '-',
+                'confidence': link.get('confidence') or 0,
+                'evidence': link.get('evidence') or '',
+                'other_id': other_id or '-',
+                'other_value': other.get('value') or other_id or '-',
+                'other_type': other.get('artifact_type') or 'unknown',
+            })
+
+        identity = identity_by_value.get(artifact.get('value')) or {}
+        views.append({
+            **artifact,
+            'metadata_parsed': metadata,
+            'metadata_items': [
+                {'key': str(key), 'value': _format_metadata_value(value)}
+                for key, value in sorted(metadata.items(), key=lambda item: str(item[0]))
+            ],
+            'connections': connections,
+            'identity_profile_id': identity.get('profile_id'),
+            'identity_label': identity.get('label'),
+        })
+
+    return views
+
+
+def _build_identity_artifacts(artifact_views: list, correlation) -> dict:
+    """Map each identity profile_id to the full artifact views attributed to it."""
+    identity_artifacts = {}
+    for identity in getattr(correlation, 'identities', None) or []:
+        values = set(identity.artifacts)
+        identity_artifacts[identity.profile_id] = [
+            view for view in artifact_views if view.get('value') in values
+        ]
+    return identity_artifacts
 
 
 def generate_html_report(
@@ -1062,15 +1358,21 @@ def generate_html_report(
     # Generate audit trail
     audit_trail = db.get_audit_trail(conn, investigation_id)
 
+    # Build drill-down views (parsed metadata, connected links, identity attribution)
+    artifact_views = _build_artifact_views(artifacts, links, correlation)
+    identity_artifacts = _build_identity_artifacts(artifact_views, correlation)
+
     # Select template based on type
     template_content = _select_template(template_type)
 
     # Render template
-    env = Environment(loader=BaseLoader())
+    env = Environment(loader=BaseLoader(), autoescape=True)
     template = env.from_string(template_content)
     html = template.render(
         investigation=investigation,
         artifacts=artifacts,
+        artifact_views=artifact_views,
+        identity_artifacts=identity_artifacts,
         links=links,
         presences=presences,
         correlation=correlation,
