@@ -541,15 +541,16 @@
         // the identity's remaining candidates instead of showing nothing. Defined
         // in the head because an image can fail before the body script parses.
         function gihNextImage(img) {
-            var remaining = (img.getAttribute('data-fallbacks') || '').split(' ').filter(Boolean);
-            var labels = (img.getAttribute('data-labels') || '').split('|');
-            labels.shift();
-            img.setAttribute('data-labels', labels.join('|'));
+            // JSON rather than a delimited list: image URLs and platform names are
+            // scraped, so any separator could turn up inside one of them.
+            var remaining = JSON.parse(img.getAttribute('data-fallbacks') || '[]');
+            var captions = JSON.parse(img.getAttribute('data-captions') || '[]');
             var caption = img.closest('.identity-avatar').querySelector('.avatar-caption');
             if (remaining.length) {
-                img.setAttribute('data-fallbacks', remaining.slice(1).join(' '));
+                img.setAttribute('data-fallbacks', JSON.stringify(remaining.slice(1)));
+                img.setAttribute('data-captions', JSON.stringify(captions.slice(1)));
                 img.src = remaining[0];
-                if (caption && labels.length) { caption.textContent = labels[0]; }
+                if (caption && captions.length) { caption.textContent = captions[0]; }
             } else {
                 img.parentElement.classList.add('avatar-frame-empty');
                 img.remove();
@@ -638,20 +639,26 @@
                 {% if images %}
                 <div class="avatar-frame">
                     <img src="{{ images[0].src }}" alt="Profile image from {{ images[0].label }}"
-                         data-fallbacks="{{ images[1:] | map(attribute='src') | join(' ') }}"
-                         data-labels="{{ images | map(attribute='label') | join('|') }}"
+                         data-fallbacks='{{ images[1:] | map(attribute="src") | list | tojson }}'
+                         data-captions='{{ images[1:] | map(attribute="caption") | list | tojson }}'
                          onerror="gihNextImage(this)">
                     <div class="avatar-missing">Image unavailable</div>
                 </div>
-                <div class="avatar-caption">{{ images[0].label }}{% if images[0].placeholder %} (stock avatar){% endif %}</div>
+                <div class="avatar-caption">{{ images[0].caption }}</div>
                 {% if images | length > 1 %}
                 <div class="avatar-thumbs">
                     {% for image in images[1:5] %}
-                    <img src="{{ image.src }}" alt="Profile image from {{ image.label }}" title="{{ image.label }}"
+                    <img src="{{ image.src }}" alt="Profile image from {{ image.label }}" title="{{ image.caption }}"
                          onerror="this.style.display='none';">
                     {% endfor %}
                 </div>
-                <div class="avatar-caption">{{ images | length }} images matched</div>
+                <div class="avatar-caption">
+                    {%- if images | length > 5 -%}
+                    4 of {{ images | length - 1 }} other matches shown
+                    {%- else -%}
+                    {{ images | length }} images matched
+                    {%- endif -%}
+                </div>
                 {% endif %}
                 {% else %}
                 <div class="avatar-frame avatar-frame-empty"><div class="avatar-missing">No profile image found</div></div>
