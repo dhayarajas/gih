@@ -122,7 +122,7 @@ EXECUTIVE_TEMPLATE = """<!DOCTYPE html>
         .risk-medium { background: #f39c12; }
         .risk-low { background: #27ae60; }
         table { width: 100%; border-collapse: collapse; margin: 1rem 0; }
-        th, td { padding: 0.75rem; text-align: left; border-bottom: 1px solid #ddd; }
+        th, td { padding: 0.75rem; text-align: left; border-bottom: 1px solid #ddd; overflow-wrap: anywhere; }
         th { background: #34495e; color: white; }
         .badge { padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.8rem; font-weight: bold; }
         .badge-risk { background: #e74c3c; color: white; }
@@ -177,6 +177,8 @@ EXECUTIVE_TEMPLATE = """<!DOCTYPE html>
                     <td><span class="badge badge-risk">{{ risk_levels[loop.index0] | upper }}</span></td>
                     <td>{{ "%.1f%%" | format(identity.confidence * 100) }}</td>
                 </tr>
+                {% else %}
+                <tr><td colspan="3">No identity profiles were correlated for this investigation.</td></tr>
                 {% endfor %}
             </tbody>
         </table>
@@ -196,6 +198,8 @@ EXECUTIVE_TEMPLATE = """<!DOCTYPE html>
                     <td>{{ identity.open_ports | length }}</td>
                     <td>{{ identity.tools_used | join(', ') or '-' }}</td>
                 </tr>
+                {% else %}
+                <tr><td colspan="6">No identity profiles were correlated for this investigation.</td></tr>
                 {% endfor %}
             </tbody>
         </table>
@@ -213,6 +217,8 @@ EXECUTIVE_TEMPLATE = """<!DOCTYPE html>
                     <td>{% if p.profile_url %}<a href="{{ p.profile_url }}">Link</a>{% else %}-{% endif %}</td>
                     <td>{{ 'Content-validated' if p.is_verified else 'Unvalidated (status only)' }}</td>
                 </tr>
+                {% else %}
+                <tr><td colspan="4">No platform presences were found.</td></tr>
                 {% endfor %}
             </tbody>
         </table>
@@ -223,6 +229,8 @@ EXECUTIVE_TEMPLATE = """<!DOCTYPE html>
             <p><strong>{{ rec.priority | upper }}:</strong> {{ rec.action }}</p>
             <p style="font-size: 0.9rem;">{{ rec.details }}</p>
         </div>
+        {% else %}
+        <p>No recommendations were generated for this investigation.</p>
         {% endfor %}
 
         <p class="meta" style="margin-top: 3rem; text-align: center; color: #7f8c8d;">
@@ -248,6 +256,7 @@ TECHNICAL_TEMPLATE = """<!DOCTYPE html>
         h2 { color: #4ec9b0; margin-top: 2rem; }
         .card { background: #2d2d30; padding: 1rem; border-radius: 4px; margin: 1rem 0; border: 1px solid #3e3e42; }
         table { width: 100%; border-collapse: collapse; margin: 1rem 0; }
+        th, td { overflow-wrap: anywhere; }
         th { background: #3e3e42; color: #d4d4d4; }
         .code { background: #1e1e1e; padding: 1rem; border-radius: 4px; font-family: monospace; }
     </style>
@@ -272,6 +281,8 @@ TECHNICAL_TEMPLATE = """<!DOCTYPE html>
                         <td>{{ a.source or '-' }}</td>
                         <td>{{ "%.2f" | format(a.confidence or 0) }}</td>
                     </tr>
+                    {% else %}
+                    <tr><td colspan="4">No artifacts were recorded for this investigation.</td></tr>
                     {% endfor %}
                 </tbody>
             </table>
@@ -332,6 +343,8 @@ TECHNICAL_TEMPLATE = """<!DOCTYPE html>
             <p>No external tool output correlated to this identity.</p>
             {% endif %}
         </div>
+        {% else %}
+        <div class="card"><p>No identity profiles were correlated for this investigation.</p></div>
         {% endfor %}
 
         <h2>Links</h2>
@@ -348,6 +361,8 @@ TECHNICAL_TEMPLATE = """<!DOCTYPE html>
                         <td>{{ l.link_type }}</td>
                         <td>{{ "%.2f" | format(l.confidence or 0) }}</td>
                     </tr>
+                    {% else %}
+                    <tr><td colspan="4">No links were recorded for this investigation.</td></tr>
                     {% endfor %}
                 </tbody>
             </table>
@@ -373,7 +388,7 @@ LEGAL_TEMPLATE = """<!DOCTYPE html>
         .header-section { text-align: center; margin-bottom: 2rem; }
         .disclaimer { background: #f0f0f0; padding: 1rem; margin: 1rem 0; border-left: 4px solid #000; font-size: 0.9rem; }
         table { width: 100%; border-collapse: collapse; margin: 1rem 0; }
-        th, td { padding: 0.75rem; text-align: left; border: 1px solid #000; }
+        th, td { padding: 0.75rem; text-align: left; border: 1px solid #000; overflow-wrap: anywhere; }
         th { background: #f0f0f0; font-weight: bold; }
         .signature-block { margin-top: 3rem; border-top: 1px solid #000; padding-top: 1rem; }
     </style>
@@ -415,6 +430,8 @@ LEGAL_TEMPLATE = """<!DOCTYPE html>
         <div style="margin-bottom: 1rem;">
             <p><strong>Finding {{ loop.index }}:</strong> {{ finding }}</p>
         </div>
+        {% else %}
+        <p>No findings were recorded for this investigation.</p>
         {% endfor %}
 
         <h2>Risk Assessment</h2>
@@ -430,6 +447,8 @@ LEGAL_TEMPLATE = """<!DOCTYPE html>
                     <td>{{ risk_levels[loop.index0] | upper }}</td>
                     <td>{{ identity.artifacts | length }} correlated artifacts</td>
                 </tr>
+                {% else %}
+                <tr><td colspan="3">No identity profiles were correlated for this investigation.</td></tr>
                 {% endfor %}
             </tbody>
         </table>
@@ -449,6 +468,8 @@ LEGAL_TEMPLATE = """<!DOCTYPE html>
                     <td>{{ finding.source }}</td>
                 </tr>
                 {% endfor %}
+                {% else %}
+                <tr><td colspan="4">No identity profiles were correlated for this investigation.</td></tr>
                 {% endfor %}
             </tbody>
         </table>
@@ -521,12 +542,61 @@ def _parse_metadata(raw) -> dict:
 
 
 def _format_metadata_value(value) -> str:
-    """Render a metadata value as a compact, human-readable string."""
-    if isinstance(value, (dict, list)):
-        return json.dumps(value, default=str)
-    if value is None:
+    """Render a metadata value as a compact, human-readable string.
+
+    Tool metadata is arbitrary JSON, so containers are unwrapped rather than
+    dumped verbatim: an empty one carries no information and a flat list reads
+    better as a comma-separated line than as a JSON array.
+    """
+    if value is None or value == '' or value == [] or value == {}:
         return '-'
+    if isinstance(value, float):
+        return f'{value:.4f}'.rstrip('0').rstrip('.')
+    if isinstance(value, list):
+        if all(not isinstance(item, (dict, list)) for item in value):
+            return ', '.join('-' if item is None else str(item) for item in value)
+        return json.dumps(value, default=str)
+    if isinstance(value, dict):
+        if all(not isinstance(item, (dict, list)) for item in value.values()):
+            return '; '.join(f'{key}: {item}' for key, item in value.items())
+        return json.dumps(value, default=str)
     return str(value)
+
+
+def _metadata_table(value) -> Optional[dict]:
+    """Turn a list of record dicts into columns/rows for a nested table.
+
+    Several tools (sherlock, maigret, holehe, image search) store their per-
+    platform results as a list of records; rendering that as one JSON blob is
+    unreadable. Records nested more than one level deep keep the JSON fallback.
+    Columns that are empty for every record are dropped.
+    """
+    if not isinstance(value, list) or not value:
+        return None
+    if not all(isinstance(item, dict) for item in value):
+        return None
+    for item in value:
+        for cell in item.values():
+            nested = cell.values() if isinstance(cell, dict) else cell if isinstance(cell, list) else ()
+            if any(isinstance(inner, (dict, list)) for inner in nested):
+                return None
+
+    columns = []
+    for item in value:
+        for key in item:
+            if key not in columns:
+                columns.append(str(key))
+    columns = [
+        column for column in columns
+        if any(item.get(column) not in (None, '', [], {}) for item in value)
+    ]
+    if not columns:
+        return None
+    rows = [
+        [_format_metadata_value(item.get(column)) for column in columns]
+        for item in value
+    ]
+    return {'columns': columns, 'rows': rows}
 
 
 def _build_artifact_views(artifacts: list, links: list, correlation) -> list:
@@ -576,7 +646,11 @@ def _build_artifact_views(artifacts: list, links: list, correlation) -> list:
             **artifact,
             'metadata_parsed': metadata,
             'metadata_items': [
-                {'key': str(key), 'value': _format_metadata_value(value)}
+                {
+                    'key': str(key),
+                    'value': _format_metadata_value(value),
+                    'table': _metadata_table(value),
+                }
                 for key, value in sorted(metadata.items(), key=lambda item: str(item[0]))
             ],
             'connections': connections,

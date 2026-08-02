@@ -388,8 +388,12 @@ def investigate(
                     pdf_out = report_output if report_output and str(report_output).endswith(".pdf") else None
                     if not pdf_out:
                         pdf_out = default_output_path(result.investigation_id, ".pdf", out_dir)
-                    pdf_path = generate_pdf_from_html(html_path, pdf_out)
-                    click.echo(f"✓ PDF report saved: {pdf_path}")
+                    try:
+                        pdf_path = generate_pdf_from_html(html_path, pdf_out)
+                        click.echo(f"✓ PDF report saved: {pdf_path}")
+                    except (RuntimeError, FileNotFoundError) as exc:
+                        click.echo(f"PDF export failed: {exc}")
+                        click.echo(f"The HTML report is still available: {html_path}")
 
                 if report_format == "csv":
                     arts = dbmod.get_artifacts(conn, result.investigation_id)
@@ -490,8 +494,13 @@ def report(ctx: click.Context, investigation_id: str, fmt: str, output: Optional
             pdf_out = output if output and str(output).endswith(".pdf") else default_output_path(
                 investigation_id, ".pdf", out_dir
             )
-            path = generate_pdf_from_html(html_path, pdf_out)
-            click.echo(f"PDF report: {path}")
+            try:
+                path = generate_pdf_from_html(html_path, pdf_out)
+                click.echo(f"PDF report: {path}")
+            except (RuntimeError, FileNotFoundError) as exc:
+                click.echo(f"PDF export failed: {exc}")
+                click.echo(f"The HTML report is still available: {html_path}")
+                sys.exit(1)
 
         if fmt == "csv":
             arts = dbmod.get_artifacts(conn, investigation_id)

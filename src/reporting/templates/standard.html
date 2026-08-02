@@ -131,8 +131,24 @@
             padding: 0.75rem 1rem;
             text-align: left;
             border-bottom: 1px solid #e2e8f0;
+            /* Values are arbitrary tool output (long URLs, header dumps); without
+               this a single unbreakable token widens the table past the page. */
+            overflow-wrap: anywhere;
         }
         td { color: #2d3748; }
+        .nested-table {
+            margin: 0;
+            background: #f7fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 4px;
+        }
+        .nested-table th, .nested-table td {
+            padding: 0.35rem 0.6rem;
+            font-size: 0.8rem;
+            position: static;
+        }
+        .nested-table th { background: #edf2f7; text-transform: none; letter-spacing: 0; white-space: nowrap; }
+        .nested-table-key { font-weight: 600; color: #4a5568; font-size: 0.85rem; margin-bottom: 0.35rem; }
         th { 
             background: #f7fafc; 
             color: #2d3748; 
@@ -257,7 +273,7 @@
             letter-spacing: 0.5px;
         }
         .drilldown-body h5:first-child { margin-top: 0; }
-        .summary-value { font-weight: 600; color: #1e3a5f; }
+        .summary-value { font-weight: 600; color: #1e3a5f; overflow-wrap: anywhere; min-width: 0; }
         .summary-meta { color: #718096; font-size: 0.85rem; }
         .kv-table td:first-child {
             width: 30%;
@@ -382,130 +398,6 @@
             border-radius: 4px;
             border: 1px solid #e2e8f0;
         }
-        .stat-label { font-size: 0.8rem; color: #718096; text-transform: uppercase; letter-spacing: 0.5px; }
-
-        /* Tool metrics infographic. Bars are plain divs sized with an inline
-           width percentage so the report stays a single self-contained file
-           with no chart library and prints correctly. */
-        .tool-chart { display: grid; grid-template-columns: 11rem 1fr 4rem; gap: 0.5rem 0.75rem; align-items: center; }
-        .tool-chart-name { font-size: 0.85rem; font-weight: 600; color: #2d3748; word-break: break-all; }
-        .tool-chart-track { background: #edf2f7; border-radius: 3px; height: 1.4rem; overflow: hidden; }
-        .tool-chart-bar { background: #3182ce; height: 100%; border-radius: 3px; min-width: 2px; }
-        .tool-chart-count { font-size: 0.85rem; color: #4a5568; text-align: right; font-variant-numeric: tabular-nums; }
-        .silent-tools { font-size: 0.85rem; color: #718096; }
-
-        /* Evidence Chain */
-        .evidence-chain { 
-            font-family: 'Courier New', monospace; 
-            font-size: 0.85rem; 
-            color: #4a5568; 
-            background: #f7fafc;
-            padding: 1rem;
-            border-radius: 4px;
-            border-left: 3px solid #3182ce;
-        }
-        
-        /* Collapsible Sections */
-        .collapsible {
-            background: white;
-            color: #1a202c;
-            border: 1px solid #e2e8f0;
-            border-radius: 6px;
-            margin-bottom: 1rem;
-            overflow: hidden;
-            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
-        }
-        .collapsible-header {
-            background: #f7fafc;
-            padding: 1rem 1.5rem;
-            cursor: pointer;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            user-select: none;
-            border-bottom: 1px solid #e2e8f0;
-        }
-        .collapsible-header:hover { background: #edf2f7; }
-        .collapsible-header h4 { margin: 0; color: #2d3748; font-size: 0.95rem; font-weight: 600; }
-        .collapsible-content { padding: 1.5rem; display: none; color: #1a202c; }
-        .collapsible.active .collapsible-content { display: block; }
-        .collapsible-icon { color: #718096; font-size: 1.2rem; transition: transform 0.2s; }
-        .collapsible.active .collapsible-icon { transform: rotate(180deg); }
-
-        /* Drill-down (native details/summary) */
-        details.drilldown {
-            border: 1px solid #e2e8f0;
-            border-radius: 6px;
-            background: white;
-            color: #1a202c;
-            margin-bottom: 0.5rem;
-        }
-        details.drilldown > summary {
-            list-style: none;
-            cursor: pointer;
-            padding: 0.65rem 1rem;
-            display: flex;
-            flex-wrap: wrap;
-            gap: 0.75rem;
-            align-items: center;
-            background: #fbfdff;
-            color: #1a202c;
-            border-radius: 6px;
-        }
-        details.drilldown > summary::-webkit-details-marker { display: none; }
-        details.drilldown > summary::before {
-            content: '\25B8';
-            color: #718096;
-            font-size: 0.8rem;
-            width: 0.8rem;
-        }
-        details.drilldown[open] > summary::before { content: '\25BE'; }
-        details.drilldown > summary:hover { background: #edf2f7; }
-        details.drilldown[open] > summary { border-bottom: 1px solid #e2e8f0; }
-        .drilldown-body { padding: 1rem 1.5rem; color: #1a202c; }
-        .drilldown-body h5 {
-            margin: 1rem 0 0.4rem 0;
-            color: #2d3748;
-            font-size: 0.8rem;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-        .drilldown-body h5:first-child { margin-top: 0; }
-        .summary-value { font-weight: 600; color: #1e3a5f; }
-        .summary-meta { color: #718096; font-size: 0.85rem; }
-        .kv-table td:first-child {
-            width: 30%;
-            color: #4a5568;
-            font-weight: 600;
-            vertical-align: top;
-            word-break: break-word;
-        }
-        .kv-table td { font-size: 0.85rem; color: #2d3748; word-break: break-word; }
-        .empty-note { color: #718096; font-size: 0.85rem; font-style: italic; }
-        .thumb {
-            width: 72px;
-            height: 72px;
-            object-fit: cover;
-            border-radius: 6px;
-            border: 1px solid #e2e8f0;
-        }
-
-        /* Report metadata banner */
-        .report-banner {
-            background: white;
-            border: 1px solid #e2e8f0;
-            border-left: 4px solid #1e3a5f;
-            border-radius: 6px;
-            padding: 1rem 1.5rem;
-            margin-bottom: 1.5rem;
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 0.5rem 1.5rem;
-            font-size: 0.85rem;
-            color: #4a5568;
-        }
-        .report-banner strong { color: #2d3748; }
-
 
         /* Branding / watermark injected via branding_css */
         {{ branding_css | safe }}
@@ -1059,7 +951,25 @@
                 <table class="kv-table">
                     <tbody>
                         {% for item in a.metadata_items %}
+                        {% if item.table %}
+                        <tr>
+                            <td colspan="2">
+                                <div class="nested-table-key">{{ item.key }}</div>
+                                <table class="nested-table">
+                                    <thead>
+                                        <tr>{% for column in item.table.columns %}<th>{{ column }}</th>{% endfor %}</tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for row in item.table.rows %}
+                                        <tr>{% for cell in row %}<td>{% if cell.startswith('http') %}<a href="{{ cell }}" title="{{ cell }}">{{ cell | truncate(48, True, '…') }}</a>{% else %}{{ cell }}{% endif %}</td>{% endfor %}</tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </td>
+                        </tr>
+                        {% else %}
                         <tr><td>{{ item.key }}</td><td>{{ item.value }}</td></tr>
+                        {% endif %}
                         {% endfor %}
                     </tbody>
                 </table>
