@@ -110,6 +110,10 @@ plugins:
     priority: 3
     timeout: 90  # Reduced from 300 to fit the overall time budget
     max_retries: 1
+    custom_params:
+      # "common" uses nmap's -F top-100 list; any nmap -p value works
+      # (e.g. "22,80,443" or "1-1024"), at the cost of a longer scan.
+      ports: "common"
   
   masscan:
     enabled: true  # Enabled by default - skipped automatically if the tool is not installed

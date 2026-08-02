@@ -276,3 +276,85 @@ class TestIpArtifactTypeIsConsistent:
 
         assert "93.184.216.34" in profile.ip_addresses
         assert "93.184.216.34:22" in profile.open_ports
+
+
+class TestToolArguments:
+    """The argv each integration builds is part of its contract with the parser."""
+
+    def _capture(self, monkeypatch, integration):
+        """Record the argv an integration passes to run_tool, without executing it."""
+        calls = []
+
+        def fake_run_tool(tool_name, command, timeout=None):
+            calls.append(command)
+            return ToolResult(tool_name=tool_name, success=True, output="")
+
+        monkeypatch.setattr(integration, "run_tool", fake_run_tool)
+        return calls
+
+    def test_dig_queries_each_record_type(self, monkeypatch):
+        from src.modules.external_tools import DigIntegration
+
+        integration = DigIntegration()
+        calls = self._capture(monkeypatch, integration)
+        monkeypatch.setattr(tool_checker, "check_tool_availability", lambda name: True)
+
+        integration.dns_lookup("example.com")
+        integration.mx_lookup("example.com")
+        integration.ns_lookup("example.com")
+        integration.txt_lookup("example.com")
+
+        assert [c[2] for c in calls] == ["A", "MX", "NS", "TXT"]
+
+    def test_dig_analysis_methods_cover_every_record_type(self):
+        assert set(ANALYSIS_METHODS["dig"]) == {
+            "dns_lookup",
+            "mx_lookup",
+            "ns_lookup",
+            "txt_lookup",
+        }
+
+    def test_non_a_records_keep_their_dns_type(self, monkeypatch):
+        from src.modules.external_tools import DigIntegration
+
+        integration = DigIntegration()
+        monkeypatch.setattr(tool_checker, "check_tool_availability", lambda name: True)
+        monkeypatch.setattr(
+            integration,
+            "run_tool",
+            lambda tool_name, command, timeout=None: ToolResult(
+                tool_name=tool_name, success=True, output="10 mail.example.com.\n"
+            ),
+        )
+
+        result = integration.mx_lookup("example.com")
+
+        assert [a["type"] for a in result.artifacts_discovered] == ["dns_mx"]
+
+    def test_theharvester_runs_once_per_domain(self, monkeypatch):
+        from src.modules.external_tools import TheHarvesterIntegration
+
+        integration = TheHarvesterIntegration()
+        calls = self._capture(monkeypatch, integration)
+        monkeypatch.setattr(tool_checker, "check_tool_availability", lambda name: True)
+
+        integration.harvest_email("example.com")
+        integration.harvest_subdomains("example.com")
+        integration.harvest_email("other.com")
+
+        assert [c[2] for c in calls] == ["example.com", "other.com"]
+
+    def test_nmap_ports_come_from_config(self, monkeypatch):
+        from src.modules.external_tools import NmapIntegration
+
+        integration = NmapIntegration()
+        calls = self._capture(monkeypatch, integration)
+        monkeypatch.setattr(tool_checker, "check_tool_availability", lambda name: True)
+
+        monkeypatch.setattr("src.modules.external_tools._get_nmap_ports", lambda: "common")
+        integration.scan_host("1.2.3.4")
+        monkeypatch.setattr("src.modules.external_tools._get_nmap_ports", lambda: "22,443")
+        integration.scan_host("1.2.3.4")
+
+        assert "-F" in calls[0] and "-p" not in calls[0]
+        assert calls[1][calls[1].index("-p") + 1] == "22,443"
