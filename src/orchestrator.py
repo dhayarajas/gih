@@ -980,6 +980,9 @@ def _process_username(
                 "bio": platform.bio,
                 "follower_count": platform.follower_count,
                 "profile_image_url": profile_image_url,
+                # Only content/API validated hits count as verified; bare
+                # status-200 hits stay unverified so the report can flag them.
+                "is_verified": platform.is_validated,
             })
 
             # Store the profile image as an image-type artifact linked to the
