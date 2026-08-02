@@ -38,7 +38,6 @@ VERSION:
 1.2 - All configurations moved to config.yaml
 """
 
-import importlib.util
 import logging
 import random
 import time
@@ -47,6 +46,7 @@ from typing import Optional
 
 import requests
 from requests.adapters import HTTPAdapter
+from urllib3.response import HTTPResponse
 from urllib3.util.retry import Retry
 
 from src.config.loader import get_config
@@ -58,15 +58,14 @@ logger = logging.getLogger(__name__)
 def _supported_encodings() -> str:
     """Advertise only the content encodings urllib3 can actually decode.
 
-    Asking for br/zstd without the matching decoder installed yields responses
-    whose ``.text`` is undecoded binary, silently breaking every HTML parser
-    downstream.
+    Asking for br/zstd that urllib3 cannot decode (missing decoder package, or a
+    version predating support for the format) yields responses whose ``.text``
+    is undecoded binary, silently breaking every HTML parser downstream. The
+    decoder registry it consults at response time is the authority.
     """
-    encodings = ["gzip", "deflate"]
-    for module, encoding in (("brotli", "br"), ("brotlicffi", "br"), ("zstandard", "zstd")):
-        if encoding not in encodings and importlib.util.find_spec(module):
-            encodings.append(encoding)
-    return ", ".join(encodings)
+    decoders = set(getattr(HTTPResponse, "CONTENT_DECODERS", None) or ())
+    encodings = [e for e in ("gzip", "deflate", "br", "zstd") if e in decoders]
+    return ", ".join(encodings or ["gzip", "deflate"])
 
 
 class _BoundedSession(requests.Session):

@@ -1,12 +1,20 @@
 """Tests for full-name seeds reaching the OSINT toolchain and image search."""
 
+from types import SimpleNamespace
+
 from src.modules.image_match import (
     ImageResult,
     _matches_name,
     _parse_bing_image_results,
     _parse_google_image_results,
 )
-from src.orchestrator import MAX_NAME_USERNAME_CANDIDATES, _username_candidates
+from src.orchestrator import (
+    ArtifactProcessResult,
+    InvestigationConfig,
+    MAX_NAME_USERNAME_CANDIDATES,
+    _process_fullname,
+    _username_candidates,
+)
 from src.utils.http_client import _supported_encodings
 
 BING_HTML = """
@@ -47,6 +55,28 @@ class TestUsernameCandidates:
     def test_single_word_and_empty_names(self):
         assert [a["value"] for a in _username_candidates("Cher")] == ["cher"]
         assert _username_candidates("   ") == []
+
+    def test_derived_without_external_tools(self, monkeypatch):
+        """Handle generation needs no external tool, so --no-external-tools keeps it."""
+        monkeypatch.setattr(
+            "src.orchestrator.image_match.search_and_match_identity",
+            lambda **kwargs: SimpleNamespace(
+                images=[], face_matches=[], overall_probability=0.0,
+                to_dict=dict,
+            ),
+        )
+        monkeypatch.setattr(
+            "src.orchestrator.image_match.get_discovered_artifacts", lambda result: []
+        )
+
+        result = ArtifactProcessResult(artifact={"type": "fullname", "value": "Ada Lovelace"})
+        _process_fullname(
+            "Ada Lovelace",
+            InvestigationConfig(check_external_tools=False),
+            result,
+        )
+
+        assert [a["value"] for a in result.discovered if a["type"] == "username"]
 
 
 class TestImageResultParsing:
@@ -102,16 +132,21 @@ class TestNameRelevance:
 
 
 class TestSupportedEncodings:
-    """Only encodings with an installed decoder are advertised."""
+    """Only encodings urllib3 can decode are advertised."""
 
     def test_always_includes_gzip_and_deflate(self):
         encodings = _supported_encodings().split(", ")
         assert encodings[:2] == ["gzip", "deflate"]
 
-    def test_brotli_advertised_only_when_installed(self):
-        import importlib.util
+    def test_matches_urllib3_decoder_registry(self):
+        from urllib3.response import HTTPResponse
 
-        has_brotli = bool(
-            importlib.util.find_spec("brotli") or importlib.util.find_spec("brotlicffi")
-        )
-        assert ("br" in _supported_encodings()) is has_brotli
+        advertised = set(_supported_encodings().split(", "))
+        assert advertised <= set(HTTPResponse.CONTENT_DECODERS)
+        assert ("br" in advertised) is ("br" in HTTPResponse.CONTENT_DECODERS)
+
+    def test_falls_back_when_registry_is_unavailable(self, monkeypatch):
+        from urllib3.response import HTTPResponse
+
+        monkeypatch.setattr(HTTPResponse, "CONTENT_DECODERS", [], raising=False)
+        assert _supported_encodings() == "gzip, deflate"

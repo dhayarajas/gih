@@ -982,6 +982,11 @@ def _process_fullname(
     try:
         logger.debug("Processing full name with image matching: %s", value)
         
+        # No tool takes a person's name directly, so the name is turned into
+        # username candidates; the BFS then runs the username modules and tools
+        # (username_search, sherlock, maigret, Google Dorks) on each of them.
+        result.discovered.extend(_username_candidates(value))
+
         # Search and match identity
         match_result = image_match.search_and_match_identity(
             full_name=value,
@@ -1098,13 +1103,8 @@ def _process_external_tools(
                 tasks.append(("google_dorks", _google_dorks_task(value)))
 
         elif artifact_type == "fullname":
-            # No tool takes a person's name directly, so the name is turned into
-            # username candidates; the BFS then runs the full username toolchain
-            # (sherlock, maigret, Google Dorks) on each of them.
-            discovered.extend(_username_candidates(value))
-
             if check_google_dorks_availability(config.google_api_key):
-                tasks.append(("google_dorks", _google_dorks_task(f'"{value}"')))
+                tasks.append(("google_dorks", _google_dorks_task(value)))
 
         elif artifact_type in ("domain", "subdomain"):
             if check_tool_availability("whois"):
