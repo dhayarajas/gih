@@ -45,8 +45,23 @@ An OSINT investigation tool that links fragmented digital identity artifacts (bu
 ```bash
 git clone https://github.com/dhayarajas/gih.git
 cd gih
-pip install -e ".[dev]"
+pip install -r requirements.txt
 ```
+
+`requirements.txt` holds only what the tool imports at runtime. Two extras are
+kept out of it so a normal install stays small and never needs a compiler:
+
+```bash
+pip install -r requirements-dev.txt       # + pytest, pytest-cov, ruff
+pip install -r requirements-optional.txt  # + face matching (dlib) and the Neo4j driver
+```
+
+The optional extras degrade cleanly when absent: without `face_recognition` the
+image module still does EXIF, hashing and reverse-search links but skips face
+similarity scoring, and without the `neo4j` driver the default NetworkX
+correlation backend is unaffected (`--use-neo4j` reports the missing package).
+Installing `face_recognition` builds dlib from source, which needs cmake, a C++
+toolchain and several GB of free disk.
 
 ### **Docker Installation (Recommended)**
 ```bash

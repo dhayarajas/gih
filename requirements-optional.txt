@@ -1,0 +1,10 @@
+# Optional extras. The tool runs without them; each feature degrades cleanly.
+#   pip install -r requirements-optional.txt
+
+# Face similarity scoring between profile images (src/modules/image_match.py,
+# ImageMatchPlugin). Builds dlib from source: needs cmake, a C++ toolchain and
+# ~3 GB of free disk. Without it, EXIF, hashing and reverse-search links still work.
+face_recognition>=1.3.0
+
+# Neo4j graph backend (config use_neo4j). The default NetworkX backend needs nothing.
+neo4j>=5.0.0

@@ -89,7 +89,13 @@ from dataclasses import dataclass, field
 from typing import Optional, List, Dict, Any
 from contextlib import contextmanager
 
-from neo4j import GraphDatabase, Driver
+# The Neo4j backend is opt-in (config.use_neo4j); the default NetworkX backend must
+# work without the driver installed, so importing this module must not require it.
+try:
+    from neo4j import Driver, GraphDatabase
+except ImportError:  # pragma: no cover - exercised only without the optional dep
+    Driver = Any
+    GraphDatabase = None
 
 logger = logging.getLogger(__name__)
 
@@ -143,7 +149,12 @@ class Neo4jCorrelation:
         self.password = password
         self.database = database
         self.driver: Optional[Driver] = None
-        
+
+        if GraphDatabase is None:
+            raise RuntimeError(
+                "The Neo4j backend requires the optional 'neo4j' package: pip install neo4j"
+            )
+
         self._connect()
         self._ensure_schema()
     
