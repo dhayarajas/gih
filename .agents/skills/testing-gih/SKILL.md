@@ -195,3 +195,20 @@ non-resolvable `avatar_url` (the template's `onerror` should hide the img).
   and report the latent bug separately.
 - Long URLs inside the identity evidence table can overflow horizontally at normal browser
   width; likely cosmetic unless the PR touches table CSS.
+
+### External tool gotchas
+
+- `-v` is a **global** option: `python3 -m src.cli -v investigate ...`, not
+  `investigate -v`. Same for `--db`.
+- theHarvester cannot be installed with pipx (`pipx install theHarvester` reports
+  "No apps associated with package theharvester" — the wheel ships no console
+  script). To exercise its integration, put an executable stub named
+  `theHarvester` on PATH that prints sample output; the integration only cares
+  about stdout.
+- To prove a tool's argv without a network run, monkeypatch
+  `ExternalToolsIntegration.run_tool` on a fresh integration instance and patch
+  `src.utils.tool_checker.check_tool_availability` (the `@skip_if_not_available`
+  decorator resolves that name inside `tool_checker`, so patching the
+  `external_tools` alias has no effect).
+- `run_tool_analysis` memoizes on `(tool, analysis, target)` for the whole
+  process; call `clear_tool_analysis_cache()` between assertions in one script.
