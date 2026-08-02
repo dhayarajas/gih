@@ -1,5 +1,6 @@
 """Tests for external OSINT tool parsers and their correlation into identity profiles."""
 
+import json
 import tempfile
 from pathlib import Path
 
@@ -8,11 +9,13 @@ import pytest
 from src.correlation.linker import correlate_identities
 from src.modules.external_tools import (
     ANALYSIS_METHODS,
+    _parse_email_accounts,
     _parse_found_accounts,
     _parse_subdomains,
     get_tool_coverage,
     get_tool_integrations,
 )
+from src.orchestrator import _artifact_metadata
 from src.storage import database as db
 
 SHERLOCK_OUTPUT = """[*] Checking username octocat on:
@@ -21,6 +24,13 @@ SHERLOCK_OUTPUT = """[*] Checking username octocat on:
 [+] GitHub: https://github.com/octocat
 [+] GitHub: https://github.com/octocat
 [-] Facebook: Not Found!
+"""
+
+HOLEHE_OUTPUT = """[+] github.com
+[+] github.com
+[+] twitter.com
+[-] spotify.com
+[x] rate limited
 """
 
 SUBFINDER_OUTPUT = """accelerator.github.com
@@ -83,6 +93,51 @@ class TestToolCoverage:
             assert name in ANALYSIS_METHODS, name
             for method_name in ANALYSIS_METHODS[name].values():
                 assert hasattr(integration, method_name), (name, method_name)
+
+
+class TestArtifactMetadata:
+    """Discovered-artifact metadata keeps its top-level keys addressable."""
+
+    def test_preserves_pre_serialized_json_metadata(self):
+        artifact = {
+            "type": "platform_presence",
+            "value": "https://github.com/octocat",
+            "metadata": '{"platform": "GitHub", "risk_indicators": ["breach"]}',
+        }
+
+        stored = json.loads(_artifact_metadata(artifact))
+
+        assert stored["platform"] == "GitHub"
+        assert stored["risk_indicators"] == ["breach"]
+
+    def test_wraps_non_json_metadata(self):
+        stored = json.loads(_artifact_metadata({"type": "email", "metadata": "plain text"}))
+        assert stored == {"value": "plain text"}
+
+    def test_keeps_tool_specific_extras(self):
+        stored = json.loads(_artifact_metadata({
+            "type": "username_presence",
+            "value": "https://github.com/octocat",
+            "platform": "GitHub",
+            "username": "octocat",
+        }))
+
+        assert stored == {"platform": "GitHub", "username": "octocat"}
+
+
+class TestEmailAccountParsing:
+    """Holehe hits stay distinct artifacts rather than collapsing on the email."""
+
+    def test_each_platform_is_a_distinct_artifact(self):
+        artifacts = _parse_email_accounts(HOLEHE_OUTPUT, "octocat@github.com")
+        values = [a["value"] for a in artifacts]
+
+        assert values == [
+            "github.com:octocat@github.com",
+            "twitter.com:octocat@github.com",
+        ]
+        assert all(a["type"] == "email_presence" for a in artifacts)
+        assert all(a["username"] == "octocat@github.com" for a in artifacts)
 
 
 @pytest.fixture

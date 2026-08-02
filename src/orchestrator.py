@@ -156,8 +156,18 @@ ACCOUNT_ARTIFACT_TYPES = frozenset({"username_presence", "email_presence"})
 def _artifact_metadata(artifact: dict) -> Optional[str]:
     """Serialize a discovered artifact's metadata, keeping tool-specific extras."""
     metadata = artifact.get("metadata")
-    if not isinstance(metadata, dict):
-        metadata = {} if metadata is None else {"value": metadata}
+    if isinstance(metadata, str):
+        # Several modules attach metadata already serialized; keep its top-level
+        # keys addressable instead of nesting them under "value".
+        try:
+            decoded = json.loads(metadata)
+        except json.JSONDecodeError:
+            decoded = metadata
+        metadata = decoded if isinstance(decoded, dict) else {"value": decoded}
+    elif metadata is None:
+        metadata = {}
+    elif not isinstance(metadata, dict):
+        metadata = {"value": metadata}
 
     extras = {k: v for k, v in artifact.items() if k not in _ARTIFACT_RESERVED_KEYS}
     merged = {**extras, **metadata}
