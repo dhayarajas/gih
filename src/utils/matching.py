@@ -28,6 +28,11 @@ ACCOUNT_ARTIFACT_TYPES = frozenset({"username_presence", "email_presence", "plat
 # keeping when they are the target itself, not a neighbouring handle.
 DERIVED_IDENTITY_TYPES = frozenset({"username", "email"})
 
+# Seed types that name a person's handle. Only these can judge whether a finding
+# is "the same identity": a domain or a full name legitimately yields handles and
+# addresses that look nothing like it, and those pivots must survive.
+HANDLE_TARGET_TYPES = frozenset({"username", "email"})
+
 
 @dataclass(frozen=True)
 class MatchPolicy:
@@ -94,29 +99,45 @@ def contains_exact(haystack: Optional[str], target: str) -> bool:
     return False
 
 
-def is_full_match(artifact: dict[str, Any], target: str) -> bool:
+def _target_handles(target: str, target_type: str) -> list[str]:
+    """The forms of the target a finding may legitimately spell it with."""
+    if target_type == "email":
+        # A profile URL carries the local part, not the whole address.
+        return [target, target.split("@", 1)[0]]
+    return [target]
+
+
+def is_full_match(
+    artifact: dict[str, Any],
+    target: str,
+    target_type: str = "username",
+) -> bool:
     """Whether a discovered artifact fully matches the target it came from.
 
-    Only the artifact types whose meaning is "this account/identity belongs to
-    the target" are judged; anything else (subdomains, ports, DNS records,
-    breaches...) is infrastructure derived from the target rather than a claim
-    about identity, and is always kept.
+    Only claims of the form "this account belongs to the target" are judged, and
+    only when the target itself is a handle. A domain or full name legitimately
+    yields handles and addresses that do not contain it (theHarvester emails, the
+    username behind an address, name variants), and infrastructure findings
+    (subdomains, ports, DNS records, breaches) are never identity claims.
     """
+    if target_type not in HANDLE_TARGET_TYPES:
+        return True
+
     artifact_type = artifact.get("type", "")
+    handles = _target_handles(target, target_type)
 
     if artifact_type in ACCOUNT_ARTIFACT_TYPES:
         return any(
-            contains_exact(artifact.get(key), target)
+            contains_exact(artifact.get(key), handle)
             for key in ("value", "username", "url", "profile_url")
+            for handle in handles
         )
 
-    if artifact_type in DERIVED_IDENTITY_TYPES:
-        value = artifact.get("value") or ""
-        if artifact_type == "email":
-            # The local part is the handle; the domain is shared by strangers.
-            local_part = value.split("@", 1)[0]
-            return value.lower() == target.lower() or contains_exact(local_part, target)
-        return value.lower() == target.lower()
+    # A handle or address derived from another handle is only the same identity
+    # when it is that handle; a neighbouring one belongs to somebody else.
+    if artifact_type == target_type:
+        value = (artifact.get("value") or "").lower()
+        return any(value == handle.lower() for handle in handles)
 
     return True
 
@@ -125,6 +146,7 @@ def filter_full_matches(
     artifacts: list[dict[str, Any]],
     target: str,
     policy: Optional[MatchPolicy] = None,
+    target_type: str = "username",
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     """Split artifacts into (kept, dropped) according to the match policy."""
     policy = policy or get_match_policy()
@@ -133,5 +155,5 @@ def filter_full_matches(
 
     kept, dropped = [], []
     for artifact in artifacts:
-        (kept if is_full_match(artifact, target) else dropped).append(artifact)
+        (kept if is_full_match(artifact, target, target_type) else dropped).append(artifact)
     return kept, dropped

@@ -41,9 +41,22 @@ class TestIsFullMatch:
         assert is_full_match({"type": "username", "value": "OctoCat"}, "octocat")
         assert not is_full_match({"type": "username", "value": "octocat2"}, "octocat")
 
-    def test_email_matches_on_its_local_part(self):
-        assert is_full_match({"type": "email", "value": "octocat@example.com"}, "octocat")
-        assert not is_full_match({"type": "email", "value": "hr@example.com"}, "octocat")
+    def test_email_target_matches_presences_by_local_part(self):
+        target, target_type = "octocat@example.com", "email"
+        assert is_full_match(
+            {"type": "username_presence", "value": "https://github.com/octocat"},
+            target, target_type,
+        )
+        assert not is_full_match(
+            {"type": "email", "value": "hr@example.com"}, target, target_type,
+        )
+
+    def test_cross_type_derivations_are_not_judged(self):
+        # The username behind an address and emails harvested from a domain are
+        # legitimate pivots that cannot contain the seed value.
+        assert is_full_match({"type": "username", "value": "octocat"}, "octocat@example.com", "email")
+        assert is_full_match({"type": "email", "value": "info@example.com"}, "example.com", "domain")
+        assert is_full_match({"type": "username", "value": "adalovelace"}, "Ada Lovelace", "fullname")
 
     def test_infrastructure_artifacts_are_always_kept(self):
         for artifact_type in ("subdomain", "open_port", "dns_mx", "breach"):
@@ -76,7 +89,7 @@ class TestOrchestratorIntegration:
             {"type": "username_presence", "value": "github:octocat", "platform": "github"},
             {"type": "username_presence", "value": "github:octocat-bot", "platform": "github"},
         ]
-        kept = _keep_full_matches(artifacts, "octocat", MatchPolicy())
+        kept = _keep_full_matches(artifacts, "octocat", "username", MatchPolicy())
         assert [a["value"] for a in kept] == ["github:octocat"]
 
     def test_unvalidated_presences_dropped_but_tool_rows_kept(self):
@@ -86,14 +99,14 @@ class TestOrchestratorIntegration:
             {"platform_name": "Pinterest", "is_verified": False},
             {"platform_name": "Steam"},  # sherlock-style row, no verdict
         ]
-        _apply_match_policy(result, "octocat", MatchPolicy())
+        _apply_match_policy(result, "octocat", "username", MatchPolicy())
         assert [p["platform_name"] for p in result.platform_presences] == ["GitHub", "Steam"]
 
     def test_policy_disabled_leaves_presences_untouched(self):
         result = ArtifactProcessResult(artifact={"type": "username", "value": "octocat"})
         result.platform_presences = [{"platform_name": "Pinterest", "is_verified": False}]
         result.discovered = [{"type": "username", "value": "octocat2"}]
-        _apply_match_policy(result, "octocat", MatchPolicy(enabled=False))
+        _apply_match_policy(result, "octocat", "username", MatchPolicy(enabled=False))
         assert len(result.platform_presences) == 1
         assert len(result.discovered) == 1
 

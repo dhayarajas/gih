@@ -164,10 +164,11 @@ ACCOUNT_ARTIFACT_TYPES = frozenset({"username_presence", "email_presence"})
 def _keep_full_matches(
     artifacts: list[dict],
     target: str,
+    target_type: str,
     policy: MatchPolicy,
 ) -> list[dict]:
     """Drop findings that do not carry the target's exact value."""
-    kept, dropped = filter_full_matches(artifacts, target, policy)
+    kept, dropped = filter_full_matches(artifacts, target, policy, target_type)
     for artifact in dropped:
         logger.debug(
             "Strict match: dropping partial %s %r from %s (target %s)",
@@ -181,13 +182,14 @@ def _keep_full_matches(
 def _apply_match_policy(
     result: "ArtifactProcessResult",
     target: str,
+    target_type: str,
     policy: MatchPolicy,
 ) -> None:
     """Enforce the strict-match policy on one module's output, in place."""
     if not policy.enabled:
         return
 
-    result.discovered = _keep_full_matches(result.discovered, target, policy)
+    result.discovered = _keep_full_matches(result.discovered, target, target_type, policy)
 
     if policy.require_validated_presence:
         # Only presences that carry a verdict are judged; tool-derived rows
@@ -859,7 +861,7 @@ def _process_artifact(
     else:
         logger.warning("Unknown artifact type: %s", artifact_type)
 
-    _apply_match_policy(result, value, config.match_policy)
+    _apply_match_policy(result, value, artifact_type, config.match_policy)
 
     logger.debug("OSINT module returned %d discovered artifacts", len(result.discovered))
     
@@ -867,7 +869,9 @@ def _process_artifact(
     if config.check_external_tools:
         logger.debug("Processing artifact with external OSINT tools")
         external_discovered = _process_external_tools(inv_id, artifact, config)
-        external_discovered = _keep_full_matches(external_discovered, value, config.match_policy)
+        external_discovered = _keep_full_matches(
+            external_discovered, value, artifact_type, config.match_policy
+        )
         result.discovered.extend(external_discovered)
         result.platform_presences.extend(_account_presences(external_discovered))
         logger.debug("External tools returned %d additional artifacts", len(external_discovered))
@@ -876,7 +880,9 @@ def _process_artifact(
     if plugin_manager:
         logger.debug("Processing artifact with plugin system")
         plugin_discovered = _process_with_plugins(artifact, config, plugin_manager)
-        plugin_discovered = _keep_full_matches(plugin_discovered, value, config.match_policy)
+        plugin_discovered = _keep_full_matches(
+            plugin_discovered, value, artifact_type, config.match_policy
+        )
         result.discovered.extend(plugin_discovered)
         logger.debug("Plugin system returned %d additional artifacts", len(plugin_discovered))
     

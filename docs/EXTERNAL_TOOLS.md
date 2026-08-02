@@ -112,6 +112,12 @@ soft 404s, and a full name expands into guessed username variants. The
 | `allow_name_variants` | `true` | A `fullname` seed still expands into username candidates; set false to search the seed value alone |
 | `min_image_probability` | `0.9` | Face matches below this probability are not recorded |
 
+Only a *handle* seed (username or email) can judge a finding. A domain or a full
+name legitimately produces handles and addresses that do not contain the seed —
+the username behind an address, emails harvested by theHarvester, name variants
+— so those pivots are never filtered. For an email seed, both the address and
+its local part count as the target.
+
 The filter lives in `src/utils/matching.py` and is applied by the orchestrator to
 every module, external-tool and plugin result (`_apply_match_policy` /
 `_keep_full_matches`), so no integration has to implement its own rule. A value
