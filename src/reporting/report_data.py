@@ -518,7 +518,12 @@ def branding_css(branding: dict, watermark: dict) -> str:
     muted_color = "#cbd5e0" if dark_bg else "#4a5568"
     card_bg = "#1a1a2e" if dark_bg else "#ffffff"
     card_border = "#2d3748" if dark_bg else "#e2e8f0"
-    banner_bg = "#16213e" if dark_bg else "#ffffff"
+    banner_bg = "#16213e" if dark_bg else "#f7fafc"
+    surface_bg = "#16213e" if dark_bg else "#ffffff"
+    link_color = "#90cdf4" if dark_bg else "#2b6cb0"
+    status_bad = "#feb2b2" if dark_bg else "#c53030"
+    status_warn = "#f6e05e" if dark_bg else "#975a16"
+    status_good = "#9ae6b4" if dark_bg else "#276749"
 
     css = f"""
 :root {{
@@ -563,7 +568,30 @@ th {{
 }}
 td {{ color: {body_color}; border-bottom-color: {card_border} !important; }}
 tr:hover {{ background: {banner_bg} !important; }}
-a {{ color: #90cdf4 !important; }}
+a {{ color: {link_color} !important; }}
+table, .collapsible, .collapsible-content, .drilldown-body, details.drilldown > summary,
+.section-blurb, .evidence-chain, .avatar-frame {{
+  background: {surface_bg} !important;
+  color: {body_color};
+}}
+.collapsible-header, .collapsible-header h4, .drilldown-body h5, .tool-chart-name,
+.tool-chart-count, .kv-table td, .kv-table td:first-child, .report-banner strong,
+.filter-bar label, .avatar-caption, .summary-value {{
+  color: {body_color} !important;
+}}
+.collapsible-header, .collapsible-header:hover, details.drilldown > summary:hover,
+.tool-chart-track {{
+  background: {banner_bg} !important;
+}}
+.filter-bar input, .filter-bar select {{
+  background: {surface_bg} !important;
+  color: {body_color} !important;
+  border-color: {card_border} !important;
+}}
+.chain-step {{ background: {banner_bg} !important; color: {body_color} !important; }}
+.status-not_installed {{ color: {status_bad} !important; }}
+.status-silent_or_not_dispatched {{ color: {status_warn} !important; }}
+.status-produced_output {{ color: {status_good} !important; }}
 """
     if watermark.get("enabled"):
         opacity = watermark.get("opacity", 0.1)

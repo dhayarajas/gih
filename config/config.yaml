@@ -263,7 +263,7 @@ reporting:
     secondary_color: "#16213e"  # Darker blue
     accent_color: "#e94560"  # Red accent
     text_color: "#ffffff"  # White text
-    background_color: "#0f0f1a"  # Dark background
+    background_color: "#ffffff"  # Light page background
     font_family: "Arial, sans-serif"
     custom_css: null  # Path to custom CSS file
   watermark:
