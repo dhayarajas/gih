@@ -692,15 +692,6 @@ def run_investigation(
     finalize_start = time.monotonic()
     logger.debug("Finalizing investigation %s", inv_id)
     db.complete_investigation(conn, inv_id)
-    db.add_audit_log(
-        conn, inv_id, action="investigation_completed",
-        entity_type="investigation", entity_id=inv_id,
-        details=json.dumps({
-            "total_artifacts": result.total_artifacts,
-            "total_links": result.total_links,
-            "total_platforms": result.total_platforms,
-        }),
-    )
 
     # Compute summary
     logger.debug("Computing investigation summary statistics")
@@ -711,6 +702,16 @@ def run_investigation(
     result.total_artifacts = len(all_artifacts)
     result.total_links = len(all_links)
     result.total_platforms = len(all_presences)
+
+    db.add_audit_log(
+        conn, inv_id, action="investigation_completed",
+        entity_type="investigation", entity_id=inv_id,
+        details=json.dumps({
+            "total_artifacts": result.total_artifacts,
+            "total_links": result.total_links,
+            "total_platforms": result.total_platforms,
+        }),
+    )
     
     logger.info("Summary: %d artifacts, %d links, %d platform presences", 
                result.total_artifacts, result.total_links, result.total_platforms)

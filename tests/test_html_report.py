@@ -13,8 +13,10 @@ from src.reporting.html_report import (
     HTML_TEMPLATE,
     LEGAL_TEMPLATE,
     TECHNICAL_TEMPLATE,
+    _format_metadata_value,
     _generate_identity_images,
     _generate_tool_metrics,
+    _metadata_table,
     _normalize_tool_source,
     _select_template,
     generate_html_report,
@@ -495,3 +497,60 @@ class TestEnhancedStandardReport:
         assert "orphan_findings" in data
         assert "tool_metrics" in data
 
+
+class TestMetadataFormatting:
+    """How arbitrary tool metadata is turned into readable report rows."""
+
+    def test_empty_containers_and_flat_lists_are_unwrapped(self):
+        assert _format_metadata_value([]) == "-"
+        assert _format_metadata_value({}) == "-"
+        assert _format_metadata_value(None) == "-"
+        assert _format_metadata_value(["GitHub", "Reddit"]) == "GitHub, Reddit"
+        assert _format_metadata_value({"platform": "github", "found": True}) == (
+            "platform: github; found: True"
+        )
+
+    def test_floats_are_trimmed(self):
+        assert _format_metadata_value(0.25333333333333335) == "0.2533"
+        assert _format_metadata_value(1.0) == "1"
+
+    def test_record_lists_become_tables_without_empty_columns(self):
+        table = _metadata_table([
+            {"platform_name": "GitHub", "found": True, "bio": None},
+            {"platform_name": "GitLab", "found": True, "bio": ""},
+        ])
+        assert table == {
+            "columns": ["platform_name", "found"],
+            "rows": [["GitHub", "True"], ["GitLab", "True"]],
+        }
+
+    def test_non_record_values_have_no_table(self):
+        assert _metadata_table(["GitHub"]) is None
+        assert _metadata_table([]) is None
+        assert _metadata_table({"a": 1}) is None
+        assert _metadata_table([{"nested": {"deeper": {"x": 1}}}]) is None
+
+    def test_report_renders_record_list_as_table(self, conn, tmp_path):
+        inv_id = db.create_investigation(conn, title="Records")
+        db.add_artifact(
+            conn, inv_id, "username", "ghostuser", source="sherlock", confidence=0.9,
+            metadata=json.dumps({
+                "platforms_error": [],
+                "platforms_found": [{"platform_name": "GitHub", "found": True}],
+            }),
+        )
+        html = render(conn, inv_id, tmp_path)
+        assert "nested-table" in html
+        assert "<th>platform_name</th>" in html
+        # The empty list collapses to a dash rather than an empty JSON array
+        assert ">[]<" not in html
+
+
+class TestEmptyStates:
+    """Non-standard templates say why a table is empty instead of showing headers only."""
+
+    def test_executive_and_legal_and_technical_report_empty_sections(self, conn, tmp_path):
+        inv_id = db.create_investigation(conn, title="Empty")
+        for template_type in ("executive", "legal", "technical"):
+            html = render(conn, inv_id, tmp_path, template_type=template_type)
+            assert "No identity profiles were correlated" in html

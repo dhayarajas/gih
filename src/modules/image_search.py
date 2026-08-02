@@ -319,7 +319,7 @@ def get_discovered_artifacts(analysis: ImageAnalysis) -> list[dict]:
     if analysis.exif and analysis.exif.has_gps():
         artifacts.append({
             "type": "location",
-            "value": f"{analysis.exif.gps_latitude},{analysis.exif.gps_longitude}",
+            "value": f"{analysis.exif.gps_latitude:.6f},{analysis.exif.gps_longitude:.6f}",
             "source": "image_exif_gps",
             "confidence": 0.8,
         })
