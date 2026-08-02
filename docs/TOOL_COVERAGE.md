@@ -11,20 +11,18 @@ Generate the live version of this table at any time with:
 python -m src.cli investigate --check-tools
 ```
 
-## Integrated tools (14)
+## Integrated tools (15)
 
 Every tool below has an integration with a real output parser and is invoked by
-`_process_external_tools`. Which of them actually run depends on what is installed:
-`--check-tools` reports 9 of 35 available on a stock environment (sherlock, maigret,
-holehe, whois, dig, nslookup, nmap, exiftool plus the HTTP-only wayback_machine), and
-only those have been exercised end-to-end against live targets. The remaining rows
-(theHarvester, subfinder, sublist3r, amass, whatweb, shodan) are integrated but
-unverified here because the binaries or API keys are absent.
+`_process_external_tools`. Which of them actually run depends on what is installed;
+`--check-tools` reports what the current host has. All rows except `shodan` and
+`theHarvester` have been exercised end-to-end against live targets.
 
 | Tool | Invoked for | Artifact types | Profile fields |
 |------|-------------|----------------|----------------|
 | sherlock | username | `username_presence` | `platforms`, Platform Presence Matrix |
 | maigret | username | `username_presence` | `platforms`, Platform Presence Matrix |
+| osrframework (usufy) | username | `username_presence` | `platforms`, Platform Presence Matrix |
 | holehe | email | `email_presence` | `platforms`, Platform Presence Matrix |
 | theHarvester | domain, subdomain | `email`, `subdomain` | `emails`, `subdomains` |
 | subfinder | domain (depth 0) | `subdomain` | `subdomains` |
@@ -42,8 +40,13 @@ Notes:
 
 - `shodan` needs an API key (`shodan init`); without one the CLI exits non-zero and the
   run is skipped rather than failing the investigation.
-- `amass -passive` frequently exceeds its 60s budget and returns nothing; subfinder,
+- `amass -passive` sometimes exceeds its 60s budget and returns nothing; subfinder,
   sublist3r and theHarvester cover the same role.
+- `osrframework` has no command of its own: `ToolChecker` detects it through `usufy`,
+  the entrypoint the integration runs. It is restricted to the `social` platform tag
+  with 32 threads because the full platform list takes far longer than the time budget
+  (~2m15s even for the `social` subset, hence its 180s timeout). Its sibling `mailfy` is
+  not integrated: it imports `cfscrape`, which is broken against urllib3 2.x.
 - `wayback_machine` is an HTTP API, so it has no local executable and is reported as
   available whenever the network is reachable. Its CDX query regularly takes 9-31s
   against a 30s timeout, so `historical_url` findings are missing from many runs.
@@ -52,7 +55,43 @@ Notes:
   (an IP address is not an identity anchor), so its `open_port` findings appear in the
   database and in the JSON report but under no profile.
 
-## Declared but not integrated (21)
+## Plugin coverage
+
+The plugin system (`src/plugins/`) is a second entry point to the same tools, used by
+callers that want to run one tool against one artifact rather than a whole BFS level.
+Every integrated tool now has a plugin:
+
+| Plugin | Tool | Artifact types accepted |
+|--------|------|-------------------------|
+| `SherlockPlugin` | sherlock | `username` |
+| `MaigretPlugin` | maigret | `username` |
+| `OsrframeworkPlugin` | osrframework | `username` |
+| `HolehePlugin` | holehe | `email` |
+| `TheHarvesterPlugin` | theharvester | `domain` |
+| `SubfinderPlugin` | subfinder | `domain` |
+| `Sublist3rPlugin` | sublist3r | `domain` |
+| `AmassPlugin` | amass | `domain` |
+| `WhoisPlugin` | whois | `domain`, `ip_address` |
+| `DigPlugin` | dig | `domain` |
+| `WhatWebPlugin` | whatweb | `domain`, `subdomain` |
+| `NmapPlugin` | nmap | `ip_address` |
+| `ShodanPlugin` | shodan | `ip_address`, `domain` |
+| `ExifToolPlugin` | exiftool | `image` |
+| `WaybackMachinePlugin` | wayback_machine | `domain` |
+
+The plugins added for maigret, holehe, subfinder, sublist3r, amass, whatweb, nmap,
+exiftool, wayback_machine and osrframework subclass `IntegrationPlugin`, which delegates
+to `run_tool_analysis` instead of re-implementing the subprocess call and the parser --
+the older hand-written plugins (sherlock, whois, dig, shodan, theharvester) each carry
+their own copy, which is why their output can differ from the integration's.
+`IntegrationPlugin.check_wiring()` fails a plugin that names an analysis the integration
+does not implement; `tests/test_integration_plugins.py` runs it over every plugin.
+
+Note that `PluginManager` looks plugins up in `config.yaml` by class name
+(`MaigretPlugin`), while the config keys are tool names (`maigret`), so the `enabled`
+flags there do not currently gate plugin execution.
+
+## Declared but not integrated (20)
 
 | Tool | Reason |
 |------|--------|
@@ -64,7 +103,6 @@ Notes:
 | masscan | Requires raw-socket (root) privileges; nmap covers the same port-scan role |
 | recon-ng | Interactive framework requiring per-module API keys and a workspace; not batch-invocable |
 | spiderfoot | Server/daemon oriented, requires its own database and web UI to collect results |
-| osrframework | Ships per-utility entrypoints (usufy/mailfy) rather than an `osrframework` command |
 | ghunt | Requires authenticated Google session cookies supplied by the operator |
 | photon | Crawler output duplicates wayback_machine historical URLs |
 | metagoofil | Document harvesting requires a search-engine API key and downloads remote files |
@@ -80,20 +118,25 @@ Notes:
 
 ## Validation run
 
-Numbers below come from an environment with the 9 available tools listed above. A run on
-a host that also has theHarvester, subfinder, sublist3r, amass and whatweb installed
-produces several times as many artifacts and takes correspondingly longer.
+Numbers below come from a host with sherlock, maigret, osrframework, holehe, whois, dig,
+nmap, exiftool, subfinder, sublist3r, amass and whatweb installed (shodan and
+theHarvester absent).
 
 A single investigation seeded with a username, a full name, an email, an IP address and a
-JPEG carrying EXIF GPS data (`--depth 2`) completed in 52 seconds and produced:
+JPEG carrying EXIF GPS data (`--depth 2`) completed in 4m39s and produced:
 
 ```
-artifacts 92   links 87   platform presences 68
+artifacts 145   links 143   platform presences 98
 
-sherlock/maigret  username_presence  58      nmap      open_port         2
-plugin scrapers   image               6      whois     domain_info       1
-dig               ip_address          1      exiftool  gps/camera/date   3
+sherlock          username_presence  29      nmap            open_port        2
+maigret           username_presence  30      whatweb         web_technology   4
+osrframework      username_presence  30      amass           subdomain        2
+wayback_machine   historical_url     15      whois           domain_info      1
+plugin scrapers   image               8      exiftool        gps/camera/date  3
 ```
+
+osrframework alone accounts for ~2m15s of that wall clock; without it the same run
+takes well under a minute.
 
 Each of those artifacts is reachable from a seed through `artifact_links`, so correlation
 attributes it to the identity profile of the seed that produced it -- with the `--ip`-only

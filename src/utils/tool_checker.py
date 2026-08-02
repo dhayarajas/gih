@@ -79,7 +79,8 @@ class ToolChecker:
             # OSINT Frameworks
             ToolInfo(name="recon-ng", command="recon-ng", description="Web reconnaissance framework"),
             ToolInfo(name="spiderfoot", command="spiderfoot", description="Open source intelligence automation"),
-            ToolInfo(name="osrframework", command="osrframework", description="Open Sources Research Framework"),
+            # OSRFramework installs per-utility entrypoints; usufy is the one integrated.
+            ToolInfo(name="osrframework", command="usufy", description="Open Sources Research Framework"),
             
             # Specialized Investigation Tools
             ToolInfo(name="shodan", command="shodan", description="Search engine for Internet-connected devices"),

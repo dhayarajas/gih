@@ -11,6 +11,7 @@ import json
 import logging
 import os
 import re
+import tempfile
 import threading
 from typing import Dict, List, Optional, Any
 from dataclasses import dataclass, field
@@ -173,7 +174,6 @@ UNIMPLEMENTED_TOOLS: Dict[str, str] = {
     "emailharvester": "Superseded by theHarvester, which is integrated and covers the same sources",
     "recon-ng": "Interactive framework requiring per-module API keys and a workspace; not batch-invocable",
     "spiderfoot": "Server/daemon oriented, requires its own database and web UI to collect results",
-    "osrframework": "Ships per-utility entrypoints (usufy/mailfy) rather than an 'osrframework' command",
     "ghunt": "Requires authenticated Google session cookies supplied by the operator",
     "photon": "Crawler output duplicates wayback_machine historical URLs",
     "metagoofil": "Document harvesting requires a search-engine API key and downloads remote files",
@@ -314,6 +314,90 @@ class HoleheIntegration(ExternalToolsIntegration):
             logger.info(f"Holehe found {len(result.artifacts_discovered)} accounts for {email}")
 
         return result
+
+
+class OsrframeworkIntegration(ExternalToolsIntegration):
+    """Integration for OSRFramework's usufy username checker."""
+
+    @skip_if_not_available("osrframework")
+    def search_username(self, username: str) -> ToolResult:
+        """Check a username across the OSRFramework platform list."""
+        # usufy only writes its structured results to a file; stdout is a
+        # human-readable table, so the output directory is the real interface.
+        with tempfile.TemporaryDirectory(prefix="usufy-") as out_dir:
+            command = [
+                "usufy",
+                "-n", username,
+                # The full platform list takes well over the time budget; the
+                # "social" tag covers the platforms useful for attribution.
+                "-t", "social",
+                "-T", "32",
+                "-e", "json",
+                "-o", out_dir,
+                "--avoid_download",
+            ]
+            result = self.run_tool("osrframework", command)
+
+            if not result.success:
+                return result
+
+            profiles_file = os.path.join(out_dir, "profiles.json")
+            try:
+                with open(profiles_file, "r", encoding="utf-8") as handle:
+                    profiles = json.load(handle)
+            except (OSError, json.JSONDecodeError) as exc:
+                result.success = False
+                result.error_message = f"Could not read usufy output: {exc}"
+                return result
+
+        result.artifacts_discovered = _parse_usufy_profiles(profiles, username)
+        result.parsed_data = {"username": username, "profiles": profiles}
+        logger.info(
+            "OSRFramework found %d profiles for %s",
+            len(result.artifacts_discovered), username,
+        )
+
+        return result
+
+
+def _parse_usufy_profiles(profiles: Any, username: str) -> List[Dict[str, Any]]:
+    """Turn usufy's i3visio entity list into username_presence artifacts.
+
+    Each profile carries its URI, alias and platform as sibling attributes
+    tagged with a "com.i3visio.*" type rather than as named fields.
+    """
+    artifacts = []
+    seen = set()
+
+    if not isinstance(profiles, list):
+        return artifacts
+
+    for profile in profiles:
+        attributes = profile.get("attributes", []) if isinstance(profile, dict) else []
+        values = {
+            attribute.get("type"): attribute.get("value")
+            for attribute in attributes
+            if isinstance(attribute, dict)
+        }
+
+        url = values.get("com.i3visio.URI")
+        if not url or url in seen:
+            continue
+        seen.add(url)
+
+        artifacts.append({
+            "type": "username_presence",
+            "value": url,
+            "platform": values.get("com.i3visio.Platform", "unknown"),
+            "username": values.get("com.i3visio.Alias", username),
+            "source": "osrframework",
+            "confidence": 0.7,
+        })
+
+        if len(artifacts) >= MAX_ARTIFACTS_PER_TOOL:
+            break
+
+    return artifacts
 
 
 class TheHarvesterIntegration(ExternalToolsIntegration):
@@ -744,6 +828,7 @@ class WaybackMachineIntegration(ExternalToolsIntegration):
 _sherlock = SherlockIntegration()
 _maigret = MaigretIntegration()
 _holehe = HoleheIntegration()
+_osrframework = OsrframeworkIntegration()
 _theharvester = TheHarvesterIntegration()
 _subfinder = SubfinderIntegration()
 _sublist3r = Sublist3rIntegration()
@@ -763,6 +848,7 @@ def get_tool_integrations() -> Dict[str, ExternalToolsIntegration]:
         "sherlock": _sherlock,
         "maigret": _maigret,
         "holehe": _holehe,
+        "osrframework": _osrframework,
         "theharvester": _theharvester,
         "subfinder": _subfinder,
         "sublist3r": _sublist3r,
@@ -782,6 +868,7 @@ ANALYSIS_METHODS: Dict[str, Dict[str, str]] = {
     "sherlock": {"username_search": "search_username"},
     "maigret": {"username_search": "search_username"},
     "holehe": {"email_check": "check_email"},
+    "osrframework": {"username_search": "search_username"},
     "theharvester": {
         "email_harvest": "harvest_email",
         "subdomain_harvest": "harvest_subdomains",
@@ -803,6 +890,7 @@ TOOL_ARTIFACT_TYPES: Dict[str, List[str]] = {
     "sherlock": ["username_presence"],
     "maigret": ["username_presence"],
     "holehe": ["email_presence"],
+    "osrframework": ["username_presence"],
     "theharvester": ["email", "subdomain"],
     "subfinder": ["subdomain"],
     "sublist3r": ["subdomain"],

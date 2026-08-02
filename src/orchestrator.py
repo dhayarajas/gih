@@ -1120,6 +1120,11 @@ def _process_external_tools(
                 tasks.append(("sherlock", _tool_task("sherlock", "username_search", "Sherlock")))
             if check_tool_availability("maigret"):
                 tasks.append(("maigret", _tool_task("maigret", "username_search", "Maigret")))
+            if check_tool_availability("osrframework"):
+                tasks.append((
+                    "osrframework",
+                    _tool_task("osrframework", "username_search", "OSRFramework"),
+                ))
 
             if check_google_dorks_availability(config.google_api_key):
                 tasks.append(("google_dorks", _google_dorks_task(value)))
