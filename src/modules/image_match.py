@@ -69,6 +69,7 @@ VERSION:
 
 import json
 import logging
+import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -143,33 +144,120 @@ class IdentityMatchResult:
         }
 
 
-def search_images_by_name(full_name: str, max_results: int = 20) -> List[ImageResult]:
+def search_images_by_name(
+    full_name: str,
+    max_results: int = 20,
+    api_key: Optional[str] = None,
+    cx: Optional[str] = None,
+) -> List[ImageResult]:
     """
     Search for images of a person by their full name across multiple sources.
     
     Args:
         full_name: The person's full name to search for
         max_results: Maximum number of results to return
+        api_key: Google Custom Search API key (optional)
+        cx: Google Custom Search Engine ID (optional)
     
     Returns:
         List of ImageResult objects
     """
     results = []
-    
-    # Search Google Images
-    google_results = _search_google_images(full_name, max_results)
-    results.extend(google_results)
-    
-    # Search Bing Images
-    bing_results = _search_bing_images(full_name, max_results)
-    results.extend(bing_results)
-    
+    # Quoted so the engines match the whole name instead of anyone sharing a
+    # first or last name.
+    query = f'"{full_name}"'
+
+    if api_key and cx:
+        # The only source that reliably answers the query: search-engine HTML
+        # scraping from a server IP is rate limited or served decoy results.
+        results.extend(_search_google_cse_images(query, max_results, api_key, cx))
+
+    if not results:
+        google_results = _search_google_images(query, max_results)
+        results.extend(google_results)
+
+        bing_results = _search_bing_images(query, max_results)
+        results.extend(bing_results)
+
+        # Scraped engines happily return unrelated images, so anything that
+        # doesn't mention the name in its title or source page is dropped.
+        before = len(results)
+        results = [r for r in results if _matches_name(full_name, r)]
+        if before != len(results):
+            logger.info("Dropped %d scraped images unrelated to %s",
+                        before - len(results), full_name)
+
     # Search social media profile pictures
     social_results = _search_social_media_images(full_name)
     results.extend(social_results)
     
     logger.info("Found %d images for %s", len(results), full_name)
     return results[:max_results]
+
+
+def _matches_name(full_name: str, result: ImageResult) -> bool:
+    """Whether a search hit actually references the person searched for."""
+    haystack = " ".join(filter(None, [
+        result.metadata.get("title") or "",
+        result.metadata.get("page_url") or "",
+        result.url,
+    ])).lower()
+    haystack = re.sub(r"[^a-z0-9]+", " ", haystack)
+
+    parts = [p for p in re.sub(r"[^a-z ]+", " ", full_name.lower()).split() if len(p) > 2]
+    if not parts:
+        return True
+
+    # The surname must appear; a shared first name alone is not the person.
+    return parts[-1] in haystack.split()
+
+
+def _search_google_cse_images(
+    query: str,
+    max_results: int,
+    api_key: str,
+    cx: str,
+) -> List[ImageResult]:
+    """Search images through the Google Custom Search API."""
+    results = []
+
+    try:
+        session = get_http_session()
+        resp = session.get(
+            "https://www.googleapis.com/customsearch/v1",
+            params={
+                "key": api_key,
+                "cx": cx,
+                "q": query,
+                "searchType": "image",
+                "num": min(max_results, 10),
+            },
+            timeout=10,
+        )
+
+        if resp.status_code != 200:
+            logger.warning("Google Custom Search returned HTTP %d for %s", resp.status_code, query)
+            return results
+
+        for item in resp.json().get("items", []):
+            link = item.get("link")
+            if not link:
+                continue
+            results.append(ImageResult(
+                url=link,
+                source="Google Custom Search",
+                confidence=0.8,
+                metadata={
+                    "query": query,
+                    "title": item.get("title"),
+                    "page_url": (item.get("image") or {}).get("contextLink"),
+                },
+            ))
+
+    except Exception as e:
+        logger.warning("Google Custom Search image search failed: %s", e)
+
+    return results
 
 
 def _search_google_images(query: str, max_results: int = 10) -> List[ImageResult]:
@@ -186,26 +274,47 @@ def _search_google_images(query: str, max_results: int = 10) -> List[ImageResult
         resp = session.get(search_url, timeout=10)
         
         if resp.status_code == 200:
-            # Parse HTML to extract image URLs
-            # This is a simplified version - production would use proper API
-            from bs4 import BeautifulSoup
-            soup = BeautifulSoup(resp.text, 'html.parser')
-            
-            # Extract image URLs from img tags
-            img_tags = soup.find_all('img')
-            for img in img_tags[:max_results]:
-                src = img.get('src', '')
-                if src and src.startswith('http'):
-                    results.append(ImageResult(
-                        url=src,
-                        source="Google Images",
-                        confidence=0.7,
-                        metadata={"query": query}
-                    ))
+            results = _parse_google_image_results(resp.text, query, max_results)
+        else:
+            # Datacenter IPs are routinely rate limited here; say so instead of
+            # reporting "no images found" for the person.
+            logger.warning("Google Images returned HTTP %d for %s", resp.status_code, query)
     
     except Exception as e:
         logger.warning("Google Images search failed: %s", e)
     
+    return results
+
+
+# Result images are embedded as ["url", height, width] tuples in the page's
+# inline JSON; the <img> tags themselves are data-URI placeholders and chrome.
+_GOOGLE_IMAGE_RE = re.compile(r'\["(https?://[^"]+?\.(?:jpg|jpeg|png|webp))",\d+,\d+\]', re.I)
+
+# Google's own hosts serve the page's thumbnails and chrome, not source images.
+_GOOGLE_ASSET_HOSTS = ("gstatic.com", "google.com", "googleusercontent.com", "ggpht.com")
+
+
+def _parse_google_image_results(html: str, query: str, max_results: int = 10) -> List[ImageResult]:
+    """Extract result images from a Google Images page."""
+    results = []
+    seen = set()
+
+    for match in _GOOGLE_IMAGE_RE.finditer(html):
+        if len(results) >= max_results:
+            break
+
+        url = match.group(1).encode().decode('unicode_escape')
+        if url in seen or any(host in url for host in _GOOGLE_ASSET_HOSTS):
+            continue
+        seen.add(url)
+
+        results.append(ImageResult(
+            url=url,
+            source="Google Images",
+            confidence=0.7,
+            metadata={"query": query}
+        ))
+
     return results
 
 
@@ -220,23 +329,51 @@ def _search_bing_images(query: str, max_results: int = 10) -> List[ImageResult]:
         resp = session.get(search_url, timeout=10)
         
         if resp.status_code == 200:
-            from bs4 import BeautifulSoup
-            soup = BeautifulSoup(resp.text, 'html.parser')
-            
-            img_tags = soup.find_all('img')
-            for img in img_tags[:max_results]:
-                src = img.get('src', '')
-                if src and src.startswith('http'):
-                    results.append(ImageResult(
-                        url=src,
-                        source="Bing Images",
-                        confidence=0.7,
-                        metadata={"query": query}
-                    ))
+            results = _parse_bing_image_results(resp.text, query, max_results)
     
     except Exception as e:
         logger.warning("Bing Images search failed: %s", e)
     
+    return results
+
+
+def _parse_bing_image_results(html: str, query: str, max_results: int = 10) -> List[ImageResult]:
+    """Extract result images from a Bing Images page.
+
+    Each result carries its source page and full-resolution URL in the JSON
+    ``m`` attribute of its anchor; the page's ``<img>`` tags are lazy-loaded
+    thumbnails, sprites and site chrome, so reading ``src`` yields noise rather
+    than the person's photos.
+    """
+    from bs4 import BeautifulSoup
+
+    results = []
+    soup = BeautifulSoup(html, 'html.parser')
+
+    for anchor in soup.select('a.iusc'):
+        if len(results) >= max_results:
+            break
+
+        try:
+            meta = json.loads(anchor.get('m', '{}'))
+        except ValueError:
+            continue
+
+        image_url = meta.get('murl')
+        if not image_url or not image_url.startswith('http'):
+            continue
+
+        results.append(ImageResult(
+            url=image_url,
+            source="Bing Images",
+            confidence=0.7,
+            metadata={
+                "query": query,
+                "page_url": meta.get('purl'),
+                "title": meta.get('t') or anchor.get('aria-label'),
+            }
+        ))
+
     return results
 
 
@@ -491,13 +628,20 @@ def calculate_identity_probability(full_name: str, images: List[ImageResult], fa
     return overall_probability
 
 
-def search_and_match_identity(full_name: str, max_results: int = 20) -> IdentityMatchResult:
+def search_and_match_identity(
+    full_name: str,
+    max_results: int = 20,
+    api_key: Optional[str] = None,
+    cx: Optional[str] = None,
+) -> IdentityMatchResult:
     """
     Complete identity search and matching workflow.
     
     Args:
         full_name: The person's full name to search for
         max_results: Maximum number of results to return
+        api_key: Google Custom Search API key (optional)
+        cx: Google Custom Search Engine ID (optional)
     
     Returns:
         IdentityMatchResult with images, face matches, and probability
@@ -505,7 +649,7 @@ def search_and_match_identity(full_name: str, max_results: int = 20) -> Identity
     logger.info("Starting identity search for: %s", full_name)
     
     # Search for images
-    images = search_images_by_name(full_name, max_results)
+    images = search_images_by_name(full_name, max_results, api_key=api_key, cx=cx)
     
     # Match faces
     face_matches = match_faces(images)
