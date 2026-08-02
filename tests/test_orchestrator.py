@@ -305,3 +305,42 @@ class TestArtifactDispatch:
             )
 
         assert "Unknown artifact type: banana" in caplog.text
+
+
+class TestRediscoveryLinking:
+    """An artifact discovered a second time must still be linked to its finder."""
+
+    def test_rediscovered_seed_gets_linked(self, conn, monkeypatch):
+        def fake_process(inv_id, item, config, plugin_manager=None):
+            discovered = []
+            if item["type"] == "domain":
+                # dig rediscovers the IP that was also given as a seed
+                discovered = [{
+                    "type": "ip_address",
+                    "value": "45.33.32.156",
+                    "source": "dig",
+                    "confidence": 0.9,
+                }]
+            return ArtifactProcessResult(artifact=item, discovered=discovered)
+
+        monkeypatch.setattr(orchestrator, "_process_artifact", fake_process)
+        config = InvestigationConfig(max_depth=1, check_breaches=False, search_usernames=False)
+
+        result = run_investigation(
+            conn,
+            seeds=[
+                {"type": "domain", "value": "scanme.nmap.org"},
+                {"type": "ip_address", "value": "45.33.32.156"},
+            ],
+            config=config,
+        )
+
+        artifacts = {a["artifact_id"]: a for a in db.get_artifacts(conn, result.investigation_id)}
+        ips = [a for a in artifacts.values() if a["artifact_type"] == "ip_address"]
+        assert len(ips) == 1, "the rediscovered IP must not be duplicated"
+
+        linked = [
+            (artifacts[link["source_artifact"]]["value"], artifacts[link["target_artifact"]]["value"])
+            for link in db.get_links(conn, result.investigation_id)
+        ]
+        assert ("scanme.nmap.org", "45.33.32.156") in linked

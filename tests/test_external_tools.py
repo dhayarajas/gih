@@ -179,3 +179,45 @@ class TestExifToolTargets:
         integration.extract_metadata(str(image))
 
         assert commands == [["exiftool", "-json", str(image)]]
+
+
+class TestIpArtifactTypeIsConsistent:
+    """dig's plugin and integration must agree on the type, or the same IP
+    becomes two nodes and the nmap findings hanging off one of them are
+    orphaned from the identity that reaches the other."""
+
+    def test_plugins_use_ip_address(self):
+        from src.plugins.builtins.dig_plugin import DigPlugin
+        from src.plugins.builtins.shodan_plugin import ShodanPlugin
+        from src.plugins.builtins.whois_plugin import WhoisPlugin
+
+        for plugin in (ShodanPlugin(), WhoisPlugin()):
+            supported = plugin.get_supported_artifact_types()
+            assert "ip" not in supported, plugin.name
+            assert "ip_address" in supported, plugin.name
+
+        source = Path("src/plugins/builtins/dig_plugin.py").read_text()
+        assert 'type="ip"' not in source
+        assert 'type="ip_address"' in source
+        assert DigPlugin().get_supported_artifact_types() == ["domain"]
+
+    def test_open_ports_reach_the_identity_that_owns_the_ip(self, conn):
+        """email -> domain -> ip_address -> open_port must land on the profile."""
+        inv_id = db.create_investigation(conn)
+
+        email = db.add_artifact(conn, inv_id, "email", "ada@example.com", source="seed")
+        domain = db.add_artifact(conn, inv_id, "domain", "example.com", source="whois")
+        ip = db.add_artifact(conn, inv_id, "ip_address", "93.184.216.34", source="dig")
+        port = db.add_artifact(
+            conn, inv_id, "open_port", "93.184.216.34:22", source="nmap"
+        )
+
+        db.add_link(conn, inv_id, email, domain, "discovered_from")
+        db.add_link(conn, inv_id, domain, ip, "discovered_from")
+        db.add_link(conn, inv_id, ip, port, "discovered_from")
+
+        result = correlate_identities(conn, inv_id)
+        profile = next(p for p in result.identities if "ada@example.com" in p.emails)
+
+        assert "93.184.216.34" in profile.ip_addresses
+        assert "93.184.216.34:22" in profile.open_ports

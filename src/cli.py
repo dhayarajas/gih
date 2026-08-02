@@ -123,6 +123,23 @@ def cli(ctx: click.Context, verbose: bool, db_path: Optional[str]) -> None:
     ctx.obj["db_path"] = Path(db_path) if db_path else None
 
 
+def _json_output_path(report_output: Optional[str], report_format: str) -> Optional[str]:
+    """Keep --report-format both from writing the JSON over the HTML.
+
+    Both generators honour --report-output verbatim, so a single path would
+    leave the caller with a .html file containing JSON.
+    """
+    if not report_output or report_format != "both":
+        return report_output
+
+    path = Path(report_output)
+    json_path = path.with_suffix(".json")
+    if json_path == path:
+        json_path = path.with_name(f"{path.stem}_data.json")
+
+    return str(json_path)
+
+
 def _print_tool_coverage() -> None:
     """Print the availability and integration status of every declared OSINT tool."""
     coverage = get_tool_coverage()
@@ -149,10 +166,10 @@ def _print_tool_coverage() -> None:
 @click.option("--phone", "-p", multiple=True, help="Phone number to investigate")
 @click.option("--email", "-e", multiple=True, help="Email address to investigate")
 @click.option("--username", "-u", multiple=True, help="Username to investigate")
+@click.option("--full-name", "-n", "full_name", multiple=True, help="Full name to investigate (image-based identity matching)")
 @click.option("--image", "-i", multiple=True, help="Image file path to investigate")
 @click.option("--domain", "-d", multiple=True, help="Domain to investigate")
 @click.option("--ip", multiple=True, help="IP address to investigate")
-@click.option("--fullname", "-n", multiple=True, help="Full name to investigate")
 @click.option("--title", "-t", default=None, help="Investigation title")
 @click.option("--depth", default=2, help="Max investigation depth (default: 2)")
 @click.option("--no-breach", is_flag=True, help="Skip breach checks")
@@ -179,10 +196,10 @@ def investigate(
     phone: tuple,
     email: tuple,
     username: tuple,
+    full_name: tuple,
     image: tuple,
     domain: tuple,
     ip: tuple,
-    fullname: tuple,
     title: Optional[str],
     depth: int,
     no_breach: bool,
@@ -210,16 +227,17 @@ def investigate(
         ghost-hunter investigate --phone "+1-555-0123"
         ghost-hunter investigate --email "suspect@example.com"
         ghost-hunter investigate -p "+1-555-0123" -e "suspect@example.com" -u "john_doe"
+        ghost-hunter investigate --full-name "Jane Doe"
     """
     # Validate input
     if (
-        not phone and not email and not username and not image
-        and not domain and not ip and not fullname and not check_tools
+        not phone and not email and not username and not full_name
+        and not image and not domain and not ip and not check_tools
     ):
         click.echo(
             "Error: At least one seed artifact required "
-            "(--phone, --email, --username, --image, --domain, --ip or --fullname) "
-            "or use --check-tools"
+            "(--phone, --email, --username, --full-name, --image, --domain, "
+            "or --ip) or use --check-tools"
         )
         sys.exit(1)
 
@@ -240,6 +258,8 @@ def investigate(
         seeds.append({"type": "email", "value": e})
     for u in username:
         seeds.append({"type": "username", "value": u})
+    for n in full_name:
+        seeds.append({"type": "fullname", "value": n})
     for i in image:
         if not Path(i).exists():
             click.echo(f"Warning: Image file not found: {i}")
@@ -249,8 +269,6 @@ def investigate(
         seeds.append({"type": "domain", "value": d})
     for address in ip:
         seeds.append({"type": "ip_address", "value": address})
-    for n in fullname:
-        seeds.append({"type": "fullname", "value": n})
 
     if not seeds:
         click.echo("Error: No valid seed artifacts provided")
@@ -323,7 +341,11 @@ def investigate(
                     click.echo(f"✓ HTML report saved: {html_path}")
                 
                 if report_format in ["json", "both"]:
-                    json_path = generate_json_report(conn, result.investigation_id, output_path=report_output)
+                    json_path = generate_json_report(
+                        conn,
+                        result.investigation_id,
+                        output_path=_json_output_path(report_output, report_format),
+                    )
                     click.echo(f"✓ JSON report saved: {json_path}")
                 
                 click.echo(f"\nReport generation complete!")

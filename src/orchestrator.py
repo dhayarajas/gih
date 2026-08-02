@@ -341,7 +341,9 @@ def run_investigation(
 
     # Initialize BFS queue with seed artifacts
     queue: deque[dict] = deque()
-    seen: set[str] = set()
+    # "type:value" -> artifact_id, so a rediscovery can still be linked to the
+    # artifact that already represents it instead of being dropped.
+    seen: dict[str, str] = {}
 
     logger.debug("Initializing BFS queue with seed artifacts")
     for i, seed in enumerate(seeds):
@@ -354,7 +356,7 @@ def run_investigation(
             depth=0,
         )
         key = f"{seed['type']}:{seed['value']}"
-        seen.add(key)
+        seen[key] = artifact_id
         queue.append({
             "artifact_id": artifact_id,
             "type": seed["type"],
@@ -475,8 +477,22 @@ def run_investigation(
 
             for artifact in res.discovered:
                 key = f"{artifact['type']}:{artifact['value']}"
-                if key in seen:
-                    logger.debug("Skipping duplicate artifact: %s", key)
+                existing_id = seen.get(key)
+                if existing_id is not None:
+                    # Already discovered elsewhere: don't re-add or re-expand it,
+                    # but do record this edge. Without it a seed IP rediscovered
+                    # via DNS stays disconnected from the identity that found it,
+                    # and its nmap findings are attributed to nobody.
+                    if existing_id != current_id:
+                        db.add_link(
+                            conn,
+                            investigation_id=inv_id,
+                            source_artifact=current_id,
+                            target_artifact=existing_id,
+                            link_type=artifact.get("link_type", "discovered_from"),
+                            confidence=artifact.get("confidence", 0.8),
+                            evidence=artifact.get("source", ""),
+                        )
                     continue
                 if len(seen) >= max_total_artifacts:
                     logger.warning(
@@ -485,7 +501,6 @@ def run_investigation(
                     )
                     budget_reached = True
                     break
-                seen.add(key)
 
                 metadata_value = _artifact_metadata(artifact)
 
@@ -499,6 +514,7 @@ def run_investigation(
                     metadata=metadata_value,
                     depth=current_depth + 1,
                 )
+                seen[key] = new_id
                 db.add_link(
                     conn,
                     investigation_id=inv_id,

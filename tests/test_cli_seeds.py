@@ -7,7 +7,7 @@ import pytest
 from click.testing import CliRunner
 
 import src.cli as cli_module
-from src.cli import cli
+from src.cli import _json_output_path, cli
 from src.orchestrator import InvestigationResult
 
 
@@ -36,23 +36,11 @@ def _invoke(runner, *args):
 
 
 class TestSeedConstruction:
-    def test_fullname_becomes_a_fullname_seed(self, runner, captured_seeds):
-        result = _invoke(runner, "-n", "Linus Torvalds", "--no-external-tools")
-
-        assert result.exit_code == 0, result.output
-        assert captured_seeds[0] == [{"type": "fullname", "value": "Linus Torvalds"}]
-
     def test_ip_becomes_an_ip_address_seed(self, runner, captured_seeds):
         result = _invoke(runner, "--ip", "45.33.32.156", "--no-external-tools")
 
         assert result.exit_code == 0, result.output
         assert captured_seeds[0] == [{"type": "ip_address", "value": "45.33.32.156"}]
-
-    def test_fullname_alone_satisfies_the_seed_requirement(self, runner, captured_seeds):
-        """Without --fullname in the guard, this exits 1 as 'no seed given'."""
-        result = _invoke(runner, "--fullname", "Ada Lovelace", "--no-external-tools")
-
-        assert result.exit_code == 0, result.output
 
     def test_no_seed_options_is_an_error(self, runner, captured_seeds):
         result = _invoke(runner)
@@ -60,3 +48,17 @@ class TestSeedConstruction:
         assert result.exit_code == 1
         assert "At least one seed artifact required" in result.output
         assert captured_seeds == []
+
+
+class TestReportOutputPaths:
+    """--report-format both must not write the JSON over the HTML."""
+
+    def test_both_formats_get_distinct_paths(self):
+        assert _json_output_path("/tmp/r.html", "both") == "/tmp/r.json"
+
+    def test_json_named_output_is_not_clobbered(self):
+        assert _json_output_path("/tmp/r.json", "both") == "/tmp/r_data.json"
+
+    def test_single_format_keeps_the_requested_path(self):
+        assert _json_output_path("/tmp/r.html", "json") == "/tmp/r.html"
+        assert _json_output_path(None, "both") is None

@@ -34,7 +34,7 @@ class WhoisPlugin(OSINTPlugin):
     
     def get_supported_artifact_types(self) -> List[str]:
         """Get supported artifact types."""
-        return ["domain", "ip"]
+        return ["domain", "ip_address"]
     
     def is_available(self) -> bool:
         """Check if plugin is available."""
