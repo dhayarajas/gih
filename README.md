@@ -63,7 +63,7 @@ docker-compose -f config/docker-compose.kali.yml up -d
 ```
 
 ### **Kali Linux VM Deployment**
-See [KALI_DOCKER_DEPLOYMENT.md](KALI_DOCKER_DEPLOYMENT.md) for detailed Kali Linux Docker deployment instructions.
+See [docs/KALI_DOCKER_DEPLOYMENT.md](docs/KALI_DOCKER_DEPLOYMENT.md) for detailed Kali Linux Docker deployment instructions.
 
 ## Usage
 
@@ -247,10 +247,16 @@ Containerized deployment for consistent environments:
 
 ### **Kali Linux VM**
 Dedicated VM deployment with all OSINT tools:
-- See [VM_DEPLOYMENT_GUIDE.md](VM_DEPLOYMENT_GUIDE.md) for VM setup
-- See [KALI_DOCKER_DEPLOYMENT.md](KALI_DOCKER_DEPLOYMENT.md) for Docker on Kali
+- See [docs/VM_DEPLOYMENT_GUIDE.md](docs/VM_DEPLOYMENT_GUIDE.md) for VM setup
+- See [docs/KALI_DOCKER_DEPLOYMENT.md](docs/KALI_DOCKER_DEPLOYMENT.md) for Docker on Kali
 
 ## Architecture
+
+Detailed design documentation lives under [`docs/`](docs/README.md):
+
+- [Architecture overview](docs/ARCHITECTURE.md) — layers, module map, SQLite data model, technology stack
+- [Low-level design](docs/LLD.md) — per-subsystem design grounded in the source
+- [Sequence diagrams](docs/SEQUENCE_DIAGRAMS.md) — investigation, username, domain and reporting flows
 
 ```
 Input (phone/email/username/image)
@@ -298,12 +304,15 @@ pytest tests/ -v
 
 ## Documentation
 
-- [README.md](README.md) — Main documentation
-- [VM_DEPLOYMENT_GUIDE.md](VM_DEPLOYMENT_GUIDE.md) — VM deployment instructions
-- [KALI_DOCKER_DEPLOYMENT.md](KALI_DOCKER_DEPLOYMENT.md) — Kali Linux Docker deployment
-- [NEO4J_SETUP_GUIDE.md](NEO4J_SETUP_GUIDE.md) — Neo4j integration guide
-- [DOCKER_SETUP_GUIDE.html](DOCKER_SETUP_GUIDE.html) — Docker setup guide
-- [README.docker.md](README.docker.md) — Docker-specific documentation
+- [docs/README.md](docs/README.md) — Documentation index
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — High-level architecture, block diagrams and data model
+- [docs/LLD.md](docs/LLD.md) — Low-level design per subsystem
+- [docs/SEQUENCE_DIAGRAMS.md](docs/SEQUENCE_DIAGRAMS.md) — End-to-end, username, domain and reporting sequences
+- [docs/plugin_development.md](docs/plugin_development.md) — Plugin development guide
+- [docs/VM_DEPLOYMENT_GUIDE.md](docs/VM_DEPLOYMENT_GUIDE.md) — VM deployment instructions
+- [docs/KALI_DOCKER_DEPLOYMENT.md](docs/KALI_DOCKER_DEPLOYMENT.md) — Kali Linux Docker deployment
+- [docs/NEO4J_SETUP_GUIDE.md](docs/NEO4J_SETUP_GUIDE.md) — Neo4j integration guide
+- [docs/README.docker.md](docs/README.docker.md) — Docker-specific documentation
 
 ## Legal & Ethical Considerations
 
