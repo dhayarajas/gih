@@ -56,13 +56,23 @@ exiftool -overwrite_original -Make=Canon -Model="Canon EOS 5D Mark IV" \
 - **`--report-format both` retargets the JSON.** The two generators would otherwise write to
   the same `--report-output`; `_json_output_path` in `src/cli.py` sends the JSON to the `.json`
   sibling, so `--report-output /tmp/r.html` yields `/tmp/r.html` + `/tmp/r.json`.
-- **There is no CLI flag for the executive/technical/legal templates.** Only `standard` comes
-  out of the CLI. Render the others through the public API:
-  ```python
-  from src.reporting.html_report import generate_html_report
-  for t in ("standard","executive","technical","legal"):
-      generate_html_report(conn, inv_id, f"/tmp/report_{t}.html", template_type=t)
+- **The four templates *are* reachable from the CLI** (older revisions of this note said they
+  were not — check `--help` before assuming): `investigate --report-template …` and
+  `report --template standard|executive|technical|legal`. Regenerating every template for a
+  finished run is offline and takes seconds, so run each seed type once and loop the templates:
+  ```bash
+  for t in executive technical legal; do
+    PYTHONPATH=. python3 -m src.cli --db /tmp/t-user.db report --id INV-xxxx \
+      --format html --template $t -o /tmp/rep/user-$t.html
+  done
   ```
+  The public API (`generate_html_report(conn, inv_id, path, template_type=t)`) still works if
+  the flag is ever missing.
+- **`report --format both -o /tmp/x.html` treats the path as a directory** and writes
+  `x.html/INV-*_report.html|.json` inside it (long-standing; do not blame a report PR for it).
+- **`--format pdf` needs pandoc**, which is usually absent. Expect
+  `PDF export failed: PDF export requires pandoc on PATH` + the HTML path; the `report`
+  subcommand exits 1, `investigate --auto-report` exits 0.
 - **Wayback Machine is flaky.** Its CDX query (`url={domain}/*&collapse=urlkey`) frequently
   straddles the hard-coded 30s timeout, so `historical_url` may be 0 through no fault of your
   change. Verify with curl before calling it a regression.
@@ -77,6 +87,45 @@ exiftool -overwrite_original -Make=Canon -Model="Canon EOS 5D Mark IV" \
   copy of the report and reload.
 - **Ruff has a large pre-existing backlog** (~514 findings on main). Never report the raw
   count; diff rule+file against a `git worktree` of the base branch.
+
+## Measuring layout regressions across many reports
+
+A report run easily produces 40+ HTML files; checking overflow/contrast by eye does not scale.
+Drive headless Chromium instead (`pip install playwright && python3 -m playwright install
+chromium`; passing `executable_path=` to a system Chrome does **not** work — install the
+bundled browser):
+
+- Overflow: load at `viewport={'width':1280,'height':900}`, click the **Expand all details**
+  button, then assert `document.documentElement.scrollWidth <= clientWidth`.
+- To find *what* overflows, walk `document.querySelectorAll('*')` and report every element
+  whose `getBoundingClientRect().right > clientWidth`. Recurring offenders in the standard
+  template, all of them non-obvious because the page only grows once every drill-down is
+  open: long unbroken strings in table cells and in `span.chain-step` (section 7 “Evidence
+  Chains”), the identity-profile flex column (a flex child needs `min-width: 0` or it refuses
+  to shrink), and wide nested metadata tables inside `.kv-table` (an auto-layout table sizes
+  to its widest cell — `table-layout: fixed` plus a scrollable wrapper contains it).
+  Check narrow viewports too: 1024px surfaces column-count overflow that 1280px hides.
+- Contrast (the PR #28 white-on-white bug class): compute the WCAG luminance ratio of each
+  text node's `color` against the nearest ancestor with an opaque `backgroundColor`, skipping
+  ancestors with a `background-image` (the report header uses a gradient and produces false
+  positives).
+- Always reproduce overflow at ~1280px. A maximized window on a 1600px screen gives a
+  ~1585px viewport where the old bugs do **not** reproduce; `wmctrl -r :ACTIVE: -e 0,0,0,1300,1180`
+  gets you to a realistic desktop width.
+
+## Old-vs-new evidence for report changes
+
+Re-render the *same* DB with the base branch — much stronger than screenshots of the new
+output alone, and it takes no extra live run:
+
+```bash
+git worktree add /tmp/gih-main origin/main
+cd /tmp/gih-main && PYTHONPATH=. python3 -m src.cli --db /tmp/t-user.db \
+  report --id INV-xxxx --format html -o /tmp/rep/user-OLDMAIN.html
+```
+
+Cheap machine assertions on the rendered HTML that catch metadata-quality regressions:
+`grep` the `<td>` cells for literal `[]`, `{}`, `None`, and for floats with 5+ decimals.
 
 ## Verifying correlation
 
