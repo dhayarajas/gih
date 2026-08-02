@@ -17,6 +17,43 @@ description: How to run and verify Ghost Identity Hunter (gih) end-to-end — li
 - Expected clean skips: `shodan` (no API key), `amass` (often times out at 60 s),
   `face_recognition`/dlib absent → image *matching* disabled (EXIF still works).
 - Google Dorks frequently returns HTTP 429; the module degrades to 0 artifacts. Not a bug.
+- `pip install -r requirements.txt` aborts building **dlib**. Install with
+  `grep -vi 'dlib\|face' requirements.txt > /tmp/req.txt && pip install -r /tmp/req.txt`
+  plus `pip install pytest ruff`. `face_recognition` absent is expected (image *matching* disabled).
+  Baseline on a healthy tree: `python3 -m pytest -q` → 219 passed.
+
+## Testing username/platform detection (`src/modules/username_search.py`)
+
+Platform verdicts can be exercised without a full investigation, which is much faster and
+gives per-platform evidence strings:
+
+```python
+from src.modules.username_search import _get_username_search_config, _check_platform
+cfg = {p['name']: p for p in _get_username_search_config()['platforms']}
+r = _check_platform('gaben', cfg['Steam'])
+print(r.found, r.validation_method, r.validation_evidence)
+```
+
+Known behaviour of the bundled platforms from a datacenter IP (verify before blaming a change):
+
+- **Twitter/X**: `twitter.com/<any handle>` → `301` to `x.com/<same handle>`, for real *and* fake
+  handles. With `redirect_means: not_found` that means X can never be reported. Consider it
+  environment/config, not a code regression; pointing the template at `x.com` is the likely fix.
+- **Instagram**: always `302` to `/accounts/login` when logged out → permanently not found.
+- **LinkedIn**: `HTTP 999`; **Medium**: `HTTP 403` — both bot-block this IP range, so their
+  content markers cannot be exercised live. Report as untested rather than passing.
+- **Steam** rate-limits to `429` after a handful of requests in a run; a missing Steam hit in a
+  live investigation may be throttling, not a marker bug. Re-probe the single platform to confirm.
+- Reliable live fixtures: `Keybase/chris`, `Keybase/max`, `Steam/gaben`, `Mastodon/Gargron`,
+  `Pinterest/nike`, `HackerNews/dang`, `HackerNews/pg`, `GitHub|GitLab/gaben`.
+- Soft-404s that answer **HTTP 200** (good false-positive fixtures): Steam
+  ("The specified profile could not be found."), Pinterest ("User not found"), HackerNews
+  ("No such user.").
+- Failure markers are matched **before** success markers, so a short/generic failure marker
+  (e.g. `"404"`, `"not found"`) can reject a real profile page. Probe that class of bug directly:
+  `_validate_web_content(username, platform_dict, synthetic_body)`.
+- A nonexistent seed handle still produces presences for handles Google Dorks harvested
+  (commonly `websearch`). Always attribute presences via `platform_presence.username`, not the count.
 - Known pre-existing unit failures on `main`: `tests/test_storage.py::TestPlatformPresence::{test_add_presence,test_get_presences}`.
   Always confirm against an `origin/main` worktree (`git worktree add /tmp/gih-main origin/main`)
   before blaming a PR.
