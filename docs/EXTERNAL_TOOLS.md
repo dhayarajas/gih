@@ -96,3 +96,37 @@ scheduled:
   single subprocess: `TheHarvesterIntegration._harvest` memoizes the raw
   `ToolResult` per domain under a lock, and each analysis parses a copy of that
   output.
+
+## Strict matching
+
+Tools disagree about what counts as a hit: a search engine returns pages that
+merely mention a handle, a status-200 profile check proves nothing on sites with
+soft 404s, and a full name expands into guessed username variants. The
+`investigation.strict_match` block in `config.yaml` (overridable per run with
+`--strict-match` / `--no-strict-match`) applies one rule to every source:
+
+| Setting | Default | Effect |
+|---|---|---|
+| `enabled` | `true` | Only findings carrying the target's exact value are recorded |
+| `require_validated_presence` | `true` | Platform hits proven by a bare HTTP 200 are dropped (tool-derived rows, which are exact by construction, are kept) |
+| `allow_name_variants` | `true` | A `fullname` seed still expands into username candidates; set false to search the seed value alone |
+| `min_image_probability` | `0.9` | Face matches below this probability are not recorded |
+
+Only a *handle* seed (username or email) can judge a finding. A domain or a full
+name legitimately produces handles and addresses that do not contain the seed —
+the username behind an address, emails harvested by theHarvester, name variants
+— so those pivots are never filtered. For an email seed, both the address and
+its local part count as the target.
+
+The filter lives in `src/utils/matching.py` and is applied by the orchestrator to
+every module, external-tool and plugin result (`_apply_match_policy` /
+`_keep_full_matches`), so no integration has to implement its own rule. A value
+counts as a full match only when the target appears as a whole token — separated
+by URL or punctuation boundaries — so `octocat` matches
+`https://github.com/octocat` but not `octocat-bot`, `octocat99` or
+`the_octocat`. A handle that forms a whole hostname label counts too, so
+blog-style profiles such as `https://octocat.tumblr.com` are kept, and a
+plugin's nested `metadata.username` is consulted when the URL carries no handle.
+With `require_validated_presence`, status-only hits are removed from both the
+presence table and the findings list. Types that describe infrastructure rather than an identity claim
+(subdomains, ports, DNS records, breaches) are never filtered.

@@ -83,6 +83,7 @@ from src.modules.correlation_neo4j import Neo4jCorrelation
 from src.modules.google_dorks import run_google_dorks_search, check_google_dorks_availability
 from src.storage import database as db
 from src.utils.tool_checker import get_tool_checker, check_tool_availability
+from src.utils.matching import MatchPolicy, get_match_policy, filter_full_matches
 from src.modules.external_tools import (
     run_tool_analysis,
     get_tool_integrations,
@@ -158,6 +159,78 @@ _ARTIFACT_RESERVED_KEYS = frozenset({
 # Tool findings that describe an account on a platform rather than a new artifact
 # to expand; they are also recorded as platform_presence rows.
 ACCOUNT_ARTIFACT_TYPES = frozenset({"username_presence", "email_presence"})
+
+
+def _keep_full_matches(
+    artifacts: list[dict],
+    target: str,
+    target_type: str,
+    policy: MatchPolicy,
+) -> list[dict]:
+    """Drop findings that do not carry the target's exact value."""
+    kept, dropped = filter_full_matches(artifacts, target, policy, target_type)
+    for artifact in dropped:
+        logger.debug(
+            "Strict match: dropping partial %s %r from %s (target %s)",
+            artifact.get("type"), artifact.get("value"), artifact.get("source"), target,
+        )
+    if dropped:
+        logger.info("Strict match: dropped %d partial finding(s) for %s", len(dropped), target)
+    return kept
+
+
+def _is_validated_presence_artifact(artifact: dict) -> bool:
+    """False only for a platform_presence proven by a bare HTTP 200.
+
+    Artifacts that carry no verdict (tool and plugin findings) are exact by
+    construction and are kept.
+    """
+    if artifact.get("type") != "platform_presence":
+        return True
+
+    metadata = artifact.get("metadata")
+    if isinstance(metadata, str):
+        try:
+            metadata = json.loads(metadata)
+        except json.JSONDecodeError:
+            return True
+    if not isinstance(metadata, dict) or "is_validated" not in metadata:
+        return True
+
+    return bool(metadata["is_validated"])
+
+
+def _apply_match_policy(
+    result: "ArtifactProcessResult",
+    target: str,
+    target_type: str,
+    policy: MatchPolicy,
+) -> None:
+    """Enforce the strict-match policy on one module's output, in place."""
+    if not policy.enabled:
+        return
+
+    result.discovered = _keep_full_matches(result.discovered, target, target_type, policy)
+
+    if policy.require_validated_presence:
+        # Only presences that carry a verdict are judged; tool-derived rows
+        # (sherlock, holehe, ...) are exact by construction and have none.
+        verified = [
+            p for p in result.platform_presences
+            if "is_verified" not in p or p["is_verified"]
+        ]
+        if len(verified) != len(result.platform_presences):
+            logger.info(
+                "Strict match: dropped %d unvalidated platform presence(s) for %s",
+                len(result.platform_presences) - len(verified), target,
+            )
+        result.platform_presences = verified
+
+        # The same hits are also emitted as platform_presence artifacts; drop
+        # those too, or the findings list would contradict the presence table.
+        result.discovered = [
+            a for a in result.discovered if _is_validated_presence_artifact(a)
+        ]
 
 
 def _artifact_metadata(artifact: dict) -> Optional[str]:
@@ -286,6 +359,8 @@ class InvestigationConfig:
     max_runtime_minutes: float = _INV_DEFAULTS["max_runtime_minutes"]  # Wall-clock deadline
     max_total_artifacts: int = _INV_DEFAULTS["max_total_artifacts"]  # Cap on total artifacts
     max_parallel_workers: int = _INV_DEFAULTS["max_parallel_workers"]  # BFS-level concurrency
+    # Only record findings that carry the target's exact value (see src.utils.matching).
+    match_policy: MatchPolicy = field(default_factory=get_match_policy)
 
 
 @dataclass
@@ -813,12 +888,17 @@ def _process_artifact(
     else:
         logger.warning("Unknown artifact type: %s", artifact_type)
 
+    _apply_match_policy(result, value, artifact_type, config.match_policy)
+
     logger.debug("OSINT module returned %d discovered artifacts", len(result.discovered))
     
     # Process with external OSINT tools if enabled
     if config.check_external_tools:
         logger.debug("Processing artifact with external OSINT tools")
         external_discovered = _process_external_tools(inv_id, artifact, config)
+        external_discovered = _keep_full_matches(
+            external_discovered, value, artifact_type, config.match_policy
+        )
         result.discovered.extend(external_discovered)
         result.platform_presences.extend(_account_presences(external_discovered))
         logger.debug("External tools returned %d additional artifacts", len(external_discovered))
@@ -827,6 +907,9 @@ def _process_artifact(
     if plugin_manager:
         logger.debug("Processing artifact with plugin system")
         plugin_discovered = _process_with_plugins(artifact, config, plugin_manager)
+        plugin_discovered = _keep_full_matches(
+            plugin_discovered, value, artifact_type, config.match_policy
+        )
         result.discovered.extend(plugin_discovered)
         logger.debug("Plugin system returned %d additional artifacts", len(plugin_discovered))
     
@@ -1036,7 +1119,11 @@ def _process_fullname(
         # No tool takes a person's name directly, so the name is turned into
         # username candidates; the BFS then runs the username modules and tools
         # (username_search, sherlock, maigret, Google Dorks) on each of them.
-        result.discovered.extend(_username_candidates(value))
+        # These are guesses, not full matches, so strict mode skips them.
+        if config.match_policy.allow_name_variants or not config.match_policy.enabled:
+            result.discovered.extend(_username_candidates(value))
+        else:
+            logger.info("Strict match: skipping guessed username variants for %s", value)
 
         # Search and match identity
         match_result = image_match.search_and_match_identity(
@@ -1058,8 +1145,13 @@ def _process_fullname(
         result.discovered.extend(image_match.get_discovered_artifacts(match_result))
         
         # Add high-probability face matches as identity artifacts
+        min_probability = (
+            config.match_policy.min_image_probability
+            if config.match_policy.enabled
+            else 0.7
+        )
         for match in match_result.face_matches:
-            if match.match_probability > 0.7:
+            if match.match_probability >= min_probability:
                 result.discovered.append({
                     "type": "identity_match",
                     "value": match.image_url,
