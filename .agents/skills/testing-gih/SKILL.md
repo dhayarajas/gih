@@ -129,3 +129,32 @@ the path in the omnibox, clear it with ctrl+a first — Chrome autocomplete can 
 `INV-` into `IV-` and produce ERR_FILE_NOT_FOUND. Use ctrl+f to jump to
 `IDENTITY-00N` / `Accounts Found`; the per-identity "External Tool Findings (N)"
 blocks are `<details>` elements and must be clicked to expand.
+
+### Drill-down / expandable sections
+
+The standard (`standard` == `html`) template renders artifacts, platform presences and
+identity evidence as `<details class="drilldown">`. Practical tips:
+
+- Ctrl+F in Chrome auto-opens a matching `<details>`, which is the fastest way to reach a
+  specific artifact/presence without scrolling through dozens of rows.
+- Verify "Expand all"/"Collapse all" by counting in the console rather than by eye:
+  `document.querySelectorAll('details.drilldown').length` vs
+  `document.querySelectorAll('details.drilldown[open]').length`.
+- The page HTML returned alongside computer-use screenshots only includes *open* `<details>`
+  bodies — closed ones appear as an empty `<summary>`. Use that as a cheap open/closed signal.
+
+### Seeding report edge cases
+
+Templates must survive dirty rows. Insert directly into `~/.ghost_hunter/investigations.db`
+(back it up first) to cover: `metadata` NULL / malformed JSON / a JSON scalar, NULL `source`,
+an `artifact_links` row with NULL `evidence`, a fully populated `platform_presence`
+(bio/followers/verified/created/last_active) and one with all-NULL fields plus a
+non-resolvable `avatar_url` (the template's `onerror` should hide the img).
+
+- **Avoid seeding `confidence = NULL`.** `_generate_key_findings` in
+  `src/reporting/html_report.py` compares `confidence >= 0.8` unguarded and may raise
+  `TypeError: '>=' not supported between instances of 'NoneType' and 'float'`. This has been
+  present on `main`, so if you hit it, it is likely not the PR under test — seed a real float
+  and report the latent bug separately.
+- Long URLs inside the identity evidence table can overflow horizontally at normal browser
+  width; likely cosmetic unless the PR touches table CSS.
