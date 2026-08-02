@@ -1,0 +1,82 @@
+06:28:47 [INFO] root: Logging to file: logs/dhaya_20260802_062847.log
+06:28:47 [INFO] src.orchestrator: Starting investigation with 1 seed artifact(s)
+06:28:47 [INFO] src.orchestrator: Available external tools: 0
+06:28:47 [INFO] src.orchestrator: Missing external tools: 35
+06:28:47 [INFO] src.plugins.registry: Registered plugin: SherlockPlugin
+06:28:47 [INFO] src.plugins.registry: Registered plugin: WhoisPlugin
+06:28:47 [INFO] src.plugins.registry: Registered plugin: UsernameSearchPlugin
+06:28:47 [INFO] src.plugins.registry: Registered plugin: ProfileImagePlugin
+06:28:47 [INFO] src.plugins.registry: Registered plugin: TheHarvesterPlugin
+06:28:47 [INFO] src.plugins.registry: Registered plugin: DigPlugin
+06:28:47 [INFO] src.plugins.registry: Registered plugin: EmailBreachPlugin
+06:28:47 [INFO] src.plugins.registry: Registered plugin: ImageMatchPlugin
+06:28:47 [INFO] src.plugins.registry: Registered plugin: GoogleDorksPlugin
+06:28:47 [INFO] src.plugins.registry: Registered plugin: ShodanPlugin
+06:28:47 [INFO] src.plugins.registry: Registered plugin: PhoneValidationPlugin
+06:28:47 [INFO] src.orchestrator: Available plugins: 8
+06:28:47 [INFO] src.orchestrator: Created investigation: INV-8ba8becf
+06:28:47 [INFO] src.orchestrator: Starting BFS processing with 1 artifacts in queue
+06:28:47 [INFO] src.orchestrator: Processing BFS level 1: 1 artifact(s) (elapsed=0.0s, workers=1)
+06:28:47 [INFO] src.modules.username_search: Found dhayanidhi rajasekaran on Steam
+06:28:47 [ERROR] src.modules.username_search: Exception checking Reddit: 'expected_status'
+06:28:48 [ERROR] src.modules.username_search: Exception checking GitLab: 'expected_status'
+06:28:48 [INFO] src.modules.username_search: Found dhayanidhi rajasekaran on Medium
+06:28:48 [INFO] src.modules.username_search: Found dhayanidhi rajasekaran on Instagram
+06:28:49 [INFO] src.modules.username_search: Found dhayanidhi rajasekaran on Pinterest
+06:28:49 [INFO] src.modules.username_search: Username search complete: dhayanidhi rajasekaran → found on 4/12 platforms
+06:28:50 [INFO] src.modules.google_dorks: Limiting patterns from 8 to 3 to avoid rate limiting
+06:28:50 [INFO] src.modules.google_dorks: Searching for username 'dhayanidhi rajasekaran' with 3 dork patterns
+06:28:50 [INFO] src.modules.google_dorks: DuckDuckGo search found 0 results for pattern 'profile_pages'
+06:28:50 [WARNING] src.modules.google_dorks: Pattern 'profile_pages' failed: None
+06:28:50 [INFO] src.modules.google_dorks: DuckDuckGo search found 0 results for pattern 'social_platforms'
+06:28:50 [WARNING] src.modules.google_dorks: Pattern 'social_platforms' failed: None
+06:28:50 [INFO] src.modules.google_dorks: DuckDuckGo search found 0 results for pattern 'simple_search'
+06:28:50 [WARNING] src.modules.google_dorks: Pattern 'simple_search' failed: None
+06:28:50 [INFO] src.modules.google_dorks: Google Dorks search discovered 0 artifacts
+06:28:50 [INFO] src.modules.google_dorks: Limiting patterns from 8 to 3 to avoid rate limiting
+06:28:50 [INFO] src.modules.google_dorks: Searching for username 'dhayanidhi rajasekaran' with 3 dork patterns
+06:28:50 [INFO] src.modules.username_search: Found dhayanidhi rajasekaran on Medium
+06:28:50 [INFO] src.modules.username_search: Found dhayanidhi rajasekaran on Instagram
+06:28:50 [INFO] src.modules.username_search: Found dhayanidhi rajasekaran on Pinterest
+06:28:50 [INFO] src.modules.username_search: Found dhayanidhi rajasekaran on Steam
+06:28:51 [ERROR] src.modules.username_search: Exception checking GitLab: 'expected_status'
+06:28:51 [INFO] src.modules.google_dorks: Google search found 0 results for pattern 'simple_search'
+06:28:51 [INFO] src.modules.google_dorks: Pattern 'simple_search' found 0 results
+06:28:51 [ERROR] src.modules.username_search: Exception checking Reddit: 'expected_status'
+06:28:51 [INFO] src.modules.username_search: Username search complete: dhayanidhi rajasekaran → found on 4/12 platforms
+06:28:53 [INFO] src.modules.google_dorks: Google search found 0 results for pattern 'social_platforms'
+06:28:53 [INFO] src.modules.google_dorks: Pattern 'social_platforms' found 0 results
+06:28:55 [INFO] src.modules.google_dorks: Google search found 0 results for pattern 'profile_pages'
+06:28:55 [INFO] src.modules.google_dorks: Pattern 'profile_pages' found 0 results
+06:28:55 [INFO] src.modules.google_dorks: Google Dorks search discovered 0 artifacts
+06:28:55 [INFO] src.orchestrator: Plugin system processed 2 plugins, discovered 0 artifacts
+06:28:55 [INFO] src.orchestrator: BFS level 1 done in 7.5s (parallel=7.5s, db=0.0s); processed=1, seen=5, next_level=4
+06:28:55 [INFO] src.orchestrator: Processing BFS level 2: 4 artifact(s) (elapsed=7.6s, workers=4)
+06:28:55 [INFO] src.plugins.builtins.profile_image_plugin: Extracting profile image from: https://steamcommunity.com/id/dhayanidhi rajasekaran
+06:28:55 [INFO] src.plugins.builtins.profile_image_plugin: Extracting profile image from: https://medium.com/@dhayanidhi rajasekaran
+06:28:55 [INFO] src.plugins.builtins.profile_image_plugin: Extracting profile image from: https://www.instagram.com/dhayanidhi rajasekaran/
+06:28:55 [INFO] src.plugins.builtins.profile_image_plugin: Extracting profile image from: https://www.pinterest.com/dhayanidhi rajasekaran/
+06:28:55 [INFO] src.orchestrator: Plugin system processed 1 plugins, discovered 0 artifacts
+06:28:55 [INFO] src.orchestrator: Plugin system processed 1 plugins, discovered 0 artifacts
+06:28:55 [INFO] src.orchestrator: Plugin system processed 1 plugins, discovered 0 artifacts
+06:28:55 [INFO] src.orchestrator: Plugin system processed 1 plugins, discovered 0 artifacts
+06:28:55 [INFO] src.orchestrator: BFS level 2 done in 0.8s (parallel=0.8s, db=0.0s); processed=5, seen=5, next_level=0
+06:28:55 [INFO] src.orchestrator: BFS processing complete: 5 artifact(s) processed across 2 level(s) in 8.3s
+06:28:55 [INFO] src.orchestrator: Summary: 5 artifacts, 4 links, 4 platform presences
+06:28:55 [INFO] src.modules.correlation: Correlation analysis: 5 artifacts, 4 links, 1 components
+06:28:55 [INFO] src.orchestrator: Correlation analysis: 1 connected components, largest component size: 5
+06:28:55 [INFO] src.orchestrator: Investigation INV-8ba8becf complete: 5 artifacts, 4 links, 4 platforms, 0 risk indicators (finalize/correlation=0.0s, total=8.4s)
+06:28:55 [INFO] src.correlation.linker: Correlation complete: 0 nodes, 0 edges, 0 identities
+06:28:55 [WARNING] src.graph.visualizer: Empty graph for investigation INV-8ba8becf
+06:28:55 [INFO] src.reporting.html_report: ============================================================
+06:28:55 [INFO] src.reporting.html_report: INVESTIGATION RECOMMENDATIONS
+06:28:55 [INFO] src.reporting.html_report: ============================================================
+06:28:55 [INFO] src.reporting.html_report: [MEDIUM Priority - Platform Expansion]
+06:28:55 [INFO] src.reporting.html_report:   Action: Expand platform search coverage
+06:28:55 [INFO] src.reporting.html_report:   Details: Currently found on 4 platforms. Consider additional platform searches for broader coverage
+06:28:55 [INFO] src.reporting.html_report: ------------------------------------------------------------
+06:28:55 [INFO] src.reporting.html_report: [LOW Priority - Investigation Depth]
+06:28:55 [INFO] src.reporting.html_report:   Action: Consider deeper investigation
+06:28:55 [INFO] src.reporting.html_report:   Details: Current investigation depth: 1. Consider increasing depth for more comprehensive results
+06:28:55 [INFO] src.reporting.html_report: ------------------------------------------------------------
+06:28:55 [INFO] src.reporting.html_report: HTML report saved to reports/INV-8ba8becf_report.html

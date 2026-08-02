@@ -1,0 +1,63 @@
+14:23:06 [INFO] root: Logging to file: logs/dhaya_20260801_142306.log
+14:23:06 [INFO] src.orchestrator: Starting investigation with 1 seed artifact(s)
+14:23:06 [INFO] src.orchestrator: Investigation title: Test Investigation
+14:23:06 [INFO] src.orchestrator: Available external tools: 0
+14:23:06 [INFO] src.orchestrator: Missing external tools: 35
+14:23:06 [INFO] src.plugins.registry: Registered plugin: SherlockPlugin
+14:23:06 [INFO] src.plugins.registry: Registered plugin: WhoisPlugin
+14:23:06 [INFO] src.plugins.registry: Registered plugin: UsernameSearchPlugin
+14:23:06 [INFO] src.plugins.registry: Registered plugin: TheHarvesterPlugin
+14:23:06 [INFO] src.plugins.registry: Registered plugin: DigPlugin
+14:23:06 [INFO] src.plugins.registry: Registered plugin: EmailBreachPlugin
+14:23:06 [INFO] src.plugins.registry: Registered plugin: ImageMatchPlugin
+14:23:06 [INFO] src.plugins.registry: Registered plugin: GoogleDorksPlugin
+14:23:06 [INFO] src.plugins.registry: Registered plugin: ShodanPlugin
+14:23:06 [INFO] src.plugins.registry: Registered plugin: PhoneValidationPlugin
+14:23:06 [INFO] src.config.loader: Configuration loaded from: config/config.yaml
+14:23:06 [WARNING] src.plugins.builtins.image_match_plugin: face_recognition module not available, image match plugin disabled
+14:23:06 [INFO] src.orchestrator: Available plugins: 6
+14:23:06 [INFO] src.orchestrator: Created investigation: INV-6e30b2d8
+14:23:06 [INFO] src.orchestrator: Starting BFS processing with 1 artifacts in queue
+14:23:06 [WARNING] src.modules.email_osint: HIBP API requires API key for this endpoint
+14:23:06 [INFO] src.modules.email_osint: Email analysis complete: test@example.com → disposable=False, breaches=0, platforms=1
+14:23:06 [ERROR] src.orchestrator: Email OSINT failed for test@example.com: SQLite objects created in a thread can only be used in that same thread. The object was created in thread id 8422812736 and this is thread id 6140850176.
+14:23:06 [WARNING] src.plugins.builtins.image_match_plugin: face_recognition module not available, image match plugin disabled
+14:23:06 [WARNING] src.modules.email_osint: HIBP API requires API key for this endpoint
+14:23:06 [INFO] src.modules.email_osint: Email analysis complete: test@example.com → disposable=False, breaches=0, platforms=1
+14:23:06 [INFO] src.orchestrator: Plugin system processed 1 plugins, discovered 0 artifacts
+14:23:06 [INFO] src.orchestrator: Processing: email=test@example.com (depth=0, queue_size=0)
+14:23:06 [WARNING] src.orchestrator: Unknown artifact type: domain
+14:23:06 [ERROR] src.orchestrator: External tools processing failed for example.com: 'WhoisIntegration' object has no attribute 'search_username'
+14:23:06 [WARNING] src.plugins.builtins.image_match_plugin: face_recognition module not available, image match plugin disabled
+14:23:07 [INFO] src.orchestrator: Plugin system processed 2 plugins, discovered 5 artifacts
+14:23:07 [INFO] src.orchestrator: Processing: domain=example.com (depth=1, queue_size=0)
+14:23:07 [WARNING] src.orchestrator: Unknown artifact type: ip
+14:23:07 [WARNING] src.orchestrator: Unknown artifact type: ip
+14:23:07 [WARNING] src.orchestrator: Unknown artifact type: mail_server
+14:23:07 [WARNING] src.orchestrator: Unknown artifact type: nameserver
+14:23:07 [WARNING] src.orchestrator: Unknown artifact type: nameserver
+14:23:07 [WARNING] src.plugins.builtins.image_match_plugin: face_recognition module not available, image match plugin disabled
+14:23:07 [WARNING] src.plugins.builtins.image_match_plugin: face_recognition module not available, image match plugin disabled
+14:23:07 [WARNING] src.plugins.manager: No plugins available for artifact type: nameserver
+14:23:07 [WARNING] src.plugins.builtins.image_match_plugin: face_recognition module not available, image match plugin disabled
+14:23:07 [WARNING] src.plugins.manager: No plugins available for artifact type: mail_server
+14:23:07 [INFO] src.orchestrator: Plugin system processed 0 plugins, discovered 0 artifacts
+14:23:07 [WARNING] src.plugins.manager: No plugins available for artifact type: nameserver
+14:23:07 [INFO] src.orchestrator: Plugin system processed 0 plugins, discovered 0 artifacts
+14:23:07 [INFO] src.orchestrator: Processing: nameserver=hera.ns.cloudflare.com. (depth=2, queue_size=0)
+14:23:07 [INFO] src.orchestrator: Plugin system processed 0 plugins, discovered 0 artifacts
+14:23:07 [INFO] src.orchestrator: Processing: mail_server=0 . (depth=2, queue_size=0)
+14:23:07 [WARNING] src.plugins.builtins.image_match_plugin: face_recognition module not available, image match plugin disabled
+14:23:07 [INFO] src.orchestrator: Processing: nameserver=elliott.ns.cloudflare.com. (depth=2, queue_size=0)
+14:23:07 [WARNING] src.plugins.builtins.image_match_plugin: face_recognition module not available, image match plugin disabled
+14:23:07 [INFO] src.orchestrator: Plugin system processed 1 plugins, discovered 0 artifacts
+14:23:07 [INFO] src.orchestrator: Processing: ip=104.20.23.154 (depth=2, queue_size=0)
+14:23:07 [INFO] src.orchestrator: Plugin system processed 1 plugins, discovered 0 artifacts
+14:23:07 [INFO] src.orchestrator: Processing: ip=172.66.147.243 (depth=2, queue_size=0)
+14:23:07 [INFO] src.orchestrator: BFS processing complete. Processed 7 artifacts
+14:23:07 [INFO] src.orchestrator: Summary: 7 artifacts, 6 links, 0 platform presences
+14:23:07 [INFO] src.modules.correlation: Correlation analysis: 7 artifacts, 6 links, 1 components
+14:23:07 [INFO] src.orchestrator: Correlation analysis: 1 connected components, largest component size: 7
+14:23:07 [INFO] src.orchestrator: Investigation INV-6e30b2d8 complete: 7 artifacts, 6 links, 0 platforms, 0 risk indicators
+14:23:07 [INFO] src.correlation.linker: Correlation complete: 7 nodes, 6 edges, 1 identities
+14:23:07 [INFO] src.graph.visualizer: Graph saved to /var/folders/73/s7vzm9_d65n7bx0pjs4gmsmm0000gn/T/tmp8v0q2w5r.html (7 nodes, 6 edges)
