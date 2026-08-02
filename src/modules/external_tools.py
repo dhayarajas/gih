@@ -191,7 +191,9 @@ class SherlockIntegration(ExternalToolsIntegration):
         """
         command = [
             "sherlock", username,
-            "--print-found", "--no-color", "--timeout", "10",
+            # --no-txt keeps sherlock from writing a <username>.txt result file
+            # into the working directory; findings are parsed from stdout.
+            "--print-found", "--no-color", "--no-txt", "--timeout", "10",
         ]
         result = self.run_tool("sherlock", command)
 

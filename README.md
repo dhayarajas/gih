@@ -250,6 +250,13 @@ Dedicated VM deployment with all OSINT tools:
 - See [VM_DEPLOYMENT_GUIDE.md](VM_DEPLOYMENT_GUIDE.md) for VM setup
 - See [KALI_DOCKER_DEPLOYMENT.md](KALI_DOCKER_DEPLOYMENT.md) for Docker on Kali
 
+## Documentation
+
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — layered architecture, component diagrams and the SQLite data model
+- [docs/LLD.md](docs/LLD.md) — low-level design per subsystem with sequence diagrams
+- [docs/TOOL_COVERAGE.md](docs/TOOL_COVERAGE.md) — which external OSINT tools are implemented, invoked and parsed
+- [docs/README.md](docs/README.md) — documentation index
+
 ## Architecture
 
 ```
