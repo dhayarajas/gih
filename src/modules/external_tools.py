@@ -696,7 +696,8 @@ class WaybackMachineIntegration(ExternalToolsIntegration):
                 f"&fl=timestamp,original,statuscode,mimetype&collapse=urlkey"
                 f"&limit={MAX_ARTIFACTS_PER_TOOL}"
             )
-            response = requests.get(url, timeout=30)
+            with io_slot():
+                response = requests.get(url, timeout=30)
             
             if response.status_code == 200:
                 result.success = True

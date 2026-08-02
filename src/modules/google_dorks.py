@@ -68,7 +68,6 @@ from urllib.parse import quote_plus
 from bs4 import BeautifulSoup
 
 from src.config.loader import get_config
-from src.utils.concurrency import io_slot
 
 logger = logging.getLogger(__name__)
 
@@ -509,8 +508,7 @@ class GoogleDorksSearch:
                 'num': 10
             }
             
-            with io_slot():
-                response = self._session.get(url, params=params, headers=self.headers, timeout=self.request_timeout)
+            response = self._session.get(url, params=params, headers=self.headers, timeout=self.request_timeout)
             response.raise_for_status()
             
             data = response.json()
@@ -561,8 +559,7 @@ class GoogleDorksSearch:
                 'kl': 'us-en'
             }
             
-            with io_slot():
-                response = self._session.post(url, data=params, headers=self.headers, timeout=self.request_timeout)
+            response = self._session.post(url, data=params, headers=self.headers, timeout=self.request_timeout)
             response.raise_for_status()
             
             soup = BeautifulSoup(response.text, 'html.parser')
@@ -711,8 +708,7 @@ class GoogleDorksSearch:
         
         try:
             url = f"https://www.google.com/search?q={quote_plus(query)}&num=10"
-            with io_slot():
-                response = self._session.get(url, headers=self.headers, timeout=self.request_timeout)
+            response = self._session.get(url, headers=self.headers, timeout=self.request_timeout)
             
             # Handle 429 rate limiting specifically
             if response.status_code == 429:
