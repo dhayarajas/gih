@@ -256,6 +256,14 @@ class TestToolMetrics:
         assert "tool-chart-bar" in html
         assert "holehe" in html and "amass" in html
 
+    def test_bars_keep_their_fill_when_printed(self, conn, investigation, tmp_path):
+        """Chrome drops background fills in print unless told otherwise."""
+        html = render(conn, investigation, tmp_path)
+        print_block = html.split("@media print {")[1].split("}\n        }")[0]
+        assert "print-color-adjust: exact" in print_block
+        assert ".tool-chart-bar" in print_block
+        assert ".type-bar-slice" in print_block
+
     def test_technical_template_includes_the_breakdown(self, conn, investigation, tmp_path):
         html = render(conn, investigation, tmp_path, template_type="technical")
         assert "Tool Metrics" in html

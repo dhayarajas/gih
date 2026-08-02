@@ -251,7 +251,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             text-align: center;
             box-shadow: 0 1px 2px rgba(0,0,0,0.05);
         }
-        .stat-value { font-size: 2rem; font-weight: 700; color: #1e3a5f; }
+        .stat-value { font-size: 2rem; font-weight: 700; color: #1e3a5f; overflow-wrap: anywhere; }
         .stat-label { font-size: 0.8rem; color: #718096; text-transform: uppercase; letter-spacing: 0.5px; }
 
         /* Tool metrics infographic. Bars are plain divs sized with an inline
@@ -400,6 +400,13 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             details.drilldown > summary { background: white; }
             details.drilldown, .card { break-inside: avoid; }
             th { position: static; }
+            /* Chrome drops background fills unless "Background graphics" is
+               ticked, which would print the tool metrics charts as empty
+               outlines with their captions still in place. */
+            .tool-chart-track, .tool-chart-bar, .type-bar, .type-bar-slice, .type-legend-swatch {
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+            }
         }
         
         /* Footer */
