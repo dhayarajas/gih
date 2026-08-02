@@ -71,6 +71,7 @@ VERSION:
 
 import json
 import logging
+import re
 import sqlite3
 from datetime import datetime
 from pathlib import Path
@@ -668,7 +669,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
     <!-- Tool Metrics -->
     <h2>3. Tool Metrics</h2>
-    <p class="section-blurb">What each OSINT tool actually contributed to this investigation: how many artifacts it produced, of which types, at what average confidence, and how many identity profiles its output reached. Seeded artifacts are excluded, so the totals here count only discovered evidence.</p>
+    <p class="section-blurb">What each OSINT tool actually contributed to this investigation: how many artifacts it produced, of which types, at what average confidence, and how many identity profiles its output reached. Seeded artifacts are excluded, so the totals here count only discovered evidence. Rows marked <em>derived</em> are pipeline steps rather than tools &mdash; the orchestrator pivoting one artifact into another &mdash; and are excluded from the tool count.</p>
     <div class="card">
         {% if tool_metrics.tools %}
         <div class="stats-grid">
@@ -733,6 +734,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                     <td>{{ "%.2f" | format(tool.avg_confidence) }}</td>
                     <td>{{ tool.identities }}</td>
                     <td>
+                        {% if tool.kind == 'derivation' %}<span class="badge">derived</span>{% endif %}
                         {% for type in tool.types %}
                         <span class="badge badge-{{ type.type }}">{{ type.type }} {{ type.count }}</span>
                         {% endfor %}
@@ -1109,7 +1111,7 @@ TECHNICAL_TEMPLATE = """<!DOCTYPE html>
                         <td>{{ tool.share }}%</td>
                         <td>{{ "%.2f" | format(tool.avg_confidence) }}</td>
                         <td>{{ tool.identities }}</td>
-                        <td>{% for type in tool.types %}{{ type.type }} ({{ type.count }}){% if not loop.last %}, {% endif %}{% endfor %}</td>
+                        <td>{% if tool.kind == 'derivation' %}derived: {% endif %}{% for type in tool.types %}{{ type.type }} ({{ type.count }}){% if not loop.last %}, {% endif %}{% endfor %}</td>
                     </tr>
                     {% endfor %}
                 </tbody>
@@ -2039,14 +2041,38 @@ _TYPE_COLORS = (
 )
 
 
+# Sources that are pipeline steps rather than OSINT tools: the orchestrator
+# deriving one artifact from another (a username out of an email local part).
+# They are reported separately so the tool counts stay honest.
+_DERIVED_SOURCES = frozenset({
+    "name_username_candidate",
+    "email_local_part",
+    "email_domain_extraction",
+    "correlation_analysis",
+    "neo4j_correlation",
+    "orchestrator",
+    "external_tool",
+})
+
+# Built-in scrapers append the platform they scraped to their source.
+_PLATFORM_SUFFIXED_SOURCES = (
+    "username_search", "profile_image", "image_match", "image_search",
+    "google_dorks", "email_osint", "face_match",
+)
+
+_CAMEL_BOUNDARY = re.compile(r"(?<=[a-z0-9])(?=[A-Z])|(?<=[A-Z])(?=[A-Z][a-z])")
+
+
 def _normalize_tool_source(source: Optional[str]) -> Optional[str]:
     """Reduce an artifact's `source` to the tool that produced it.
 
     Sources are written by three different layers and none of them agree on a
-    format: the external-tool path writes the bare tool name, the plugin path
-    prefixes `plugin:` and uses the class name, and the built-in scrapers append
-    the platform they scraped (`username_search_github`). Without folding those
-    together the same tool shows up as three separate rows.
+    format: the external-tool path writes the bare tool name (`wayback_machine`),
+    the plugin path prefixes `plugin:` and uses the class name
+    (`plugin:WaybackMachinePlugin`), and the built-in scrapers append the
+    platform they scraped (`username_search_github`). All three are folded onto
+    the external-tool spelling, otherwise one tool occupies several rows and can
+    even be reported as silent while its plugin is producing artifacts.
     """
     if not source:
         return None
@@ -2056,10 +2082,10 @@ def _normalize_tool_source(source: Optional[str]) -> Optional[str]:
         return None
 
     if name.startswith("plugin:"):
-        return name[len("plugin:"):].removesuffix("Plugin").lower()
+        class_name = name[len("plugin:"):].removesuffix("Plugin")
+        return _CAMEL_BOUNDARY.sub("_", class_name).lower()
 
-    for prefix in ("username_search", "profile_image", "image_match", "image_search",
-                   "google_dorks"):
+    for prefix in _PLATFORM_SUFFIXED_SOURCES:
         if name.startswith(prefix + "_"):
             return prefix
 
@@ -2106,6 +2132,7 @@ def _generate_tool_metrics(artifacts: list, correlation) -> dict:
             "share": _share(count, attributed),
             "avg_confidence": round(entry["confidence_sum"] / count, 2) if count else 0.0,
             "identities": len(entry["identities"]),
+            "kind": "derivation" if entry["tool"] in _DERIVED_SOURCES else "tool",
             "types": [
                 {"type": t, "count": c}
                 for t, c in sorted(entry["types"].items(), key=lambda kv: (-kv[1], kv[0]))
@@ -2123,7 +2150,7 @@ def _generate_tool_metrics(artifacts: list, correlation) -> dict:
         for i, (t, c) in enumerate(sorted(per_type.items(), key=lambda kv: (-kv[1], kv[0])))
     ]
 
-    produced = {t["tool"] for t in tools}
+    produced = {t["tool"] for t in tools if t["kind"] == "tool"}
     # An integrated tool missing here either was not installed, was not dispatched
     # for any artifact type in this run, or ran and found nothing -- the report
     # cannot tell those apart, so it only names them.
@@ -2134,7 +2161,8 @@ def _generate_tool_metrics(artifacts: list, correlation) -> dict:
         "types": types,
         "attributed": attributed,
         "unattributed": len(artifacts) - attributed,
-        "tool_count": len(tools),
+        "tool_count": len(produced),
+        "derivation_count": len(tools) - len(produced),
         "max_count": tools[0]["count"] if tools else 0,
         "top_tool": tools[0]["tool"] if tools else None,
         "integrated_count": len(TOOL_ARTIFACT_TYPES),

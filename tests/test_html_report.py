@@ -131,6 +131,41 @@ class TestToolMetrics:
         assert _normalize_tool_source("plugin:MaigretPlugin") == "maigret"
         assert _normalize_tool_source("username_search_github") == "username_search"
         assert _normalize_tool_source("profile_image_steam") == "profile_image"
+        assert _normalize_tool_source("email_osint_twitter") == "email_osint"
+        assert _normalize_tool_source("face_match_google_images") == "face_match"
+
+    def test_multi_word_plugin_classes_fold_onto_the_external_tool_name(self):
+        assert _normalize_tool_source("plugin:WaybackMachinePlugin") == "wayback_machine"
+        assert _normalize_tool_source("plugin:UsernameSearchPlugin") == "username_search"
+        assert _normalize_tool_source("plugin:GoogleDorksPlugin") == "google_dorks"
+
+        metrics = _generate_tool_metrics(
+            [
+                self._artifact("historical_url", "wayback_machine"),
+                self._artifact("historical_url", "plugin:WaybackMachinePlugin"),
+            ],
+            self._correlation(),
+        )
+        assert [(t["tool"], t["count"]) for t in metrics["tools"]] == [("wayback_machine", 2)]
+        assert "wayback_machine" not in metrics["silent_tools"]
+
+    def test_pipeline_steps_are_reported_as_derivations_not_tools(self):
+        metrics = _generate_tool_metrics(
+            [
+                self._artifact("open_port", "nmap"),
+                self._artifact("username", "email_local_part"),
+                self._artifact("domain", "email_domain_extraction"),
+            ],
+            self._correlation(),
+        )
+        kinds = {t["tool"]: t["kind"] for t in metrics["tools"]}
+        assert kinds == {
+            "nmap": "tool",
+            "email_local_part": "derivation",
+            "email_domain_extraction": "derivation",
+        }
+        assert metrics["tool_count"] == 1
+        assert metrics["derivation_count"] == 2
 
     def test_seeds_are_not_counted_as_a_tool(self):
         assert _normalize_tool_source("seed") is None
@@ -142,6 +177,7 @@ class TestToolMetrics:
         )
         assert metrics["attributed"] == 1
         assert metrics["unattributed"] == 1
+        assert metrics["tool_count"] == 1
         assert [t["tool"] for t in metrics["tools"]] == ["amass"]
 
     def test_tools_ranked_by_yield_with_type_breakdown(self):
