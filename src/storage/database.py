@@ -375,7 +375,6 @@ def get_links(conn: sqlite3.Connection, investigation_id: str) -> list[dict]:
 def add_platform_presence(
     conn: sqlite3.Connection,
     investigation_id: str,
-    artifact_id: Optional[str] = None,
     platform_name: Optional[str] = None,
     profile_url: Optional[str] = None,
     username: Optional[str] = None,
@@ -383,6 +382,7 @@ def add_platform_presence(
     bio: Optional[str] = None,
     follower_count: Optional[int] = None,
     profile_image_url: Optional[str] = None,
+    artifact_id: Optional[str] = None,
 ) -> str:
     """Record platform presence."""
     presence_id = f"PRS-{generate_id()}"

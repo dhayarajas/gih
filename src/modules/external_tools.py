@@ -9,6 +9,7 @@ access to tool outputs and results.
 import subprocess
 import json
 import logging
+import os
 import re
 import threading
 from typing import Dict, List, Optional, Any
@@ -639,6 +640,16 @@ class ExifToolIntegration(ExternalToolsIntegration):
     @skip_if_not_available("exiftool")
     def extract_metadata(self, file_path: str) -> ToolResult:
         """Extract metadata from file using ExifTool."""
+        # Image artifacts include scraped profile-picture URLs; exiftool only reads
+        # local files, so anything else would be a guaranteed-failing subprocess.
+        if not os.path.isfile(file_path):
+            return ToolResult(
+                tool_name="exiftool",
+                success=False,
+                output="",
+                error_message=f"Not a local file: {file_path}",
+            )
+
         command = ["exiftool", "-json", file_path]
         result = self.run_tool("exiftool", command)
         

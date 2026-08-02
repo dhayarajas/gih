@@ -169,8 +169,11 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             box-shadow: 0 1px 3px rgba(0,0,0,0.1);
         }
         
-        /* Professional Badges */
-        .badge {
+        /* Professional Badges.
+           Qualified with the element name so the Bootstrap bundled inside the
+           embedded pyvis graph (".badge { color: #fff }") cannot win and render
+           these white on white. */
+        span.badge {
             display: inline-block;
             padding: 0.25rem 0.75rem;
             border-radius: 4px;
@@ -179,14 +182,18 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             margin: 0.1rem;
             text-transform: uppercase;
             letter-spacing: 0.5px;
+            background: #e2e8f0;
+            color: #2d3748;
+            border: 1px solid #cbd5e0;
         }
-        .badge-phone { background: #fed7d7; color: #c53030; border: 1px solid #feb2b2; }
-        .badge-email { background: #bee3f8; color: #2b6cb0; border: 1px solid #90cdf4; }
-        .badge-username { background: #c6f6d5; color: #276749; border: 1px solid #9ae6b4; }
-        .badge-domain { background: #feebc8; color: #9c4221; border: 1px solid #fbd38d; }
-        .badge-ip { background: #e9d8fd; color: #553c9a; border: 1px solid #d6bcfa; }
-        .badge-platform { background: #e2e8f0; color: #4a5568; border: 1px solid #cbd5e0; }
-        .badge-risk { background: #c53030; color: white; border: 1px solid #9b2c2c; }
+        span.badge-phone { background: #fed7d7; color: #c53030; border: 1px solid #feb2b2; }
+        span.badge-email { background: #bee3f8; color: #2b6cb0; border: 1px solid #90cdf4; }
+        span.badge-username { background: #c6f6d5; color: #276749; border: 1px solid #9ae6b4; }
+        span.badge-domain { background: #feebc8; color: #9c4221; border: 1px solid #fbd38d; }
+        /* Class names come from the artifact type verbatim (badge-{{ type }}). */
+        span.badge-ip_address { background: #e9d8fd; color: #553c9a; border: 1px solid #d6bcfa; }
+        span.badge-platform_presence { background: #e2e8f0; color: #4a5568; border: 1px solid #cbd5e0; }
+        span.badge-risk { background: #c53030; color: white; border: 1px solid #9b2c2c; }
         
         /* Risk Levels */
         .risk-critical { color: #c53030; font-weight: bold; background: #fed7d7; padding: 0.2rem 0.5rem; border-radius: 4px; }

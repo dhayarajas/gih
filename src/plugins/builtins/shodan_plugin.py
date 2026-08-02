@@ -36,7 +36,7 @@ class ShodanPlugin(OSINTPlugin):
     
     def get_supported_artifact_types(self) -> List[str]:
         """Get supported artifact types."""
-        return ["ip", "domain"]
+        return ["ip_address", "domain"]
     
     def is_available(self) -> bool:
         """Check if plugin is available."""
@@ -67,7 +67,7 @@ class ShodanPlugin(OSINTPlugin):
             # Use existing Shodan integration
             shodan = ShodanIntegration(api_key=self.api_key)
             
-            if artifact.type == "ip":
+            if artifact.type == "ip_address":
                 result = shodan.search_ip(artifact.value)
             elif artifact.type == "domain":
                 result = shodan.search_domain(artifact.value)
