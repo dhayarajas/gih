@@ -174,10 +174,6 @@
         .tool-chart-track { background: #edf2f7; border-radius: 3px; height: 1.4rem; overflow: hidden; }
         .tool-chart-bar { background: #3182ce; height: 100%; border-radius: 3px; min-width: 2px; }
         .tool-chart-count { font-size: 0.85rem; color: #4a5568; text-align: right; font-variant-numeric: tabular-nums; }
-        .type-bar { display: flex; width: 100%; height: 1.6rem; border-radius: 3px; overflow: hidden; border: 1px solid #e2e8f0; margin-bottom: 0.75rem; }
-        .type-bar-slice { height: 100%; }
-        .type-legend { display: flex; flex-wrap: wrap; gap: 0.5rem 1rem; font-size: 0.8rem; color: #4a5568; }
-        .type-legend-swatch { display: inline-block; width: 0.7rem; height: 0.7rem; border-radius: 2px; margin-right: 0.35rem; }
         .silent-tools { font-size: 0.85rem; color: #718096; }
 
         /* Evidence Chain */
@@ -315,7 +311,7 @@
             /* Chrome drops background fills unless "Background graphics" is
                ticked, which would print the tool metrics charts as empty
                outlines with their captions still in place. */
-            .tool-chart-track, .tool-chart-bar, .type-bar, .type-bar-slice, .type-legend-swatch {
+            .tool-chart-track, .tool-chart-bar {
                 -webkit-print-color-adjust: exact;
                 print-color-adjust: exact;
             }
@@ -355,7 +351,7 @@
             align-items: center;
             justify-content: center;
         }
-        .avatar-frame img { width: 100%; height: 100%; object-fit: cover; }
+        .avatar-frame img { width: 100%; height: 100%; object-fit: cover; display: block; }
         .avatar-missing {
             display: none;
             padding: 0.5rem;
@@ -389,10 +385,6 @@
         .tool-chart-track { background: #edf2f7; border-radius: 3px; height: 1.4rem; overflow: hidden; }
         .tool-chart-bar { background: #3182ce; height: 100%; border-radius: 3px; min-width: 2px; }
         .tool-chart-count { font-size: 0.85rem; color: #4a5568; text-align: right; font-variant-numeric: tabular-nums; }
-        .type-bar { display: flex; width: 100%; height: 1.6rem; border-radius: 3px; overflow: hidden; border: 1px solid #e2e8f0; margin-bottom: 0.75rem; }
-        .type-bar-slice { height: 100%; }
-        .type-legend { display: flex; flex-wrap: wrap; gap: 0.5rem 1rem; font-size: 0.8rem; color: #4a5568; }
-        .type-legend-swatch { display: inline-block; width: 0.7rem; height: 0.7rem; border-radius: 2px; margin-right: 0.35rem; }
         .silent-tools { font-size: 0.85rem; color: #718096; }
 
         /* Evidence Chain */
@@ -514,10 +506,42 @@
   --gih-text: #ffffff;
   --gih-bg: #0f0f1a;
   --gih-font: Arial, sans-serif;
+  --gih-heading: #ffffff;
+  --gih-muted: #cbd5e0;
 }
-body { font-family: var(--gih-font); background: var(--gih-bg); }
-.header { background: linear-gradient(135deg, var(--gih-primary) 0%, var(--gih-secondary) 100%) !important; color: var(--gih-text) !important; border-bottom-color: var(--gih-accent) !important; }
-.classification { background: var(--gih-accent) !important; }
+body {
+  font-family: var(--gih-font);
+  background: var(--gih-bg);
+  color: #ffffff;
+}
+.header {
+  background: linear-gradient(135deg, var(--gih-primary) 0%, var(--gih-secondary) 100%) !important;
+  color: var(--gih-text) !important;
+  border-bottom-color: var(--gih-accent) !important;
+}
+.header h1, .header .meta { color: var(--gih-text) !important; }
+.classification { background: var(--gih-accent) !important; color: #ffffff !important; }
+h1, h2, h3, h4, h5, h6 { color: var(--gih-heading) !important; }
+h2 { border-bottom-color: var(--gih-accent) !important; }
+.section-blurb, .subsection-blurb, .meta, .summary-meta, .empty-note, .silent-tools {
+  color: var(--gih-muted) !important;
+}
+.card, .stat-card, .report-banner, .filter-bar, .graph-container, details.drilldown {
+  background: #1a1a2e !important;
+  border-color: #2d3748 !important;
+  color: #ffffff;
+}
+.report-banner { background: #16213e !important; }
+.stat-value, .summary-value { color: var(--gih-heading) !important; }
+.stat-label { color: var(--gih-muted) !important; }
+th {
+  background: #16213e !important;
+  color: var(--gih-heading) !important;
+  border-bottom-color: #2d3748 !important;
+}
+td { color: #ffffff; border-bottom-color: #2d3748 !important; }
+tr:hover { background: #16213e !important; }
+a { color: #90cdf4 !important; }
 
         
 
@@ -588,7 +612,7 @@ body { font-family: var(--gih-font); background: var(--gih-bg); }
                 <strong>Investigation ID:</strong> INV-7eae9f7f | 
                 <strong>Title:</strong> Investigation INV-7eae9f7f | 
                 <strong>Status:</strong> Completed | 
-                <strong>Generated:</strong> 2026-08-02 07:58 UTC
+                <strong>Generated:</strong> 2026-08-02 08:11 UTC
             </div>
             <div class="classification">Confidential &mdash; Investigative Use Only</div>
         </div>
@@ -597,12 +621,15 @@ body { font-family: var(--gih-font); background: var(--gih-bg); }
     <div class="report-banner">
         <div><strong>Case reference:</strong> INV-7eae9f7f</div>
         <div><strong>Opened:</strong> 2026-08-02T07:57:49</div>
-        <div><strong>Report generated:</strong> 2026-08-02 07:58 UTC</div>
+        <div><strong>Report generated:</strong> 2026-08-02 08:11 UTC</div>
         <div><strong>Artifacts / links:</strong> 11 / 12</div>
         <div><strong>Identity profiles:</strong> 1</div>
         <div><strong>Handling:</strong> Automated analysis &mdash; requires analyst review</div>
     </div>
 
+    
+
+    
     
 
     
@@ -630,11 +657,14 @@ body { font-family: var(--gih-font); background: var(--gih-bg); }
     </div>
     
 
+    
     <div class="drilldown-controls">
         <button type="button" id="expand-all">Expand all details</button>
         <button type="button" id="collapse-all">Collapse all details</button>
     </div>
+    
 
+    
     
     <!-- Identity Profiles -->
     <h2>1. Identity Profiles</h2>
@@ -647,7 +677,7 @@ body { font-family: var(--gih-font); background: var(--gih-bg); }
             <div class="identity-avatar">
                 
                 <div class="avatar-frame">
-                    <img src="https://avatars.githubusercontent.com/u/7057030?v=4" alt="Profile image from GitHub"
+                    <img src="data:image/png;base64,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" alt="Profile image from GitHub"
                          data-fallbacks=""
                          data-labels="GitHub"
                          onerror="gihNextImage(this)">
@@ -764,9 +794,11 @@ body { font-family: var(--gih-font); background: var(--gih-bg); }
     
 
     
+    
     <!-- Summary -->
     <h2>2. Summary</h2>
     <p class="section-blurb">Investigation overview including timeline of discoveries, key findings, statistical metrics, confidence scores, and risk assessment matrix.</p>
+    
     <div class="card">
         <h3>Investigation Timeline</h3>
         <p class="subsection-blurb">Chronological sequence showing when each artifact was discovered during the investigation process.</p>
@@ -859,7 +891,9 @@ body { font-family: var(--gih-font); background: var(--gih-bg); }
             </tbody>
         </table>
     </div>
+    
 
+    
     <div class="card">
         <h3>Key Findings</h3>
         <p class="subsection-blurb">Most significant discoveries from the investigation including high-value targets, security risks, and important connections.</p>
@@ -867,12 +901,13 @@ body { font-family: var(--gih-font); background: var(--gih-bg); }
             
             <li>Found 9 high-confidence artifacts</li>
             
-            <li>Detected presence on 2 platforms: Pinterest, GitHub</li>
+            <li>Detected presence on 2 platforms: GitHub, Pinterest</li>
             
             <li>Total of 11 artifacts discovered with 12 connections</li>
             
         </ul>
     </div>
+    
 
     <div class="card">
         <h3>Summary Statistics</h3>
@@ -969,6 +1004,7 @@ body { font-family: var(--gih-font); background: var(--gih-bg); }
     
 
     
+    
     <!-- Tool Metrics -->
     <h2>3. Tool Metrics</h2>
     <p class="section-blurb">What each OSINT tool actually contributed to this investigation: how many artifacts it produced, of which types, at what average confidence, and how many identity profiles its output reached. Seeded artifacts are excluded, so the totals here count only discovered evidence. Rows marked <em>derived</em> are pipeline steps rather than tools &mdash; the orchestrator pivoting one artifact into another &mdash; and are excluded from the tool count.</p>
@@ -984,8 +1020,8 @@ body { font-family: var(--gih-font); background: var(--gih-bg); }
                 <div class="stat-label">Tool-Derived Artifacts</div>
             </div>
             <div class="stat-card">
-                <div class="stat-value">profile_image</div>
-                <div class="stat-label">Highest Yield</div>
+                <div class="stat-value">3</div>
+                <div class="stat-label">Highest Yield · Profile images</div>
             </div>
             <div class="stat-card">
                 <div class="stat-value">6</div>
@@ -997,92 +1033,35 @@ body { font-family: var(--gih-font); background: var(--gih-bg); }
         <p class="subsection-blurb">Bar length is relative to the highest-yielding tool. Volume is not quality &mdash; a single domain_info record can outweigh fifty profile hits.</p>
         <div class="tool-chart">
             
-            <div class="tool-chart-name">profile_image</div>
+            <div class="tool-chart-name" title="profile_image">Profile images</div>
             <div class="tool-chart-track">
                 <div class="tool-chart-bar" style="width: 100%;"></div>
             </div>
             <div class="tool-chart-count">3</div>
             
-            <div class="tool-chart-name">username_search</div>
+            <div class="tool-chart-name" title="username_search">Username search</div>
             <div class="tool-chart-track">
                 <div class="tool-chart-bar" style="width: 100%;"></div>
             </div>
             <div class="tool-chart-count">3</div>
             
-            <div class="tool-chart-name">google_dorks</div>
+            <div class="tool-chart-name" title="google_dorks">Google dorks</div>
             <div class="tool-chart-track">
                 <div class="tool-chart-bar" style="width: 66%;"></div>
             </div>
             <div class="tool-chart-count">2</div>
             
-            <div class="tool-chart-name">dig</div>
+            <div class="tool-chart-name" title="dig">Dig</div>
             <div class="tool-chart-track">
                 <div class="tool-chart-bar" style="width: 33%;"></div>
             </div>
             <div class="tool-chart-count">1</div>
             
-            <div class="tool-chart-name">whois</div>
+            <div class="tool-chart-name" title="whois">Whois</div>
             <div class="tool-chart-track">
                 <div class="tool-chart-bar" style="width: 33%;"></div>
             </div>
             <div class="tool-chart-count">1</div>
-            
-        </div>
-
-        <h3>Artifact Type Mix</h3>
-        <p class="subsection-blurb">Share of tool-derived artifacts by type across the whole investigation.</p>
-        <div class="type-bar">
-            
-            <div class="type-bar-slice" style="width: 30.0%; background: #3182ce;"
-                 title="image: 3"></div>
-            
-            <div class="type-bar-slice" style="width: 30.0%; background: #38a169;"
-                 title="platform_presence: 3"></div>
-            
-            <div class="type-bar-slice" style="width: 10.0%; background: #dd6b20;"
-                 title="domain: 1"></div>
-            
-            <div class="type-bar-slice" style="width: 10.0%; background: #805ad5;"
-                 title="domain_info: 1"></div>
-            
-            <div class="type-bar-slice" style="width: 10.0%; background: #319795;"
-                 title="ip_address: 1"></div>
-            
-            <div class="type-bar-slice" style="width: 10.0%; background: #d53f8c;"
-                 title="username: 1"></div>
-            
-        </div>
-        <div class="type-legend">
-            
-            <span>
-                <span class="type-legend-swatch" style="background: #3182ce;"></span>
-                image &mdash; 3 (30.0%)
-            </span>
-            
-            <span>
-                <span class="type-legend-swatch" style="background: #38a169;"></span>
-                platform_presence &mdash; 3 (30.0%)
-            </span>
-            
-            <span>
-                <span class="type-legend-swatch" style="background: #dd6b20;"></span>
-                domain &mdash; 1 (10.0%)
-            </span>
-            
-            <span>
-                <span class="type-legend-swatch" style="background: #805ad5;"></span>
-                domain_info &mdash; 1 (10.0%)
-            </span>
-            
-            <span>
-                <span class="type-legend-swatch" style="background: #319795;"></span>
-                ip_address &mdash; 1 (10.0%)
-            </span>
-            
-            <span>
-                <span class="type-legend-swatch" style="background: #d53f8c;"></span>
-                username &mdash; 1 (10.0%)
-            </span>
             
         </div>
 
@@ -1094,7 +1073,7 @@ body { font-family: var(--gih-font); background: var(--gih-bg); }
             <tbody>
                 
                 <tr>
-                    <td>profile_image</td>
+                    <td title="profile_image">Profile images</td>
                     <td>3</td>
                     <td>30.0%</td>
                     <td>0.85</td>
@@ -1108,7 +1087,7 @@ body { font-family: var(--gih-font); background: var(--gih-bg); }
                 </tr>
                 
                 <tr>
-                    <td>username_search</td>
+                    <td title="username_search">Username search</td>
                     <td>3</td>
                     <td>30.0%</td>
                     <td>0.90</td>
@@ -1122,7 +1101,7 @@ body { font-family: var(--gih-font); background: var(--gih-bg); }
                 </tr>
                 
                 <tr>
-                    <td>google_dorks</td>
+                    <td title="google_dorks">Google dorks</td>
                     <td>2</td>
                     <td>20.0%</td>
                     <td>0.59</td>
@@ -1138,7 +1117,7 @@ body { font-family: var(--gih-font); background: var(--gih-bg); }
                 </tr>
                 
                 <tr>
-                    <td>dig</td>
+                    <td title="dig">Dig</td>
                     <td>1</td>
                     <td>10.0%</td>
                     <td>0.95</td>
@@ -1152,7 +1131,7 @@ body { font-family: var(--gih-font); background: var(--gih-bg); }
                 </tr>
                 
                 <tr>
-                    <td>whois</td>
+                    <td title="whois">Whois</td>
                     <td>1</td>
                     <td>10.0%</td>
                     <td>0.95</td>
@@ -1167,23 +1146,23 @@ body { font-family: var(--gih-font); background: var(--gih-bg); }
                 
             </tbody>
         </table>
+        
 
         
         <p class="silent-tools">Integrated but silent in this run (13 of 15):
            amass, exiftool, holehe, maigret, nmap, osrframework, sherlock, shodan, subfinder, sublist3r, theharvester, wayback_machine, whatweb. A tool is silent when it is not installed, was never dispatched for the artifact types seen here, or ran and found nothing.</p>
-        
         
     </div>
 
     
 
     
+    
     <!-- Platform Presence -->
     <h2>4. Platform Presence</h2>
     <p class="section-blurb">All discovered social media and online platform accounts with direct profile links for verification and understanding the target's online behavior and communication channels. Expand a platform to review the captured profile details.
     <strong>Content-validated</strong> entries were confirmed by inspecting the profile page or API response; <strong>unvalidated (status only)</strong> entries rest on an HTTP 200 alone and may be soft 404s, login walls or app shells &mdash; treat them as leads, not findings.</p>
     <div class="card">
-        
         <p class="section-blurb">3 of 3 platform presences are content-validated.</p>
         
         <details class="drilldown presence-row" data-type="platform_presence" data-confidence="1" data-source="GitHub" data-value="mail2dhaya">
@@ -1315,157 +1294,29 @@ body { font-family: var(--gih-font); background: var(--gih-bg); }
             </div>
         </details>
         
-        
     </div>
 
     
 
+    
     
     <!-- Relationship Graph -->
     <h2>5. Relationship Graph</h2>
     <p class="section-blurb">Visual network diagram showing connections between artifacts and identities, helping identify clusters, central nodes, and relationship patterns for understanding social connections and potential attack vectors.</p>
     <div class="card">
         <div class="graph-container">
-            
-            <iframe class="graph-frame" title="Identity relationship graph" sandbox="allow-scripts allow-same-origin" srcdoc="&amp;lt;html&amp;gt;
-    &amp;lt;head&amp;gt;
-        &amp;lt;meta charset=&amp;quot;utf-8&amp;quot;&amp;gt;
-        
-            &amp;lt;script src=&amp;quot;lib/bindings/utils.js&amp;quot;&amp;gt;&amp;lt;/script&amp;gt;
-            &amp;lt;link rel=&amp;quot;stylesheet&amp;quot; href=&amp;quot;https://cdnjs.cloudflare.com/ajax/libs/vis-network/9.1.2/dist/dist/vis-network.min.css&amp;quot; integrity=&amp;quot;sha512-WgxfT5LWjfszlPHXRmBWHkV2eceiWTOBvrKCNbdgDYTHrT2AeLCGbF4sZlZw3UMN3WtL0tGUoIAKsu8mllg/XA==&amp;quot; crossorigin=&amp;quot;anonymous&amp;quot; referrerpolicy=&amp;quot;no-referrer&amp;quot; /&amp;gt;
-            &amp;lt;script src=&amp;quot;https://cdnjs.cloudflare.com/ajax/libs/vis-network/9.1.2/dist/vis-network.min.js&amp;quot; integrity=&amp;quot;sha512-LnvoEWDFrqGHlHmDD2101OrLcbsfkrzoSpvtSQtxK3RMnRV0eOkhhBN2dXHKRrUU8p2DGRTk35n4O8nWSVe1mQ==&amp;quot; crossorigin=&amp;quot;anonymous&amp;quot; referrerpolicy=&amp;quot;no-referrer&amp;quot;&amp;gt;&amp;lt;/script&amp;gt;
-            
-        
-&amp;lt;center&amp;gt;
-&amp;lt;h1&amp;gt;&amp;lt;/h1&amp;gt;
-&amp;lt;/center&amp;gt;
-
-&amp;lt;!-- &amp;lt;link rel=&amp;quot;stylesheet&amp;quot; href=&amp;quot;../node_modules/vis/dist/vis.min.css&amp;quot; type=&amp;quot;text/css&amp;quot; /&amp;gt;
-&amp;lt;script type=&amp;quot;text/javascript&amp;quot; src=&amp;quot;../node_modules/vis/dist/vis.js&amp;quot;&amp;gt; &amp;lt;/script&amp;gt;--&amp;gt;
-        &amp;lt;link
-          href=&amp;quot;https://cdn.jsdelivr.net/npm/bootstrap@5.0.0-beta3/dist/css/bootstrap.min.css&amp;quot;
-          rel=&amp;quot;stylesheet&amp;quot;
-          integrity=&amp;quot;sha384-eOJMYsd53ii+scO/bJGFsiCZc+5NDVN2yr8+0RDqr0Ql0h+rP48ckxlpbzKgwra6&amp;quot;
-          crossorigin=&amp;quot;anonymous&amp;quot;
-        /&amp;gt;
-        &amp;lt;script
-          src=&amp;quot;https://cdn.jsdelivr.net/npm/bootstrap@5.0.0-beta3/dist/js/bootstrap.bundle.min.js&amp;quot;
-          integrity=&amp;quot;sha384-JEW9xMcG8R+pH31jmWH6WWP0WintQrMb4s7ZOdauHnUtxwoG2vI5DkLtS3qm9Ekf&amp;quot;
-          crossorigin=&amp;quot;anonymous&amp;quot;
-        &amp;gt;&amp;lt;/script&amp;gt;
-
-
-        &amp;lt;center&amp;gt;
-          &amp;lt;h1&amp;gt;&amp;lt;/h1&amp;gt;
-        &amp;lt;/center&amp;gt;
-        &amp;lt;style type=&amp;quot;text/css&amp;quot;&amp;gt;
-
-             #mynetwork {
-                 width: 100%;
-                 height: 700px;
-                 background-color: #1a1a2e;
-                 border: 1px solid lightgray;
-                 position: relative;
-                 float: left;
-             }
-
-             
-
-             
-
-             
-        &amp;lt;/style&amp;gt;
-    &amp;lt;/head&amp;gt;
-
-
-    &amp;lt;body&amp;gt;
-        &amp;lt;div class=&amp;quot;card&amp;quot; style=&amp;quot;width: 100%&amp;quot;&amp;gt;
-            
-            
-            &amp;lt;div id=&amp;quot;mynetwork&amp;quot; class=&amp;quot;card-body&amp;quot;&amp;gt;&amp;lt;/div&amp;gt;
-        &amp;lt;/div&amp;gt;
-
-        
-        
-
-        &amp;lt;script type=&amp;quot;text/javascript&amp;quot;&amp;gt;
-
-              // initialize global variables.
-              var edges;
-              var nodes;
-              var allNodes;
-              var allEdges;
-              var nodeColors;
-              var originalNodes;
-              var network;
-              var container;
-              var options, data;
-              var filter = {
-                  item : &amp;#x27;&amp;#x27;,
-                  property : &amp;#x27;&amp;#x27;,
-                  value : []
-              };
-
-              
-
-              
-
-              // This method is responsible for drawing the graph, returns the drawn network
-              function drawGraph() {
-                  var container = document.getElementById(&amp;#x27;mynetwork&amp;#x27;);
-
-                  
-
-                  // parsing and collecting nodes and edges from the python
-                  nodes = new vis.DataSet([{&amp;quot;color&amp;quot;: &amp;quot;#45B7D1&amp;quot;, &amp;quot;font&amp;quot;: {&amp;quot;color&amp;quot;: &amp;quot;#ffffff&amp;quot;}, &amp;quot;id&amp;quot;: &amp;quot;ART-cf72dcfb&amp;quot;, &amp;quot;label&amp;quot;: &amp;quot;mail2dhaya&amp;quot;, &amp;quot;shape&amp;quot;: &amp;quot;triangle&amp;quot;, &amp;quot;size&amp;quot;: 25, &amp;quot;title&amp;quot;: &amp;quot;Type: username\nValue: mail2dhaya\nSource: seed\nConfidence: 1.0\nDepth: 0&amp;quot;}]);
-                  edges = new vis.DataSet([]);
-
-                  nodeColors = {};
-                  allNodes = nodes.get({ returnType: &amp;quot;Object&amp;quot; });
-                  for (nodeId in allNodes) {
-                    nodeColors[nodeId] = allNodes[nodeId].color;
-                  }
-                  allEdges = edges.get({ returnType: &amp;quot;Object&amp;quot; });
-                  // adding nodes and edges to the graph
-                  data = {nodes: nodes, edges: edges};
-
-                  var options = {&amp;quot;physics&amp;quot;: {&amp;quot;forceAtlas2Based&amp;quot;: {&amp;quot;gravitationalConstant&amp;quot;: -50, &amp;quot;centralGravity&amp;quot;: 0.01, &amp;quot;springLength&amp;quot;: 200, &amp;quot;springConstant&amp;quot;: 0.08}, &amp;quot;solver&amp;quot;: &amp;quot;forceAtlas2Based&amp;quot;, &amp;quot;stabilization&amp;quot;: {&amp;quot;iterations&amp;quot;: 150}}, &amp;quot;nodes&amp;quot;: {&amp;quot;font&amp;quot;: {&amp;quot;size&amp;quot;: 12, &amp;quot;face&amp;quot;: &amp;quot;monospace&amp;quot;}}, &amp;quot;edges&amp;quot;: {&amp;quot;smooth&amp;quot;: {&amp;quot;type&amp;quot;: &amp;quot;continuous&amp;quot;}}};
-
-                  
-
-
-                  
-
-                  network = new vis.Network(container, data, options);
-
-                  
-
-                  
-
-                  
-
-
-                  
-
-                  return network;
-
-              }
-              drawGraph();
-        &amp;lt;/script&amp;gt;
-    &amp;lt;/body&amp;gt;
-&amp;lt;/html&amp;gt;"></iframe>
-            
+            <iframe class="graph-frame" title="Identity relationship graph" sandbox="allow-scripts allow-same-origin allow-popups" src="INV-7eae9f7f_graph_embed.html"></iframe>
         </div>
     </div>
 
     
 
     
+    
     <!-- Artifacts -->
     <h2>6. Discovered Artifacts</h2>
     <p class="section-blurb">Complete inventory of all data points found (emails, usernames, phone numbers, domains, etc.) with source attribution, confidence scores, and discovery depth. Expand an artifact to review its full metadata and the links that connect it to the rest of the investigation.</p>
     <div class="card">
-        
         
         <details class="drilldown artifact-row" data-type="username" data-confidence="1.0" data-source="seed" data-value="mail2dhaya">
             <summary>
@@ -2352,144 +2203,16 @@ body { font-family: var(--gih-font); background: var(--gih-bg); }
             </div>
         </details>
         
-        
     </div>
 
 
     
 
     
-    <h2>7. Recommendations</h2>
-    <p class="section-blurb">Actionable next steps tied to specific findings — not generic advice.</p>
-    <div class="card">
-        
-        <table>
-            <thead><tr><th>Priority</th><th>Category</th><th>Action</th><th>Details</th><th>Ref</th></tr></thead>
-            <tbody>
-            
-            <tr class="priority-medium">
-                <td><span class="risk-medium">MEDIUM</span></td>
-                <td>Low Confidence</td>
-                <td>Re-check domain:support.google.com</td>
-                <td>Confidence 49% from source google_dorks_profile_pages</td>
-                <td>support.google.com</td>
-            </tr>
-            
-            <tr class="priority-low">
-                <td><span class="risk-low">LOW</span></td>
-                <td>Silent Tool</td>
-                <td>Confirm whether &#39;amass&#39; should have run</td>
-                <td>Integrated tool produced no artifacts (missing binary, not dispatched, or empty result).</td>
-                <td>amass</td>
-            </tr>
-            
-            <tr class="priority-low">
-                <td><span class="risk-low">LOW</span></td>
-                <td>Silent Tool</td>
-                <td>Confirm whether &#39;exiftool&#39; should have run</td>
-                <td>Integrated tool produced no artifacts (missing binary, not dispatched, or empty result).</td>
-                <td>exiftool</td>
-            </tr>
-            
-            <tr class="priority-low">
-                <td><span class="risk-low">LOW</span></td>
-                <td>Silent Tool</td>
-                <td>Confirm whether &#39;holehe&#39; should have run</td>
-                <td>Integrated tool produced no artifacts (missing binary, not dispatched, or empty result).</td>
-                <td>holehe</td>
-            </tr>
-            
-            <tr class="priority-low">
-                <td><span class="risk-low">LOW</span></td>
-                <td>Silent Tool</td>
-                <td>Confirm whether &#39;maigret&#39; should have run</td>
-                <td>Integrated tool produced no artifacts (missing binary, not dispatched, or empty result).</td>
-                <td>maigret</td>
-            </tr>
-            
-            <tr class="priority-low">
-                <td><span class="risk-low">LOW</span></td>
-                <td>Silent Tool</td>
-                <td>Confirm whether &#39;nmap&#39; should have run</td>
-                <td>Integrated tool produced no artifacts (missing binary, not dispatched, or empty result).</td>
-                <td>nmap</td>
-            </tr>
-            
-            <tr class="priority-low">
-                <td><span class="risk-low">LOW</span></td>
-                <td>Silent Tool</td>
-                <td>Confirm whether &#39;osrframework&#39; should have run</td>
-                <td>Integrated tool produced no artifacts (missing binary, not dispatched, or empty result).</td>
-                <td>osrframework</td>
-            </tr>
-            
-            <tr class="priority-low">
-                <td><span class="risk-low">LOW</span></td>
-                <td>Silent Tool</td>
-                <td>Confirm whether &#39;sherlock&#39; should have run</td>
-                <td>Integrated tool produced no artifacts (missing binary, not dispatched, or empty result).</td>
-                <td>sherlock</td>
-            </tr>
-            
-            <tr class="priority-low">
-                <td><span class="risk-low">LOW</span></td>
-                <td>Silent Tool</td>
-                <td>Confirm whether &#39;shodan&#39; should have run</td>
-                <td>Integrated tool produced no artifacts (missing binary, not dispatched, or empty result).</td>
-                <td>shodan</td>
-            </tr>
-            
-            <tr class="priority-medium">
-                <td><span class="risk-medium">MEDIUM</span></td>
-                <td>Unattributed Finding</td>
-                <td>Link or discard orphan platform_presence:https://github.com/mail2dhaya</td>
-                <td>Finding is not attached to an identity profile; seed an identity artifact if attribution is expected.</td>
-                <td>https://github.com/mail2dhaya</td>
-            </tr>
-            
-            <tr class="priority-medium">
-                <td><span class="risk-medium">MEDIUM</span></td>
-                <td>Unattributed Finding</td>
-                <td>Link or discard orphan username:websearch</td>
-                <td>Finding is not attached to an identity profile; seed an identity artifact if attribution is expected.</td>
-                <td>websearch</td>
-            </tr>
-            
-            <tr class="priority-medium">
-                <td><span class="risk-medium">MEDIUM</span></td>
-                <td>Unattributed Finding</td>
-                <td>Link or discard orphan image:https://avatars.githubusercontent.com/u/2688015?v=4</td>
-                <td>Finding is not attached to an identity profile; seed an identity artifact if attribution is expected.</td>
-                <td>https://avatars.githubusercontent.com/u/2688015?v=4</td>
-            </tr>
-            
-            <tr class="priority-medium">
-                <td><span class="risk-medium">MEDIUM</span></td>
-                <td>Unattributed Finding</td>
-                <td>Link or discard orphan image:https://s.pinimg.com/images/default_open_graph_1200.png</td>
-                <td>Finding is not attached to an identity profile; seed an identity artifact if attribution is expected.</td>
-                <td>https://s.pinimg.com/images/default_open_graph_1200.png</td>
-            </tr>
-            
-            <tr class="priority-medium">
-                <td><span class="risk-medium">MEDIUM</span></td>
-                <td>Unattributed Finding</td>
-                <td>Link or discard orphan platform_presence:https://github.com/webSearch</td>
-                <td>Finding is not attached to an identity profile; seed an identity artifact if attribution is expected.</td>
-                <td>https://github.com/webSearch</td>
-            </tr>
-            
-            </tbody>
-        </table>
-        
-    </div>
     
-
-    
-    <h2>8. Evidence Chains</h2>
+    <h2>7. Evidence Chains</h2>
     <p class="section-blurb">Provenance paths from seed artifacts through discovery links (type, confidence, evidence text).</p>
     <div class="card">
-        
         
         <div class="evidence-chain" style="margin-bottom: 0.75rem;">
             
@@ -2655,15 +2378,14 @@ body { font-family: var(--gih-font); background: var(--gih-bg); }
             
         </div>
         
-        
     </div>
     
 
     
-    <h2>9. Unattributed Findings</h2>
+    
+    <h2>8. Unattributed Findings</h2>
     <p class="section-blurb">Artifacts that are not attached to an identity profile (common for IP/domain-only seeds).</p>
     <div class="card">
-        
         <table>
             <thead><tr><th>Type</th><th>Value</th><th>Source</th><th>Confidence</th><th>Depth</th></tr></thead>
             <tbody>
@@ -2718,12 +2440,12 @@ body { font-family: var(--gih-font); background: var(--gih-bg); }
             
             </tbody>
         </table>
-        
     </div>
     
 
     
-    <h2>10. Tool Run Status</h2>
+    
+    <h2>9. Tool Run Status</h2>
     <p class="section-blurb">Distinguishes not-installed tools from installed tools that were silent or not dispatched.</p>
     <div class="card">
         <table>
@@ -2832,23 +2554,22 @@ body { font-family: var(--gih-font); background: var(--gih-bg); }
     
 
     
-    <h2>11. Geographic / Location Signals</h2>
-    <p class="section-blurb">GPS and location-related artifacts (EXIF, phone region, etc.).</p>
-    <div class="card">
-        
-        <p class="empty-note">No geographic signals recorded.</p>
-        
-    </div>
-    
 
     
-    <h2>12. Audit Trail</h2>
+    
+    <h2>10. Audit Trail</h2>
     <p class="section-blurb">Investigation lifecycle events recorded during collection and reporting.</p>
     <div class="card">
-        
         <table>
             <thead><tr><th>When</th><th>Action</th><th>Entity</th><th>Details</th></tr></thead>
             <tbody>
+            
+            <tr>
+                <td>2026-08-02T07:58:27</td>
+                <td>report_generated</td>
+                <td>report reports/INV-7eae9f7f_report.html</td>
+                <td>{&#34;template&#34;: &#34;standard&#34;, &#34;redacted&#34;: false, &#34;sections&#34;: [&#34;artifacts&#34;, &#34;audit&#34;, &#34;comments&#34;, &#34;cross&#34;, &#34;delta&#34;, &#34;evidence&#34;, &#34;filters&#34;, &#34;geo&#34;, &#34;graph&#34;, &#34;identities&#34;, &#34;orphans&#34;, &#34;platforms&#34;, &#34;recommendations&#34;, &#34;summary&#34;, &#34;tools&#34;], &#34;compare_id&#34;: null}</td>
+            </tr>
             
             <tr>
                 <td>2026-08-02T07:58:27</td>
@@ -2866,25 +2587,16 @@ body { font-family: var(--gih-font); background: var(--gih-bg); }
             
             </tbody>
         </table>
-        
     </div>
     
 
     
-    <h2>13. Investigator Notes</h2>
-    <p class="section-blurb">Threaded comments and annotations attached to the investigation.</p>
-    <div class="card">
-        
-        <p class="empty-note">No investigator notes yet.</p>
-        
-    </div>
-    
 
     
-    <h2>14. Cross-Investigation Matches</h2>
+    
+    <h2>11. Cross-Investigation Matches</h2>
     <p class="section-blurb">Same artifact values seen in other investigations in this database.</p>
     <div class="card">
-        
         <table>
             <thead><tr><th>Other INV</th><th>Type</th><th>Value</th><th>Source</th></tr></thead>
             <tbody>
@@ -2925,41 +2637,6 @@ body { font-family: var(--gih-font); background: var(--gih-bg); }
             </tr>
             
             <tr>
-                <td>INV-e4ff9b09</td>
-                <td>username</td>
-                <td>websearch</td>
-                <td>plugin:GoogleDorksPlugin</td>
-            </tr>
-            
-            <tr>
-                <td>INV-b0dee37d</td>
-                <td>username</td>
-                <td>websearch</td>
-                <td>plugin:GoogleDorksPlugin</td>
-            </tr>
-            
-            <tr>
-                <td>INV-473e0a40</td>
-                <td>username</td>
-                <td>websearch</td>
-                <td>plugin:GoogleDorksPlugin</td>
-            </tr>
-            
-            <tr>
-                <td>INV-14093707</td>
-                <td>username</td>
-                <td>websearch</td>
-                <td>plugin:GoogleDorksPlugin</td>
-            </tr>
-            
-            <tr>
-                <td>INV-457e1194</td>
-                <td>username</td>
-                <td>websearch</td>
-                <td>plugin:GoogleDorksPlugin</td>
-            </tr>
-            
-            <tr>
                 <td>INV-a79b9c7c</td>
                 <td>platform_presence</td>
                 <td>https://github.com/mail2dhaya</td>
@@ -2992,41 +2669,6 @@ body { font-family: var(--gih-font); background: var(--gih-bg); }
                 <td>platform_presence</td>
                 <td>https://github.com/mail2dhaya</td>
                 <td>username_search_github</td>
-            </tr>
-            
-            <tr>
-                <td>INV-e4ff9b09</td>
-                <td>domain</td>
-                <td>support.google.com</td>
-                <td>plugin:GoogleDorksPlugin</td>
-            </tr>
-            
-            <tr>
-                <td>INV-b0dee37d</td>
-                <td>domain</td>
-                <td>support.google.com</td>
-                <td>plugin:GoogleDorksPlugin</td>
-            </tr>
-            
-            <tr>
-                <td>INV-473e0a40</td>
-                <td>domain</td>
-                <td>support.google.com</td>
-                <td>plugin:GoogleDorksPlugin</td>
-            </tr>
-            
-            <tr>
-                <td>INV-14093707</td>
-                <td>domain</td>
-                <td>support.google.com</td>
-                <td>plugin:GoogleDorksPlugin</td>
-            </tr>
-            
-            <tr>
-                <td>INV-457e1194</td>
-                <td>domain</td>
-                <td>support.google.com</td>
-                <td>plugin:GoogleDorksPlugin</td>
             </tr>
             
             <tr>
@@ -3064,9 +2706,78 @@ body { font-family: var(--gih-font); background: var(--gih-bg); }
                 <td>username_search_github</td>
             </tr>
             
+            <tr>
+                <td>INV-4cfc2ad5</td>
+                <td>image</td>
+                <td>https://s.pinimg.com/images/default_open_graph_1200.png</td>
+                <td>profile_image_pinterest</td>
+            </tr>
+            
+            <tr>
+                <td>INV-fa4805fc</td>
+                <td>image</td>
+                <td>https://s.pinimg.com/images/default_open_graph_1200.png</td>
+                <td>profile_image_pinterest</td>
+            </tr>
+            
+            <tr>
+                <td>INV-b3b5f237</td>
+                <td>image</td>
+                <td>https://s.pinimg.com/images/default_open_graph_1200.png</td>
+                <td>profile_image_pinterest</td>
+            </tr>
+            
+            <tr>
+                <td>INV-7184b52a</td>
+                <td>image</td>
+                <td>https://avatars.githubusercontent.com/u/7057030?v=4</td>
+                <td>profile_image_github</td>
+            </tr>
+            
+            <tr>
+                <td>INV-fa4805fc</td>
+                <td>image</td>
+                <td>https://avatars.githubusercontent.com/u/7057030?v=4</td>
+                <td>profile_image_github</td>
+            </tr>
+            
+            <tr>
+                <td>INV-b3b5f237</td>
+                <td>image</td>
+                <td>https://avatars.githubusercontent.com/u/7057030?v=4</td>
+                <td>profile_image_github</td>
+            </tr>
+            
+            <tr>
+                <td>INV-e4ff9b09</td>
+                <td>username</td>
+                <td>websearch</td>
+                <td>plugin:GoogleDorksPlugin</td>
+            </tr>
+            
+            <tr>
+                <td>INV-b0dee37d</td>
+                <td>username</td>
+                <td>websearch</td>
+                <td>plugin:GoogleDorksPlugin</td>
+            </tr>
+            
+            <tr>
+                <td>INV-473e0a40</td>
+                <td>username</td>
+                <td>websearch</td>
+                <td>plugin:GoogleDorksPlugin</td>
+            </tr>
+            
+            <tr>
+                <td>INV-14093707</td>
+                <td>username</td>
+                <td>websearch</td>
+                <td>plugin:GoogleDorksPlugin</td>
+            </tr>
+            
             </tbody>
         </table>
-        
     </div>
     
 
@@ -3074,7 +2785,7 @@ body { font-family: var(--gih-font); background: var(--gih-bg); }
 
     <!-- Footer -->
     <div class="footer">
-        <p>Ghost Identity Hunter - OSINT Investigation Report | Generated 2026-08-02 07:58 UTC</p>
+        <p>Ghost Identity Hunter - OSINT Investigation Report | Generated 2026-08-02 08:11 UTC</p>
     </div>
 </div>
 

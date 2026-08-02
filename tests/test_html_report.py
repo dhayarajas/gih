@@ -125,8 +125,10 @@ class TestEmptyInvestigation:
     def test_renders_without_artifacts_or_presences(self, conn, tmp_path):
         inv_id = db.create_investigation(conn, title="Empty")
         html = render(conn, inv_id, tmp_path)
-        assert "No artifacts were discovered" in html
-        assert "No platform presence recorded" in html
+        assert "Discovered Artifacts" not in html
+        assert "Platform Presence" not in html
+        assert "No artifacts were discovered" not in html
+        assert "No platform presence recorded" not in html
 
 
 class TestIdentityImages:
@@ -293,6 +295,38 @@ class TestToolMetrics:
         assert sherlock["types"] == [{"type": "username_presence", "count": 2}]
         assert metrics["max_count"] == 2
         assert metrics["top_tool"] == "sherlock"
+        assert metrics["top_tool_count"] == 2
+        assert metrics["top_tool_label"] == "Sherlock"
+        assert metrics["tools"][0]["label"] == "Sherlock"
+
+    def test_highest_yield_tile_shows_count_and_readable_scraper_label(self):
+        """Volume leaders like profile_image use a count + label, not a raw key caption."""
+        artifacts = [
+            self._artifact("image", "profile_image_github"),
+            self._artifact("image", "profile_image_github"),
+            self._artifact("image", "profile_image_pinterest"),
+            self._artifact("username_presence", "sherlock"),
+            self._artifact("username_presence", "sherlock"),
+        ]
+        metrics = _generate_tool_metrics(artifacts, self._correlation())
+        assert metrics["top_tool"] == "profile_image"
+        assert metrics["top_tool_count"] == 3
+        assert metrics["top_tool_label"] == "Profile images"
+        by_tool = {t["tool"]: t for t in metrics["tools"]}
+        assert by_tool["profile_image"]["label"] == "Profile images"
+        assert by_tool["sherlock"]["label"] == "Sherlock"
+
+    def test_scraper_only_run_uses_readable_highest_yield_label(self):
+        metrics = _generate_tool_metrics(
+            [
+                self._artifact("image", "profile_image_github"),
+                self._artifact("image", "profile_image_pinterest"),
+            ],
+            self._correlation(),
+        )
+        assert metrics["top_tool"] == "profile_image"
+        assert metrics["top_tool_count"] == 2
+        assert metrics["top_tool_label"] == "Profile images"
 
     def test_type_mix_shares_and_colors(self):
         artifacts = [self._artifact("username_presence", "sherlock") for _ in range(3)]
@@ -327,11 +361,16 @@ class TestToolMetrics:
         assert "sherlock" in metrics["silent_tools"]
         assert metrics["integrated_count"] >= len(metrics["silent_tools"])
 
-    def test_seed_only_investigation_renders_the_empty_note(self, conn, tmp_path):
+    def test_seed_only_investigation_omits_tool_metrics_when_no_output(self, conn, tmp_path):
         inv_id = db.create_investigation(conn, title="Seeds only")
         db.add_artifact(conn, inv_id, "username", "ghostuser", source="seed", confidence=0.95)
         html = render(conn, inv_id, tmp_path)
-        assert "No tool-derived artifacts" in html
+        # Seed-only: no tool-derived rows, but silent_tools note still counts as content
+        # if silent tools are listed. Either way the old empty-note is gone.
+        assert "No tool-derived artifacts" not in html
+        if "Tool Metrics" in html:
+            assert "silent in this run" in html
+        assert "Discovered Artifacts" in html
 
     def test_section_renders_bars_and_breakdown(self, conn, investigation, tmp_path):
         html = render(conn, investigation, tmp_path)
@@ -346,7 +385,7 @@ class TestToolMetrics:
         print_block = html.split("@media print {")[1].split("}\n        }")[0]
         assert "print-color-adjust: exact" in print_block
         assert ".tool-chart-bar" in print_block
-        assert ".type-bar-slice" in print_block
+        assert "Artifact Type Mix" not in html
 
     def test_technical_template_includes_the_breakdown(self, conn, investigation, tmp_path):
         html = render(conn, investigation, tmp_path, template_type="technical")
@@ -372,12 +411,31 @@ class TestJsonReport:
 class TestEnhancedStandardReport:
     def test_new_sections_and_filters_render(self, conn, investigation, tmp_path):
         html = render(conn, investigation, tmp_path)
-        assert "Recommendations" in html
         assert "Evidence Chains" in html
         assert "Unattributed Findings" in html
         assert "Tool Run Status" in html
+        assert "Recommendations" not in html
         assert 'id="report-filters"' in html
         assert "graph-frame" in html
+        # Empty optional sections stay out of the report
+        assert "Geographic / Location Signals" not in html
+        assert "Investigator Notes" not in html
+        assert "No geographic signals" not in html
+        assert "No investigator notes" not in html
+
+    def test_empty_investigation_omits_content_sections(self, conn, tmp_path):
+        inv_id = db.create_investigation(conn, title="Empty")
+        html = render(conn, inv_id, tmp_path)
+        assert "Identity Profiles" not in html
+        assert "Platform Presence" not in html
+        assert "Discovered Artifacts" not in html
+        assert "Evidence Chains" not in html
+        assert "Unattributed Findings" not in html
+        assert "Geographic / Location Signals" not in html
+        assert "Investigator Notes" not in html
+        assert "Cross-Investigation Matches" not in html
+        assert "Relationship Graph" not in html
+        assert 'id="report-filters"' not in html
 
     def test_sections_filter_hides_artifacts(self, conn, investigation, tmp_path):
         path = generate_html_report(

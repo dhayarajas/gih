@@ -23,7 +23,6 @@ DEFAULT_SECTIONS = (
     "graph",
     "artifacts",
     "evidence",
-    "recommendations",
     "orphans",
     "geo",
     "audit",
@@ -489,34 +488,97 @@ def Path_read(path: str) -> str:
     return Path(path).read_text(encoding="utf-8")
 
 
+def _hex_luminance(color: Optional[str]) -> float:
+    """Relative luminance of a #RRGGBB color (0=black, 1=white)."""
+    if not color or not isinstance(color, str):
+        return 1.0
+    value = color.strip().lstrip("#")
+    if len(value) == 3:
+        value = "".join(ch * 2 for ch in value)
+    if len(value) != 6:
+        return 1.0
+    try:
+        r, g, b = (int(value[i:i + 2], 16) / 255.0 for i in (0, 2, 4))
+    except ValueError:
+        return 1.0
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b
+
+
 def branding_css(branding: dict, watermark: dict) -> str:
-    """Inline CSS variables + optional watermark overlay."""
+    """Inline CSS variables + optional watermark overlay.
+
+    When the configured page background is dark, force white headings and
+    light body text so section titles stay readable.
+    """
+    bg = branding.get("background_color") or "#f5f7fa"
+    text = branding.get("text_color") or "#ffffff"
+    dark_bg = _hex_luminance(bg) < 0.45
+    heading_color = text if dark_bg else "#1e3a5f"
+    body_color = text if dark_bg else "#2c3e50"
+    muted_color = "#cbd5e0" if dark_bg else "#4a5568"
+    card_bg = "#1a1a2e" if dark_bg else "#ffffff"
+    card_border = "#2d3748" if dark_bg else "#e2e8f0"
+    banner_bg = "#16213e" if dark_bg else "#ffffff"
+
     css = f"""
 :root {{
   --gih-primary: {branding.get('primary_color')};
   --gih-secondary: {branding.get('secondary_color')};
   --gih-accent: {branding.get('accent_color')};
-  --gih-text: {branding.get('text_color')};
-  --gih-bg: {branding.get('background_color')};
+  --gih-text: {text};
+  --gih-bg: {bg};
   --gih-font: {branding.get('font_family')};
+  --gih-heading: {heading_color};
+  --gih-muted: {muted_color};
 }}
-body {{ font-family: var(--gih-font); background: var(--gih-bg); }}
-.header {{ background: linear-gradient(135deg, var(--gih-primary) 0%, var(--gih-secondary) 100%) !important; color: var(--gih-text) !important; border-bottom-color: var(--gih-accent) !important; }}
-.classification {{ background: var(--gih-accent) !important; }}
+body {{
+  font-family: var(--gih-font);
+  background: var(--gih-bg);
+  color: {body_color};
+}}
+.header {{
+  background: linear-gradient(135deg, var(--gih-primary) 0%, var(--gih-secondary) 100%) !important;
+  color: var(--gih-text) !important;
+  border-bottom-color: var(--gih-accent) !important;
+}}
+.header h1, .header .meta {{ color: var(--gih-text) !important; }}
+.classification {{ background: var(--gih-accent) !important; color: #ffffff !important; }}
+h1, h2, h3, h4, h5, h6 {{ color: var(--gih-heading) !important; }}
+h2 {{ border-bottom-color: var(--gih-accent) !important; }}
+.section-blurb, .subsection-blurb, .meta, .summary-meta, .empty-note, .silent-tools {{
+  color: var(--gih-muted) !important;
+}}
+.card, .stat-card, .report-banner, .filter-bar, .graph-container, details.drilldown {{
+  background: {card_bg} !important;
+  border-color: {card_border} !important;
+  color: {body_color};
+}}
+.report-banner {{ background: {banner_bg} !important; }}
+.stat-value, .summary-value {{ color: var(--gih-heading) !important; }}
+.stat-label {{ color: var(--gih-muted) !important; }}
+th {{
+  background: {banner_bg} !important;
+  color: var(--gih-heading) !important;
+  border-bottom-color: {card_border} !important;
+}}
+td {{ color: {body_color}; border-bottom-color: {card_border} !important; }}
+tr:hover {{ background: {banner_bg} !important; }}
+a {{ color: #90cdf4 !important; }}
 """
     if watermark.get("enabled"):
         opacity = watermark.get("opacity", 0.1)
-        text = (watermark.get("text") or "CONFIDENTIAL").replace("\\", "\\\\").replace('"', '\\"')
+        wm_text = (watermark.get("text") or "CONFIDENTIAL").replace("\\", "\\\\").replace('"', '\\"')
+        wm_color = f"rgba(255,255,255,{opacity})" if dark_bg else f"rgba(0,0,0,{opacity})"
         css += f"""
 body::before {{
-  content: "{text}";
+  content: "{wm_text}";
   position: fixed;
   top: 40%;
   left: 50%;
   transform: translate(-50%, -50%) rotate(-30deg);
   font-size: 5rem;
   font-weight: 800;
-  color: rgba(0,0,0,{opacity});
+  color: {wm_color};
   pointer-events: none;
   z-index: 9999;
   white-space: nowrap;

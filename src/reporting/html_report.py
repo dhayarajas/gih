@@ -619,11 +619,8 @@ def generate_html_report(
         redact: Mask phones/emails/images for shareable exports
         compare_id: Optional prior investigation ID for a delta section
     """
-    from html import escape as html_escape
-
     from src.reporting.report_data import (
         branding_css,
-        build_actionable_recommendations,
         build_cross_investigation,
         build_delta_report,
         build_evidence_chains,
@@ -663,27 +660,14 @@ def generate_html_report(
     key_findings = _generate_key_findings(artifacts, links, presences, correlation)
     confidence_metrics = _generate_confidence_metrics(artifacts, links)
     risk_matrix = _generate_risk_matrix(correlation, risk_levels)
-    if redact:
-        # Graph HTML is built from the live DB and would re-expose masked values.
-        graph_html = ""
-        graph_srcdoc = ""
-    else:
+    graph_html = ""
+    graph_iframe_src = ""
+    if not redact:
         graph_html = _generate_embedded_graph(conn, investigation_id)
-        # Escape for iframe srcdoc attribute (autoescape would break nested HTML)
-        graph_srcdoc = html_escape(graph_html, quote=True) if graph_html else ""
 
     tool_metrics = enrich_tool_status(_generate_tool_metrics(artifacts, correlation))
     orphan_findings = build_orphan_findings(artifacts, correlation)
-    recommendations = build_actionable_recommendations(
-        artifacts, links, presences, correlation, risk_levels, tool_metrics, orphan_findings
-    )
-    if not recommendations:
-        recommendations = _generate_recommendations(
-            artifacts, links, presences, correlation, risk_levels
-        )
-
-    if recommendations:
-        logger.info("Generated %d investigation recommendations", len(recommendations))
+    recommendations: list = []
 
     priority_queue = _generate_priority_queue(artifacts, links, correlation)
     geographic_data = _generate_geographic_data(artifacts, presences)
@@ -714,6 +698,24 @@ def generate_html_report(
     template_content = _select_template(template_type)
     env = Environment(loader=BaseLoader(), autoescape=True)
     template = env.from_string(template_content)
+
+    if output_path is None:
+        output_path = default_output_path(
+            investigation_id, ".html", reporting_cfg.get("output_dir")
+        )
+
+    output_file = Path(output_path)
+    output_file.parent.mkdir(parents=True, exist_ok=True)
+
+    # Write the pyvis graph as a sibling HTML file and iframe it. Using src=
+    # (not srcdoc) avoids double-escaping and lets CDN scripts resolve under
+    # file://; the iframe still isolates Bootstrap CSS from the parent report.
+    if graph_html and not redact:
+        embed_name = f"{investigation_id}_graph_embed.html"
+        embed_path = output_file.parent / embed_name
+        embed_path.write_text(_prepare_graph_embed_html(graph_html), encoding="utf-8")
+        graph_iframe_src = embed_name
+
     html = template.render(
         investigation=investigation,
         artifacts=artifacts,
@@ -728,7 +730,7 @@ def generate_html_report(
         confidence_metrics=confidence_metrics,
         risk_matrix=risk_matrix,
         graph_html=graph_html,
-        graph_srcdoc=graph_srcdoc,
+        graph_iframe_src=graph_iframe_src,
         recommendations=recommendations,
         priority_queue=priority_queue,
         geographic_data=geographic_data,
@@ -753,13 +755,6 @@ def generate_html_report(
         generated_at=datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC"),
     )
 
-    if output_path is None:
-        output_path = default_output_path(
-            investigation_id, ".html", reporting_cfg.get("output_dir")
-        )
-
-    output_file = Path(output_path)
-    output_file.parent.mkdir(parents=True, exist_ok=True)
     output_file.write_text(html, encoding="utf-8")
 
     try:
@@ -886,6 +881,38 @@ def _generate_risk_matrix(correlation, risk_levels: list) -> dict:
         'distribution': risk_distribution,
         'total_identities': len(correlation.identities)
     }
+
+
+def _prepare_graph_embed_html(graph_html: str) -> str:
+    """Normalize pyvis HTML for reliable iframe embedding under file://."""
+    import re
+
+    # pyvis injects a local helper that does not ship with the report; CDN
+    # vis-network is enough for the interactive canvas.
+    cleaned = re.sub(
+        r'<script[^>]+src=["\']lib/bindings/utils\.js["\'][^>]*>\s*</script>\s*',
+        "",
+        graph_html,
+        flags=re.I,
+    )
+    # Give the network a usable viewport inside the iframe.
+    if "<style>" in cleaned.lower():
+        cleaned = re.sub(
+            r"(</head>)",
+            '<style>html,body{margin:0;height:100%;overflow:hidden;}'
+            '#mynetwork,#mynetworkid{width:100%!important;height:100vh!important;}</style>\\1',
+            cleaned,
+            count=1,
+            flags=re.I,
+        )
+    else:
+        cleaned = cleaned.replace(
+            "<head>",
+            "<head><style>html,body{margin:0;height:100%;overflow:hidden;}"
+            "#mynetwork,#mynetworkid{width:100%!important;height:100vh!important;}</style>",
+            1,
+        )
+    return cleaned
 
 
 def _generate_embedded_graph(conn: sqlite3.Connection, investigation_id: str) -> str:
@@ -1377,6 +1404,70 @@ def _label_for_image(url: str, presence_platforms: dict, artifact_sources: dict)
     return (tool or source).replace("_", " ").title()
 
 
+def _inline_remote_image(url: str) -> Optional[str]:
+    """Download a remote image and return a data URI, or None on failure.
+
+    Reports are often opened as file:// pages; many CDNs (GitHub avatars,
+    etc.) refuse or fail those requests, so the <img> fires onerror and the
+    avatar disappears. Embedding the bytes keeps the picture visible offline.
+    """
+    if not url or not url.lower().startswith(("http://", "https://")):
+        return None
+    try:
+        from src.utils.http_client import get_http_session
+        session = get_http_session()
+        resp = session.get(url, timeout=8, stream=True)
+        if resp.status_code != 200:
+            return None
+        content_type = (resp.headers.get("Content-Type") or "").split(";")[0].strip().lower()
+        if content_type not in (
+            "image/jpeg", "image/jpg", "image/png", "image/gif", "image/webp", "image/bmp",
+        ):
+            # GitHub sometimes omits/varies Content-Type; sniff from magic bytes.
+            content_type = ""
+        # Cap download size
+        chunks = []
+        total = 0
+        for chunk in resp.iter_content(8192):
+            if not chunk:
+                break
+            total += len(chunk)
+            if total > _MAX_INLINE_IMAGE_BYTES:
+                return None
+            chunks.append(chunk)
+        data = b"".join(chunks)
+        if not data:
+            return None
+        if not content_type:
+            if data.startswith(b"\x89PNG"):
+                content_type = "image/png"
+            elif data.startswith(b"\xff\xd8"):
+                content_type = "image/jpeg"
+            elif data.startswith(b"GIF8"):
+                content_type = "image/gif"
+            elif data.startswith(b"RIFF") and b"WEBP" in data[:16]:
+                content_type = "image/webp"
+            else:
+                return None
+        encoded = base64.b64encode(data).decode("ascii")
+        return f"data:{content_type};base64,{encoded}"
+    except Exception as exc:
+        logger.debug("Could not inline remote profile image %s: %s", url, exc)
+        return None
+
+
+def _resolve_image_src(url: str) -> Optional[str]:
+    """Return a browser-loadable src for a local path or remote URL."""
+    if not url:
+        return None
+    lowered = url.lower()
+    if lowered.startswith("data:"):
+        return url
+    if lowered.startswith(("http://", "https://")):
+        return _inline_remote_image(url) or url
+    return _inline_local_image(url)
+
+
 def _generate_identity_images(correlation, presences: list, artifacts: list) -> dict:
     """Renderable profile images per identity, best candidate first.
 
@@ -1385,6 +1476,9 @@ def _generate_identity_images(correlation, presences: list, artifacts: list) -> 
     first — and the template only ever showed the first one, hiding it on error.
     Ranking real pictures ahead of stock ones and keeping the rest as fallbacks
     is what makes an actual face show up.
+
+    Remote HTTP(S) avatars are inlined as data URIs so they still render when the
+    report is opened from disk (file://) without network/hotlink access.
     """
     presence_platforms = {
         p["profile_image_url"]: p.get("platform_name") or "Unknown platform"
@@ -1397,16 +1491,35 @@ def _generate_identity_images(correlation, presences: list, artifacts: list) -> 
         if a.get("artifact_type") in ("image", "image_url") and a.get("value")
     }
 
+    # Index presence avatars by username for identities that only have the URL
+    # on the platform_presence row (not yet copied onto IdentityProfile.images).
+    presence_by_username: dict[str, list] = {}
+    for p in presences:
+        user = (p.get("username") or "").lower()
+        url = p.get("profile_image_url")
+        if user and url:
+            presence_by_username.setdefault(user, []).append(p)
+
     per_identity: dict = {}
     for identity in getattr(correlation, "identities", []):
+        seen = set()
+        urls: list[str] = []
+        for url in list(getattr(identity, "images", []) or []):
+            if url and url not in seen:
+                seen.add(url)
+                urls.append(url)
+        for username in getattr(identity, "usernames", []) or []:
+            for presence in presence_by_username.get(username.lower(), []):
+                url = presence.get("profile_image_url")
+                if url and url not in seen:
+                    seen.add(url)
+                    urls.append(url)
+
         candidates = []
-        for url in identity.images:
-            src = url
-            if not url.lower().startswith(("http://", "https://", "data:")):
-                inlined = _inline_local_image(url)
-                if not inlined:
-                    continue
-                src = inlined
+        for url in urls:
+            src = _resolve_image_src(url)
+            if not src:
+                continue
             candidates.append({
                 "src": src,
                 "label": _label_for_image(url, presence_platforms, artifact_sources),
@@ -1448,6 +1561,35 @@ _PLATFORM_SUFFIXED_SOURCES = (
 )
 
 _CAMEL_BOUNDARY = re.compile(r"(?<=[a-z0-9])(?=[A-Z])|(?<=[A-Z])(?=[A-Z][a-z])")
+
+# Human-readable labels for report tiles / charts (raw source keys stay in `tool`).
+_TOOL_LABELS = {
+    "profile_image": "Profile images",
+    "username_search": "Username search",
+    "image_match": "Image match",
+    "image_search": "Image search",
+    "google_dorks": "Google dorks",
+    "email_osint": "Email OSINT",
+    "face_match": "Face match",
+    "email_local_part": "Email local-part",
+    "email_domain_extraction": "Email domain",
+    "name_username_candidate": "Name → username",
+    "correlation_analysis": "Correlation",
+    "neo4j_correlation": "Neo4j correlation",
+    "orchestrator": "Orchestrator",
+    "external_tool": "External tool",
+    "phone_osint": "Phone OSINT",
+    "wayback_machine": "Wayback Machine",
+}
+
+
+def _tool_label(name: Optional[str]) -> str:
+    """Readable caption for a normalized tool / scraper source name."""
+    if not name:
+        return "—"
+    if name in _TOOL_LABELS:
+        return _TOOL_LABELS[name]
+    return name.replace("_", " ").strip().title()
 
 
 def _normalize_tool_source(source: Optional[str]) -> Optional[str]:
@@ -1513,13 +1655,15 @@ def _generate_tool_metrics(artifacts: list, correlation) -> dict:
     tools = []
     for entry in per_tool.values():
         count = entry["count"]
+        tool_name = entry["tool"]
         tools.append({
-            "tool": entry["tool"],
+            "tool": tool_name,
+            "label": _tool_label(tool_name),
             "count": count,
             "share": _share(count, attributed),
             "avg_confidence": round(entry["confidence_sum"] / count, 2) if count else 0.0,
             "identities": len(entry["identities"]),
-            "kind": "derivation" if entry["tool"] in _DERIVED_SOURCES else "tool",
+            "kind": "derivation" if tool_name in _DERIVED_SOURCES else "tool",
             "types": [
                 {"type": t, "count": c}
                 for t, c in sorted(entry["types"].items(), key=lambda kv: (-kv[1], kv[0]))
@@ -1530,12 +1674,17 @@ def _generate_tool_metrics(artifacts: list, correlation) -> dict:
     types = [
         {
             "type": t,
+            "label": _tool_label(t) if "_" in t else t.replace("_", " ").title(),
             "count": c,
             "share": _share(c, attributed),
             "color": _TYPE_COLORS[i % len(_TYPE_COLORS)],
         }
         for i, (t, c) in enumerate(sorted(per_type.items(), key=lambda kv: (-kv[1], kv[0])))
     ]
+    # Summary tile uses overall highest yield, but with a readable label and
+    # the count as the primary figure (raw keys like profile_image are not useful
+    # as a large caption).
+    top = tools[0] if tools else None
 
     produced = {t["tool"] for t in tools if t["kind"] == "tool"}
     # An integrated tool missing here either was not installed, was not dispatched
@@ -1551,7 +1700,9 @@ def _generate_tool_metrics(artifacts: list, correlation) -> dict:
         "tool_count": len(produced),
         "derivation_count": len(tools) - len(produced),
         "max_count": tools[0]["count"] if tools else 0,
-        "top_tool": tools[0]["tool"] if tools else None,
+        "top_tool": top["tool"] if top else None,
+        "top_tool_label": top["label"] if top else None,
+        "top_tool_count": top["count"] if top else 0,
         "integrated_count": len(TOOL_ARTIFACT_TYPES),
         "silent_tools": silent,
     }

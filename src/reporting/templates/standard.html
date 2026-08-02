@@ -174,10 +174,6 @@
         .tool-chart-track { background: #edf2f7; border-radius: 3px; height: 1.4rem; overflow: hidden; }
         .tool-chart-bar { background: #3182ce; height: 100%; border-radius: 3px; min-width: 2px; }
         .tool-chart-count { font-size: 0.85rem; color: #4a5568; text-align: right; font-variant-numeric: tabular-nums; }
-        .type-bar { display: flex; width: 100%; height: 1.6rem; border-radius: 3px; overflow: hidden; border: 1px solid #e2e8f0; margin-bottom: 0.75rem; }
-        .type-bar-slice { height: 100%; }
-        .type-legend { display: flex; flex-wrap: wrap; gap: 0.5rem 1rem; font-size: 0.8rem; color: #4a5568; }
-        .type-legend-swatch { display: inline-block; width: 0.7rem; height: 0.7rem; border-radius: 2px; margin-right: 0.35rem; }
         .silent-tools { font-size: 0.85rem; color: #718096; }
 
         /* Evidence Chain */
@@ -315,7 +311,7 @@
             /* Chrome drops background fills unless "Background graphics" is
                ticked, which would print the tool metrics charts as empty
                outlines with their captions still in place. */
-            .tool-chart-track, .tool-chart-bar, .type-bar, .type-bar-slice, .type-legend-swatch {
+            .tool-chart-track, .tool-chart-bar {
                 -webkit-print-color-adjust: exact;
                 print-color-adjust: exact;
             }
@@ -355,7 +351,7 @@
             align-items: center;
             justify-content: center;
         }
-        .avatar-frame img { width: 100%; height: 100%; object-fit: cover; }
+        .avatar-frame img { width: 100%; height: 100%; object-fit: cover; display: block; }
         .avatar-missing {
             display: none;
             padding: 0.5rem;
@@ -389,10 +385,6 @@
         .tool-chart-track { background: #edf2f7; border-radius: 3px; height: 1.4rem; overflow: hidden; }
         .tool-chart-bar { background: #3182ce; height: 100%; border-radius: 3px; min-width: 2px; }
         .tool-chart-count { font-size: 0.85rem; color: #4a5568; text-align: right; font-variant-numeric: tabular-nums; }
-        .type-bar { display: flex; width: 100%; height: 1.6rem; border-radius: 3px; overflow: hidden; border: 1px solid #e2e8f0; margin-bottom: 0.75rem; }
-        .type-bar-slice { height: 100%; }
-        .type-legend { display: flex; flex-wrap: wrap; gap: 0.5rem 1rem; font-size: 0.8rem; color: #4a5568; }
-        .type-legend-swatch { display: inline-block; width: 0.7rem; height: 0.7rem; border-radius: 2px; margin-right: 0.35rem; }
         .silent-tools { font-size: 0.85rem; color: #718096; }
 
         /* Evidence Chain */
@@ -597,7 +589,10 @@
     <div class="redacted-banner">Redacted shareable report — sensitive values are masked.</div>
     {% endif %}
 
-    {% if 'filters' in sections %}
+    {% set ns = namespace(n=0) %}
+    {% set has_filterable = (artifact_views or []) or (presences or []) %}
+
+    {% if 'filters' in sections and has_filterable %}
     <div class="filter-bar" id="report-filters">
         <label>Filter type
             <select id="filter-type">
@@ -622,14 +617,17 @@
     </div>
     {% endif %}
 
+    {% if has_filterable %}
     <div class="drilldown-controls">
         <button type="button" id="expand-all">Expand all details</button>
         <button type="button" id="collapse-all">Collapse all details</button>
     </div>
+    {% endif %}
 
-    {% if 'identities' in sections %}
+    {% if 'identities' in sections and correlation.identities %}
+    {% set ns.n = ns.n + 1 %}
     <!-- Identity Profiles -->
-    <h2>1. Identity Profiles</h2>
+    <h2>{{ ns.n }}. Identity Profiles</h2>
     <p class="section-blurb">Correlated personas that link multiple artifacts to single identities, showing confidence scores, associated risk indicators, and profile images for understanding the target's digital footprint. Expand a profile to review its complete evidence basis.</p>
     {% for identity in correlation.identities %}
     <div class="card">
@@ -765,10 +763,12 @@
 
     {% endif %}
 
-    {% if 'summary' in sections %}
+    {% if 'summary' in sections and (timeline or key_findings or artifacts) %}
+    {% set ns.n = ns.n + 1 %}
     <!-- Summary -->
-    <h2>2. Summary</h2>
+    <h2>{{ ns.n }}. Summary</h2>
     <p class="section-blurb">Investigation overview including timeline of discoveries, key findings, statistical metrics, confidence scores, and risk assessment matrix.</p>
+    {% if timeline %}
     <div class="card">
         <h3>Investigation Timeline</h3>
         <p class="subsection-blurb">Chronological sequence showing when each artifact was discovered during the investigation process.</p>
@@ -789,7 +789,9 @@
             </tbody>
         </table>
     </div>
+    {% endif %}
 
+    {% if key_findings %}
     <div class="card">
         <h3>Key Findings</h3>
         <p class="subsection-blurb">Most significant discoveries from the investigation including high-value targets, security risks, and important connections.</p>
@@ -799,6 +801,7 @@
             {% endfor %}
         </ul>
     </div>
+    {% endif %}
 
     <div class="card">
         <h3>Summary Statistics</h3>
@@ -860,9 +863,10 @@
 
     {% endif %}
 
-    {% if 'tools' in sections %}
+    {% if 'tools' in sections and (tool_metrics.tools or tool_metrics.silent_tools) %}
+    {% set ns.n = ns.n + 1 %}
     <!-- Tool Metrics -->
-    <h2>3. Tool Metrics</h2>
+    <h2>{{ ns.n }}. Tool Metrics</h2>
     <p class="section-blurb">What each OSINT tool actually contributed to this investigation: how many artifacts it produced, of which types, at what average confidence, and how many identity profiles its output reached. Seeded artifacts are excluded, so the totals here count only discovered evidence. Rows marked <em>derived</em> are pipeline steps rather than tools &mdash; the orchestrator pivoting one artifact into another &mdash; and are excluded from the tool count.</p>
     <div class="card">
         {% if tool_metrics.tools %}
@@ -876,8 +880,8 @@
                 <div class="stat-label">Tool-Derived Artifacts</div>
             </div>
             <div class="stat-card">
-                <div class="stat-value">{{ tool_metrics.top_tool }}</div>
-                <div class="stat-label">Highest Yield</div>
+                <div class="stat-value">{{ tool_metrics.top_tool_count }}</div>
+                <div class="stat-label">Highest Yield · {{ tool_metrics.top_tool_label or '—' }}</div>
             </div>
             <div class="stat-card">
                 <div class="stat-value">{{ tool_metrics.types | length }}</div>
@@ -889,28 +893,11 @@
         <p class="subsection-blurb">Bar length is relative to the highest-yielding tool. Volume is not quality &mdash; a single domain_info record can outweigh fifty profile hits.</p>
         <div class="tool-chart">
             {% for tool in tool_metrics.tools %}
-            <div class="tool-chart-name">{{ tool.tool }}</div>
+            <div class="tool-chart-name" title="{{ tool.tool }}">{{ tool.label or tool.tool }}</div>
             <div class="tool-chart-track">
                 <div class="tool-chart-bar" style="width: {{ (tool.count * 100 // tool_metrics.max_count) if tool_metrics.max_count else 0 }}%;"></div>
             </div>
             <div class="tool-chart-count">{{ tool.count }}</div>
-            {% endfor %}
-        </div>
-
-        <h3>Artifact Type Mix</h3>
-        <p class="subsection-blurb">Share of tool-derived artifacts by type across the whole investigation.</p>
-        <div class="type-bar">
-            {% for type in tool_metrics.types %}
-            <div class="type-bar-slice" style="width: {{ type.share }}%; background: {{ type.color }};"
-                 title="{{ type.type }}: {{ type.count }}"></div>
-            {% endfor %}
-        </div>
-        <div class="type-legend">
-            {% for type in tool_metrics.types %}
-            <span>
-                <span class="type-legend-swatch" style="background: {{ type.color }};"></span>
-                {{ type.type }} &mdash; {{ type.count }} ({{ type.share }}%)
-            </span>
             {% endfor %}
         </div>
 
@@ -922,7 +909,7 @@
             <tbody>
                 {% for tool in tool_metrics.tools %}
                 <tr>
-                    <td>{{ tool.tool }}</td>
+                    <td title="{{ tool.tool }}">{{ tool.label or tool.tool }}</td>
                     <td>{{ tool.count }}</td>
                     <td>{{ tool.share }}%</td>
                     <td>{{ "%.2f" | format(tool.avg_confidence) }}</td>
@@ -937,25 +924,23 @@
                 {% endfor %}
             </tbody>
         </table>
+        {% endif %}
 
         {% if tool_metrics.silent_tools %}
         <p class="silent-tools">Integrated but silent in this run ({{ tool_metrics.silent_tools | length }} of {{ tool_metrics.integrated_count }}):
            {{ tool_metrics.silent_tools | join(', ') }}. A tool is silent when it is not installed, was never dispatched for the artifact types seen here, or ran and found nothing.</p>
         {% endif %}
-        {% else %}
-        <p class="empty-note">No tool-derived artifacts in this investigation &mdash; every artifact came from the seeds.</p>
-        {% endif %}
     </div>
 
     {% endif %}
 
-    {% if 'platforms' in sections %}
+    {% if 'platforms' in sections and presences %}
+    {% set ns.n = ns.n + 1 %}
     <!-- Platform Presence -->
-    <h2>4. Platform Presence</h2>
+    <h2>{{ ns.n }}. Platform Presence</h2>
     <p class="section-blurb">All discovered social media and online platform accounts with direct profile links for verification and understanding the target's online behavior and communication channels. Expand a platform to review the captured profile details.
     <strong>Content-validated</strong> entries were confirmed by inspecting the profile page or API response; <strong>unvalidated (status only)</strong> entries rest on an HTTP 200 alone and may be soft 404s, login walls or app shells &mdash; treat them as leads, not findings.</p>
     <div class="card">
-        {% if presences %}
         <p class="section-blurb">{{ presences | selectattr('is_verified') | list | length }} of {{ presences | length }} platform presences are content-validated.</p>
         {% for presence in presences %}
         <details class="drilldown presence-row" data-type="platform_presence" data-confidence="1" data-source="{{ presence.platform_name or '' }}" data-value="{{ presence.username or '' }}">
@@ -1003,35 +988,29 @@
             </div>
         </details>
         {% endfor %}
-        {% else %}
-        <p class="empty-note">No platform presence recorded for this investigation.</p>
-        {% endif %}
     </div>
 
     {% endif %}
 
-    {% if 'graph' in sections %}
+    {% if 'graph' in sections and graph_iframe_src %}
+    {% set ns.n = ns.n + 1 %}
     <!-- Relationship Graph -->
-    <h2>5. Relationship Graph</h2>
+    <h2>{{ ns.n }}. Relationship Graph</h2>
     <p class="section-blurb">Visual network diagram showing connections between artifacts and identities, helping identify clusters, central nodes, and relationship patterns for understanding social connections and potential attack vectors.</p>
     <div class="card">
         <div class="graph-container">
-            {% if graph_srcdoc %}
-            <iframe class="graph-frame" title="Identity relationship graph" sandbox="allow-scripts allow-same-origin" srcdoc="{{ graph_srcdoc }}"></iframe>
-            {% else %}
-            <p class="empty-note">No relationship graph available for this investigation.</p>
-            {% endif %}
+            <iframe class="graph-frame" title="Identity relationship graph" sandbox="allow-scripts allow-same-origin allow-popups" src="{{ graph_iframe_src }}"></iframe>
         </div>
     </div>
 
     {% endif %}
 
-    {% if 'artifacts' in sections %}
+    {% if 'artifacts' in sections and artifact_views %}
+    {% set ns.n = ns.n + 1 %}
     <!-- Artifacts -->
-    <h2>6. Discovered Artifacts</h2>
+    <h2>{{ ns.n }}. Discovered Artifacts</h2>
     <p class="section-blurb">Complete inventory of all data points found (emails, usernames, phone numbers, domains, etc.) with source attribution, confidence scores, and discovery depth. Expand an artifact to review its full metadata and the links that connect it to the rest of the investigation.</p>
     <div class="card">
-        {% if artifact_views %}
         {% for a in artifact_views %}
         <details class="drilldown artifact-row" data-type="{{ a.artifact_type }}" data-confidence="{{ a.confidence or 0 }}" data-source="{{ a.source or '' }}" data-value="{{ a.value }}">
             <summary>
@@ -1094,44 +1073,16 @@
             </div>
         </details>
         {% endfor %}
-        {% else %}
-        <p class="empty-note">No artifacts were discovered in this investigation.</p>
-        {% endif %}
     </div>
 
 
     {% endif %}
 
-    {% if 'recommendations' in sections %}
-    <h2>7. Recommendations</h2>
-    <p class="section-blurb">Actionable next steps tied to specific findings — not generic advice.</p>
-    <div class="card">
-        {% if recommendations %}
-        <table>
-            <thead><tr><th>Priority</th><th>Category</th><th>Action</th><th>Details</th><th>Ref</th></tr></thead>
-            <tbody>
-            {% for rec in recommendations %}
-            <tr class="priority-{{ rec.priority }}">
-                <td><span class="risk-{{ rec.priority if rec.priority in ['critical','high','medium','low'] else 'medium' }}">{{ rec.priority | upper }}</span></td>
-                <td>{{ rec.category }}</td>
-                <td>{{ rec.action }}</td>
-                <td>{{ rec.details }}</td>
-                <td>{{ rec.artifact_ref or '-' }}</td>
-            </tr>
-            {% endfor %}
-            </tbody>
-        </table>
-        {% else %}
-        <p class="empty-note">No recommendations generated.</p>
-        {% endif %}
-    </div>
-    {% endif %}
-
-    {% if 'evidence' in sections %}
-    <h2>8. Evidence Chains</h2>
+    {% if 'evidence' in sections and evidence_chains %}
+    {% set ns.n = ns.n + 1 %}
+    <h2>{{ ns.n }}. Evidence Chains</h2>
     <p class="section-blurb">Provenance paths from seed artifacts through discovery links (type, confidence, evidence text).</p>
     <div class="card">
-        {% if evidence_chains %}
         {% for chain in evidence_chains %}
         <div class="evidence-chain" style="margin-bottom: 0.75rem;">
             {% for step in chain.steps %}
@@ -1141,17 +1092,14 @@
             {% endfor %}
         </div>
         {% endfor %}
-        {% else %}
-        <p class="empty-note">No multi-hop evidence chains were derived.</p>
-        {% endif %}
     </div>
     {% endif %}
 
-    {% if 'orphans' in sections %}
-    <h2>9. Unattributed Findings</h2>
+    {% if 'orphans' in sections and orphan_findings %}
+    {% set ns.n = ns.n + 1 %}
+    <h2>{{ ns.n }}. Unattributed Findings</h2>
     <p class="section-blurb">Artifacts that are not attached to an identity profile (common for IP/domain-only seeds).</p>
     <div class="card">
-        {% if orphan_findings %}
         <table>
             <thead><tr><th>Type</th><th>Value</th><th>Source</th><th>Confidence</th><th>Depth</th></tr></thead>
             <tbody>
@@ -1166,14 +1114,12 @@
             {% endfor %}
             </tbody>
         </table>
-        {% else %}
-        <p class="empty-note">All findings are attributed to an identity profile.</p>
-        {% endif %}
     </div>
     {% endif %}
 
     {% if 'tools' in sections and tool_metrics.tool_status %}
-    <h2>10. Tool Run Status</h2>
+    {% set ns.n = ns.n + 1 %}
+    <h2>{{ ns.n }}. Tool Run Status</h2>
     <p class="section-blurb">Distinguishes not-installed tools from installed tools that were silent or not dispatched.</p>
     <div class="card">
         <table>
@@ -1197,11 +1143,11 @@
     </div>
     {% endif %}
 
-    {% if 'geo' in sections %}
-    <h2>11. Geographic / Location Signals</h2>
+    {% if 'geo' in sections and geographic_data and geographic_data.locations %}
+    {% set ns.n = ns.n + 1 %}
+    <h2>{{ ns.n }}. Geographic / Location Signals</h2>
     <p class="section-blurb">GPS and location-related artifacts (EXIF, phone region, etc.).</p>
     <div class="card">
-        {% if geographic_data and geographic_data.locations %}
         <ul class="map-list">
         {% for loc in geographic_data.locations %}
             <li><strong>{{ loc.value }}</strong> <span class="summary-meta">({{ loc.source }})</span></li>
@@ -1210,17 +1156,14 @@
         {% if geographic_data.map_url %}
         <p><a href="{{ geographic_data.map_url }}" target="_blank" rel="noopener">Open approximate map view</a></p>
         {% endif %}
-        {% else %}
-        <p class="empty-note">No geographic signals recorded.</p>
-        {% endif %}
     </div>
     {% endif %}
 
-    {% if 'audit' in sections %}
-    <h2>12. Audit Trail</h2>
+    {% if 'audit' in sections and audit_trail %}
+    {% set ns.n = ns.n + 1 %}
+    <h2>{{ ns.n }}. Audit Trail</h2>
     <p class="section-blurb">Investigation lifecycle events recorded during collection and reporting.</p>
     <div class="card">
-        {% if audit_trail %}
         <table>
             <thead><tr><th>When</th><th>Action</th><th>Entity</th><th>Details</th></tr></thead>
             <tbody>
@@ -1234,17 +1177,14 @@
             {% endfor %}
             </tbody>
         </table>
-        {% else %}
-        <p class="empty-note">No audit events recorded for this investigation.</p>
-        {% endif %}
     </div>
     {% endif %}
 
-    {% if 'comments' in sections %}
-    <h2>13. Investigator Notes</h2>
+    {% if 'comments' in sections and comments %}
+    {% set ns.n = ns.n + 1 %}
+    <h2>{{ ns.n }}. Investigator Notes</h2>
     <p class="section-blurb">Threaded comments and annotations attached to the investigation.</p>
     <div class="card">
-        {% if comments %}
         {% for c in comments %}
         <div class="collapsible" style="padding: 0.75rem 1rem;">
             <strong>{{ c.author or 'analyst' }}</strong>
@@ -1252,17 +1192,14 @@
             <p>{{ c.content }}</p>
         </div>
         {% endfor %}
-        {% else %}
-        <p class="empty-note">No investigator notes yet.</p>
-        {% endif %}
     </div>
     {% endif %}
 
-    {% if 'cross' in sections %}
-    <h2>14. Cross-Investigation Matches</h2>
+    {% if 'cross' in sections and cross_hits %}
+    {% set ns.n = ns.n + 1 %}
+    <h2>{{ ns.n }}. Cross-Investigation Matches</h2>
     <p class="section-blurb">Same artifact values seen in other investigations in this database.</p>
     <div class="card">
-        {% if cross_hits %}
         <table>
             <thead><tr><th>Other INV</th><th>Type</th><th>Value</th><th>Source</th></tr></thead>
             <tbody>
@@ -1276,14 +1213,12 @@
             {% endfor %}
             </tbody>
         </table>
-        {% else %}
-        <p class="empty-note">No overlapping artifacts found in other investigations.</p>
-        {% endif %}
     </div>
     {% endif %}
 
-    {% if 'delta' in sections and delta.enabled %}
-    <h2>15. Delta vs {{ delta.compare_id }}</h2>
+    {% if 'delta' in sections and delta.enabled and (delta.added_count or delta.removed_count) %}
+    {% set ns.n = ns.n + 1 %}
+    <h2>{{ ns.n }}. Delta vs {{ delta.compare_id }}</h2>
     <p class="section-blurb">Artifacts added or removed relative to a prior investigation.</p>
     <div class="card">
         <div class="stats-grid">
@@ -1291,14 +1226,14 @@
             <div class="stat-card"><div class="stat-value">{{ delta.removed_count }}</div><div class="stat-label">Removed</div></div>
             <div class="stat-card"><div class="stat-value">{{ delta.shared_count }}</div><div class="stat-label">Shared</div></div>
         </div>
-        <h3>Added</h3>
         {% if delta.added %}
+        <h3>Added</h3>
         <ul>{% for a in delta.added %}<li><span class="badge badge-{{ a.type }}">{{ a.type }}</span> {{ a.value }} ({{ a.source }})</li>{% endfor %}</ul>
-        {% else %}<p class="empty-note">None</p>{% endif %}
-        <h3>Removed</h3>
+        {% endif %}
         {% if delta.removed %}
+        <h3>Removed</h3>
         <ul>{% for a in delta.removed %}<li><span class="badge badge-{{ a.type }}">{{ a.type }}</span> {{ a.value }} ({{ a.source }})</li>{% endfor %}</ul>
-        {% else %}<p class="empty-note">None</p>{% endif %}
+        {% endif %}
     </div>
     {% endif %}
 

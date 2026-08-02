@@ -157,10 +157,11 @@ def generate_interactive_graph(
             "stabilization": {"iterations": 150}
         },
         "nodes": {
-            "font": {"size": 12, "face": "monospace"}
+            "font": {"size": 12, "face": "monospace", "color": "#ffffff"}
         },
         "edges": {
-            "smooth": {"type": "continuous"}
+            "smooth": {"type": "continuous"},
+            "font": {"color": "#e2e8f0", "strokeWidth": 0}
         }
     }
     """)
