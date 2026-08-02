@@ -33,7 +33,7 @@ plugins:
   
   # Username Search Tools
   sherlock:
-    enabled: false  # Disabled by default - requires installation
+    enabled: true  # Enabled by default - skipped automatically if the tool is not installed
     priority: 2
     timeout: 60
     max_retries: 2
@@ -41,32 +41,32 @@ plugins:
       output_format: "json"
   
   maigret:
-    enabled: false  # Disabled by default - requires installation
+    enabled: true  # Enabled by default - skipped automatically if the tool is not installed
     priority: 2
     timeout: 60
     max_retries: 2
   
   social_analyzer:
-    enabled: false  # Disabled by default - requires installation
+    enabled: true  # Enabled by default - skipped automatically if the tool is not installed
     priority: 2
     timeout: 60
     max_retries: 2
   
   # Email Investigation Tools
   holehe:
-    enabled: false  # Disabled by default - requires installation
+    enabled: true  # Enabled by default - skipped automatically if the tool is not installed
     priority: 2
     timeout: 60
     max_retries: 2
   
   emailharvester:
-    enabled: false  # Disabled by default - requires installation
+    enabled: true  # Enabled by default - skipped automatically if the tool is not installed
     priority: 2
     timeout: 60
     max_retries: 2
   
   theharvester:
-    enabled: false  # Disabled by default - requires installation
+    enabled: true  # Enabled by default - skipped automatically if the tool is not installed
     priority: 2
     timeout: 60
     max_retries: 2
@@ -75,75 +75,75 @@ plugins:
   
   # Domain & DNS Tools
   whois:
-    enabled: false  # Disabled by default - requires installation
+    enabled: true  # Enabled by default - skipped automatically if the tool is not installed
     priority: 2
     timeout: 30
     max_retries: 2
   
   dig:
-    enabled: false  # Disabled by default - requires installation
+    enabled: true  # Enabled by default - skipped automatically if the tool is not installed
     priority: 2
     timeout: 15
     max_retries: 2
   
   amass:
-    enabled: false  # Disabled by default - requires installation
+    enabled: true  # Enabled by default - skipped automatically if the tool is not installed
     priority: 2
     timeout: 60  # Reduced from 120 to fit the overall time budget
     max_retries: 2
   
   subfinder:
-    enabled: false  # Disabled by default - requires installation
+    enabled: true  # Enabled by default - skipped automatically if the tool is not installed
     priority: 2
     timeout: 60
     max_retries: 2
   
   sublist3r:
-    enabled: false  # Disabled by default - requires installation
+    enabled: true  # Enabled by default - skipped automatically if the tool is not installed
     priority: 2
     timeout: 60
     max_retries: 2
   
   # Network Scanning Tools
   nmap:
-    enabled: false  # Disabled by default - requires installation
+    enabled: true  # Enabled by default - skipped automatically if the tool is not installed
     priority: 3
     timeout: 90  # Reduced from 300 to fit the overall time budget
     max_retries: 1
   
   masscan:
-    enabled: false  # Disabled by default - requires installation
+    enabled: true  # Enabled by default - skipped automatically if the tool is not installed
     priority: 3
     timeout: 90  # Reduced from 300 to fit the overall time budget
     max_retries: 1
   
   whatweb:
-    enabled: false  # Disabled by default - requires installation
+    enabled: true  # Enabled by default - skipped automatically if the tool is not installed
     priority: 2
     timeout: 60
     max_retries: 2
   
   wappalyzer:
-    enabled: false  # Disabled by default - requires installation
+    enabled: true  # Enabled by default - skipped automatically if the tool is not installed
     priority: 2
     timeout: 60
     max_retries: 2
   
   # OSINT Frameworks
   recon_ng:
-    enabled: false  # Disabled by default - requires installation
+    enabled: true  # Enabled by default - skipped automatically if the tool is not installed
     priority: 2
     timeout: 120
     max_retries: 2
   
   spiderfoot:
-    enabled: false  # Disabled by default - requires installation
+    enabled: true  # Enabled by default - skipped automatically if the tool is not installed
     priority: 2
     timeout: 120
     max_retries: 2
   
   osrframework:
-    enabled: false  # Disabled by default - requires installation
+    enabled: true  # Enabled by default - skipped automatically if the tool is not installed
     priority: 2
     # usufy checks the whole "social" tag serially per thread; ~2m15s observed.
     timeout: 180
@@ -151,14 +151,14 @@ plugins:
   
   # Specialized Tools
   shodan:
-    enabled: false  # Disabled by default - requires API key
+    enabled: true  # Enabled by default - skipped automatically if no API key is configured
     priority: 3
     timeout: 30
     max_retries: 2
     api_key: null  # Required: Shodan API key
   
   ghunt:
-    enabled: false  # Disabled by default - requires installation
+    enabled: true  # Enabled by default - skipped automatically if the tool is not installed
     priority: 2
     timeout: 60
     max_retries: 2
@@ -172,35 +172,35 @@ plugins:
       max_results: 20
   
   metagoofil:
-    enabled: false  # Disabled by default - requires installation
+    enabled: true  # Enabled by default - skipped automatically if the tool is not installed
     priority: 2
     timeout: 60
     max_retries: 2
   
   # Image & Metadata Tools
   exiftool:
-    enabled: false  # Disabled by default - requires installation
+    enabled: true  # Enabled by default - skipped automatically if the tool is not installed
     priority: 2
     timeout: 30
     max_retries: 2
   
   # Historical Data Tools
   wayback_machine:
-    enabled: false  # Disabled by default - requires installation
+    enabled: true  # Enabled by default - skipped automatically if the tool is not installed
     priority: 2
     timeout: 60
     max_retries: 2
   
   # Blockchain & Geolocation Tools
   etherscan:
-    enabled: false  # Disabled by default - requires API key
+    enabled: true  # Enabled by default - skipped automatically if no API key is configured
     priority: 3
     timeout: 30
     max_retries: 2
     api_key: null  # Optional: Etherscan API key
   
   geonames:
-    enabled: false  # Disabled by default - requires installation
+    enabled: true  # Enabled by default - skipped automatically if the tool is not installed
     priority: 2
     timeout: 30
     max_retries: 2
