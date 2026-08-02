@@ -149,6 +149,7 @@
         }
         .nested-table th { background: #edf2f7; text-transform: none; letter-spacing: 0; white-space: nowrap; }
         .nested-table-key { font-weight: 600; color: #4a5568; font-size: 0.85rem; margin-bottom: 0.35rem; }
+        .nested-table-wrap { max-width: 100%; overflow-x: auto; }
         th { 
             background: #f7fafc; 
             color: #2d3748; 
@@ -201,6 +202,7 @@
             font-family: 'Courier New', monospace; 
             font-size: 0.85rem; 
             color: #4a5568; 
+            overflow-wrap: anywhere;
             background: #f7fafc;
             padding: 1rem;
             border-radius: 4px;
@@ -275,6 +277,7 @@
         .drilldown-body h5:first-child { margin-top: 0; }
         .summary-value { font-weight: 600; color: #1e3a5f; overflow-wrap: anywhere; min-width: 0; }
         .summary-meta { color: #718096; font-size: 0.85rem; }
+        .kv-table { table-layout: fixed; }
         .kv-table td:first-child {
             width: 30%;
             color: #4a5568;
@@ -422,7 +425,7 @@
         .org-logo { max-height: 48px; margin-bottom: 0.75rem; }
         .map-list { columns: 2; column-gap: 1.5rem; }
         .map-list li { break-inside: avoid; margin-bottom: 0.35rem; font-size: 0.9rem; }
-        .chain-step { display: inline-block; padding: 0.2rem 0.5rem; background: #edf2f7; color: #2d3748; border-radius: 4px; margin: 0.15rem; font-size: 0.8rem; }
+        .chain-step { display: inline-block; padding: 0.2rem 0.5rem; background: #edf2f7; color: #2d3748; border-radius: 4px; margin: 0.15rem; font-size: 0.8rem; max-width: 100%; overflow-wrap: anywhere; }
         .chain-arrow { color: #718096; margin: 0 0.15rem; }
         .status-not_installed { color: #c53030; }
         .status-silent_or_not_dispatched { color: #975a16; }
@@ -567,7 +570,7 @@
                 <div class="avatar-frame avatar-frame-empty"><div class="avatar-missing">No profile image found</div></div>
                 {% endif %}
             </div>
-            <div style="flex: 1;">
+            <div style="flex: 1; min-width: 0; overflow-wrap: anywhere;">
                 <p><strong>Profile ID:</strong> {{ identity.profile_id }}</p>
                 <p><strong>Confidence:</strong> {{ "%.1f%%" | format(identity.confidence * 100) }}</p>
                 <p><strong>Artifacts:</strong> {{ identity.artifacts | length }}</p>
@@ -955,6 +958,7 @@
                         <tr>
                             <td colspan="2">
                                 <div class="nested-table-key">{{ item.key }}</div>
+                                <div class="nested-table-wrap">
                                 <table class="nested-table">
                                     <thead>
                                         <tr>{% for column in item.table.columns %}<th>{{ column }}</th>{% endfor %}</tr>
@@ -965,6 +969,7 @@
                                         {% endfor %}
                                     </tbody>
                                 </table>
+                                </div>
                             </td>
                         </tr>
                         {% else %}
