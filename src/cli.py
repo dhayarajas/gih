@@ -149,6 +149,7 @@ def _print_tool_coverage() -> None:
 @click.option("--phone", "-p", multiple=True, help="Phone number to investigate")
 @click.option("--email", "-e", multiple=True, help="Email address to investigate")
 @click.option("--username", "-u", multiple=True, help="Username to investigate")
+@click.option("--full-name", "-n", "full_name", multiple=True, help="Full name to investigate (image-based identity matching)")
 @click.option("--image", "-i", multiple=True, help="Image file path to investigate")
 @click.option("--domain", "-d", multiple=True, help="Domain to investigate")
 @click.option("--ip", multiple=True, help="IP address to investigate")
@@ -178,6 +179,7 @@ def investigate(
     phone: tuple,
     email: tuple,
     username: tuple,
+    full_name: tuple,
     image: tuple,
     domain: tuple,
     ip: tuple,
@@ -208,12 +210,13 @@ def investigate(
         ghost-hunter investigate --phone "+1-555-0123"
         ghost-hunter investigate --email "suspect@example.com"
         ghost-hunter investigate -p "+1-555-0123" -e "suspect@example.com" -u "john_doe"
+        ghost-hunter investigate --full-name "Jane Doe"
     """
     # Validate input
-    if not phone and not email and not username and not image and not domain and not ip and not check_tools:
+    if not phone and not email and not username and not full_name and not image and not domain and not ip and not check_tools:
         click.echo(
             "Error: At least one seed artifact required "
-            "(--phone, --email, --username, --image, --domain, or --ip) or use --check-tools"
+            "(--phone, --email, --username, --full-name, --image, --domain, or --ip) or use --check-tools"
         )
         sys.exit(1)
 
@@ -234,6 +237,8 @@ def investigate(
         seeds.append({"type": "email", "value": e})
     for u in username:
         seeds.append({"type": "username", "value": u})
+    for n in full_name:
+        seeds.append({"type": "fullname", "value": n})
     for i in image:
         if not Path(i).exists():
             click.echo(f"Warning: Image file not found: {i}")
