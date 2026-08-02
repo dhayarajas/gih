@@ -17,7 +17,11 @@ from enum import Enum
 
 from src.config.loader import get_config
 from src.utils.concurrency import io_slot
-from src.utils.tool_checker import check_tool_availability, skip_if_not_available
+from src.utils.tool_checker import (
+    check_tool_availability,
+    get_tool_checker,
+    skip_if_not_available,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -154,49 +158,160 @@ class ExternalToolsIntegration:
         return artifacts
 
 
+# Maximum number of artifacts a single tool run contributes to an investigation.
+# Keeps BFS expansion (and report size) bounded on high-volume tools.
+MAX_ARTIFACTS_PER_TOOL = 15
+
+# Matches the "[+] Platform: https://..." lines emitted by sherlock and maigret.
+FOUND_ACCOUNT_PATTERN = re.compile(r"^\[\+\]\s*(?P<platform>[^:]+?):\s*(?P<url>https?://\S+)\s*$")
+
+# Declared tools that intentionally have no integration, with the reason why.
+# Surfaced by get_tool_coverage() so the "25+ tools" claim stays accurate.
+UNIMPLEMENTED_TOOLS: Dict[str, str] = {
+    "social_analyzer": "No stable CLI contract; node/python variants differ and output is not machine-parseable",
+    "emailharvester": "Superseded by theHarvester, which is integrated and covers the same sources",
+    "recon-ng": "Interactive framework requiring per-module API keys and a workspace; not batch-invocable",
+    "spiderfoot": "Server/daemon oriented, requires its own database and web UI to collect results",
+    "osrframework": "Ships per-utility entrypoints (usufy/mailfy) rather than an 'osrframework' command",
+    "ghunt": "Requires authenticated Google session cookies supplied by the operator",
+    "photon": "Crawler output duplicates wayback_machine historical URLs",
+    "metagoofil": "Document harvesting requires a search-engine API key and downloads remote files",
+    "etherscan": "Requires an Etherscan API key and a wallet-address artifact type",
+    "geonames": "Requires a GeoNames account; geodata is derived from exiftool GPS instead",
+    "wappalyzer": "Superseded by whatweb, which is integrated and detects the same technologies",
+    "masscan": "Requires raw-socket (root) privileges; nmap covers the same port-scan role",
+    "nikto": "Vulnerability scanner, out of scope for identity attribution",
+    "sqlmap": "Exploitation tool, out of scope for identity attribution",
+    "tor_browser": "Interactive browser, not a data source",
+    "flagfox": "Browser extension, not a data source",
+    "user_agent_switcher": "Browser extension, not a data source",
+    "curl": "Generic transport used by other integrations rather than a data source",
+    "wget": "Generic transport used by other integrations rather than a data source",
+    "nslookup": "Superseded by dig, which is integrated",
+    "google_dorks": "Implemented in src.modules.google_dorks and invoked directly for username artifacts",
+}
+
+
+def _parse_found_accounts(output: str, username: str, tool_name: str, confidence: float) -> List[Dict[str, Any]]:
+    """Parse '[+] Platform: url' lines shared by sherlock and maigret."""
+    artifacts = []
+    seen = set()
+
+    for line in output.splitlines():
+        match = FOUND_ACCOUNT_PATTERN.match(line.strip())
+        if not match:
+            continue
+
+        platform = match.group("platform").strip()
+        url = match.group("url").strip()
+        if url in seen:
+            continue
+        seen.add(url)
+
+        artifacts.append({
+            "type": "username_presence",
+            "value": url,
+            "platform": platform,
+            "username": username,
+            "source": tool_name,
+            "confidence": confidence,
+        })
+
+        if len(artifacts) >= MAX_ARTIFACTS_PER_TOOL:
+            break
+
+    return artifacts
+
+
 class SherlockIntegration(ExternalToolsIntegration):
     """Integration for Sherlock username search tool."""
     
     @skip_if_not_available("sherlock")
     def search_username(self, username: str) -> ToolResult:
         """Search for username across social networks using Sherlock."""
-        command = ["sherlock", username, "--json", "--folderoutput", "/tmp"]
+        command = [
+            "sherlock", username,
+            "--print-found",
+            "--timeout", "5",
+            "--no-color",
+            "--no-txt",  # keep sherlock from writing <username>.txt into the working directory
+        ]
         result = self.run_tool("sherlock", command)
         
         if result.success:
-            # Parse JSON output from sherlock
-            try:
-                # Sherlock creates individual JSON files for each platform
-                # We'll parse the main output for now
-                result.parsed_data = {"username": username, "platforms": {}}
-                
-                # Extract platform information from output
-                lines = result.output.split('\n')
-                for line in lines:
-                    if ':' in line and 'found' in line.lower():
-                        parts = line.split(':')
-                        if len(parts) >= 2:
-                            platform = parts[0].strip()
-                            status = parts[1].strip()
-                            result.parsed_data["platforms"][platform] = status
-                
-                # Create artifacts from found platforms
-                for platform, status in result.parsed_data["platforms"].items():
-                    if "found" in status.lower() or "yes" in status.lower():
-                        result.artifacts_discovered.append({
-                            "type": "username_presence",
-                            "value": username,
-                            "platform": platform,
-                            "source": "sherlock",
-                            "confidence": 0.8
-                        })
-                
-                logger.info(f"Sherlock found {len(result.artifacts_discovered)} platforms for {username}")
-                
-            except Exception as e:
-                logger.error(f"Failed to parse Sherlock output: {e}")
-                result.error_message = f"Parsing error: {str(e)}"
+            result.artifacts_discovered = _parse_found_accounts(
+                result.output, username, "sherlock", confidence=0.8
+            )
+            result.parsed_data = {
+                "username": username,
+                "platforms": {a["platform"]: a["value"] for a in result.artifacts_discovered},
+            }
+            logger.info(f"Sherlock found {len(result.artifacts_discovered)} platforms for {username}")
         
+        return result
+
+
+class MaigretIntegration(ExternalToolsIntegration):
+    """Integration for Maigret username search tool."""
+
+    @skip_if_not_available("maigret")
+    def search_username(self, username: str) -> ToolResult:
+        """Search for username across the top Maigret sites."""
+        command = [
+            "maigret", username,
+            "--top-sites", "150",
+            "--timeout", "5",
+            "--no-progressbar",
+            "--no-color",
+            "--no-recursion",
+        ]
+        result = self.run_tool("maigret", command)
+
+        if result.success:
+            result.artifacts_discovered = _parse_found_accounts(
+                result.output, username, "maigret", confidence=0.75
+            )
+            result.parsed_data = {
+                "username": username,
+                "platforms": {a["platform"]: a["value"] for a in result.artifacts_discovered},
+            }
+            logger.info(f"Maigret found {len(result.artifacts_discovered)} platforms for {username}")
+
+        return result
+
+
+class HoleheIntegration(ExternalToolsIntegration):
+    """Integration for Holehe email account discovery."""
+
+    @skip_if_not_available("holehe")
+    def check_email(self, email: str) -> ToolResult:
+        """Discover which services an email address is registered on."""
+        command = ["holehe", email, "--only-used", "--no-color"]
+        result = self.run_tool("holehe", command)
+
+        if result.success:
+            for line in result.output.splitlines():
+                line = line.strip()
+                if not line.startswith("[+]"):
+                    continue
+
+                platform = line[3:].strip()
+                if not platform or " " in platform:
+                    continue
+
+                result.artifacts_discovered.append({
+                    "type": "email_presence",
+                    "value": email,
+                    "platform": platform,
+                    "source": "holehe",
+                    "confidence": 0.8,
+                })
+
+                if len(result.artifacts_discovered) >= MAX_ARTIFACTS_PER_TOOL:
+                    break
+
+            logger.info(f"Holehe found {len(result.artifacts_discovered)} accounts for {email}")
+
         return result
 
 
@@ -206,13 +321,13 @@ class TheHarvesterIntegration(ExternalToolsIntegration):
     @skip_if_not_available("theharvester")
     def harvest_email(self, domain: str) -> ToolResult:
         """Harvest emails from domain using theHarvester."""
-        command = ["theHarvester", "-d", domain, "-b", "google", "-e", "all"]
+        command = ["theHarvester", "-d", domain, "-b", "duckduckgo"]
         result = self.run_tool("theharvester", command)
         
         if result.success:
             # Extract email addresses from output
             email_pattern = r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}'
-            result.artifacts_discovered = self.extract_artifacts_from_text(
+            harvested = self.extract_artifacts_from_text(
                 result.output,
                 {"email": email_pattern}
             )
@@ -220,12 +335,14 @@ class TheHarvesterIntegration(ExternalToolsIntegration):
             # Remove duplicates
             seen_emails = set()
             unique_artifacts = []
-            for artifact in result.artifacts_discovered:
+            for artifact in harvested:
                 if artifact["value"] not in seen_emails:
                     seen_emails.add(artifact["value"])
+                    artifact["source"] = "theharvester"
+                    artifact["confidence"] = 0.8
                     unique_artifacts.append(artifact)
             
-            result.artifacts_discovered = unique_artifacts
+            result.artifacts_discovered = unique_artifacts[:MAX_ARTIFACTS_PER_TOOL]
             logger.info(f"theHarvester found {len(result.artifacts_discovered)} emails for {domain}")
         
         return result
@@ -233,19 +350,90 @@ class TheHarvesterIntegration(ExternalToolsIntegration):
     @skip_if_not_available("theharvester")
     def harvest_subdomains(self, domain: str) -> ToolResult:
         """Harvest subdomains using theHarvester."""
-        command = ["theHarvester", "-d", domain, "-b", "google", "-h", "all"]
+        command = ["theHarvester", "-d", domain, "-b", "duckduckgo"]
         result = self.run_tool("theharvester", command)
         
         if result.success:
-            # Extract subdomains from output
-            subdomain_pattern = r'[a-zA-Z0-9.-]+\.' + re.escape(domain)
-            result.artifacts_discovered = self.extract_artifacts_from_text(
-                result.output,
-                {"subdomain": subdomain_pattern}
-            )
+            result.artifacts_discovered = _parse_subdomains(result.output, domain, "theharvester")
             
             logger.info(f"theHarvester found {len(result.artifacts_discovered)} subdomains for {domain}")
         
+        return result
+
+
+class SubfinderIntegration(ExternalToolsIntegration):
+    """Integration for subfinder passive subdomain enumeration."""
+
+    @skip_if_not_available("subfinder")
+    def enumerate_subdomains(self, domain: str) -> ToolResult:
+        """Enumerate subdomains using subfinder."""
+        command = ["subfinder", "-d", domain, "-silent", "-timeout", "10"]
+        result = self.run_tool("subfinder", command)
+
+        if result.success:
+            result.artifacts_discovered = _parse_subdomains(result.output, domain, "subfinder")
+            logger.info(f"Subfinder found {len(result.artifacts_discovered)} subdomains for {domain}")
+
+        return result
+
+
+class Sublist3rIntegration(ExternalToolsIntegration):
+    """Integration for Sublist3r subdomain enumeration."""
+
+    @skip_if_not_available("sublist3r")
+    def enumerate_subdomains(self, domain: str) -> ToolResult:
+        """Enumerate subdomains using Sublist3r."""
+        command = ["sublist3r", "-d", domain, "-n"]
+        result = self.run_tool("sublist3r", command)
+
+        if result.success:
+            result.artifacts_discovered = _parse_subdomains(result.output, domain, "sublist3r")
+            logger.info(f"Sublist3r found {len(result.artifacts_discovered)} subdomains for {domain}")
+
+        return result
+
+
+class WhatWebIntegration(ExternalToolsIntegration):
+    """Integration for WhatWeb technology fingerprinting."""
+
+    @skip_if_not_available("whatweb")
+    def fingerprint(self, target: str) -> ToolResult:
+        """Fingerprint the web technologies served by a domain or host."""
+        command = ["whatweb", "--color=never", "--no-errors", "-a", "1", target]
+        result = self.run_tool("whatweb", command)
+
+        if result.success:
+            technologies = set()
+            addresses = set()
+
+            for plugin, detail in re.findall(r"([A-Za-z0-9_-]+)\[([^\]]*)\]", result.output):
+                if plugin == "IP":
+                    addresses.add(detail)
+                elif plugin in ("Country", "RedirectLocation", "Cookies", "HttpOnly"):
+                    continue
+                else:
+                    technologies.add(f"{plugin}[{detail}]" if detail else plugin)
+
+            for address in addresses:
+                result.artifacts_discovered.append({
+                    "type": "ip_address",
+                    "value": address,
+                    "source": "whatweb",
+                    "confidence": 0.85,
+                })
+
+            for technology in sorted(technologies)[:MAX_ARTIFACTS_PER_TOOL]:
+                result.artifacts_discovered.append({
+                    "type": "web_technology",
+                    "value": technology,
+                    "target": target,
+                    "source": "whatweb",
+                    "confidence": 0.8,
+                })
+
+            result.parsed_data = {"technologies": sorted(technologies), "addresses": sorted(addresses)}
+            logger.info(f"WhatWeb identified {len(result.artifacts_discovered)} findings for {target}")
+
         return result
 
 
@@ -260,9 +448,24 @@ class ShodanIntegration(ExternalToolsIntegration):
         
         if result.success:
             result.parsed_data = self.parse_json_output(result.output)
-            
-            if result.parsed_data:
-                # Extract key information
+            ports = result.parsed_data.get("ports", []) if result.parsed_data else []
+
+            if not result.parsed_data:
+                # The CLI prints a human-readable summary rather than JSON
+                summary = {}
+                for key, pattern in (
+                    ("organization", r"Organization:\s*(.+)"),
+                    ("country", r"Country:\s*(.+)"),
+                    ("city", r"City:\s*(.+)"),
+                    ("operating_system", r"Operating System:\s*(.+)"),
+                ):
+                    match = re.search(pattern, result.output)
+                    if match:
+                        summary[key] = match.group(1).strip()
+                result.parsed_data = summary
+                ports = re.findall(r"^(\d+)/(?:tcp|udp)", result.output, re.MULTILINE)
+
+            if result.parsed_data or ports:
                 result.artifacts_discovered.append({
                     "type": "host_info",
                     "value": ip_address,
@@ -270,20 +473,47 @@ class ShodanIntegration(ExternalToolsIntegration):
                     "source": "shodan",
                     "confidence": 0.9
                 })
-                
-                # Extract open ports
-                if "ports" in result.parsed_data:
-                    for port in result.parsed_data["ports"]:
-                        result.artifacts_discovered.append({
-                            "type": "open_port",
-                            "value": f"{ip_address}:{port}",
-                            "source": "shodan",
-                            "confidence": 0.95
-                        })
+
+                for port in ports:
+                    result.artifacts_discovered.append({
+                        "type": "open_port",
+                        "value": f"{ip_address}:{port}",
+                        "source": "shodan",
+                        "confidence": 0.95
+                    })
                 
                 logger.info(f"Shodan found info for {ip_address}: {len(result.artifacts_discovered)} artifacts")
         
         return result
+
+
+def _parse_subdomains(output: str, domain: str, tool_name: str) -> List[Dict[str, Any]]:
+    """Extract unique subdomains of ``domain`` from tool output."""
+    pattern = re.compile(
+        r"(?<![\w.%-])((?:[a-zA-Z0-9_-]+\.)+" + re.escape(domain) + r")(?![\w-])",
+        re.IGNORECASE,
+    )
+    artifacts = []
+    seen = set()
+
+    for match in pattern.findall(output):
+        subdomain = match.lower().strip(".")
+        if subdomain in seen or subdomain == domain.lower():
+            continue
+        seen.add(subdomain)
+
+        artifacts.append({
+            "type": "subdomain",
+            "value": subdomain,
+            "domain": domain,
+            "source": tool_name,
+            "confidence": 0.85,
+        })
+
+        if len(artifacts) >= MAX_ARTIFACTS_PER_TOOL:
+            break
+
+    return artifacts
 
 
 class AmassIntegration(ExternalToolsIntegration):
@@ -296,22 +526,7 @@ class AmassIntegration(ExternalToolsIntegration):
         result = self.run_tool("amass", command)
         
         if result.success:
-            # Extract subdomains from output
-            subdomain_pattern = r'[a-zA-Z0-9.-]+\.' + re.escape(domain)
-            result.artifacts_discovered = self.extract_artifacts_from_text(
-                result.output,
-                {"subdomain": subdomain_pattern}
-            )
-            
-            # Remove duplicates
-            seen_subdomains = set()
-            unique_artifacts = []
-            for artifact in result.artifacts_discovered:
-                if artifact["value"] not in seen_subdomains:
-                    seen_subdomains.add(artifact["value"])
-                    unique_artifacts.append(artifact)
-            
-            result.artifacts_discovered = unique_artifacts
+            result.artifacts_discovered = _parse_subdomains(result.output, domain, "amass")
             logger.info(f"Amass found {len(result.artifacts_discovered)} subdomains for {domain}")
         
         return result
@@ -368,9 +583,11 @@ class DigIntegration(ExternalToolsIntegration):
             # Extract DNS records from output
             records = [line.strip() for line in result.output.split('\n') if line.strip()]
             
-            for record in records:
+            for record in records[:MAX_ARTIFACTS_PER_TOOL]:
+                # A records are surfaced as IP addresses so downstream host tools can use them
+                is_ip = record_type.upper() == "A" and re.fullmatch(r"\d{1,3}(?:\.\d{1,3}){3}", record)
                 result.artifacts_discovered.append({
-                    "type": f"dns_{record_type.lower()}",
+                    "type": "ip_address" if is_ip else f"dns_{record_type.lower()}",
                     "value": record,
                     "domain": domain,
                     "source": "dig",
@@ -389,9 +606,9 @@ class NmapIntegration(ExternalToolsIntegration):
     def scan_host(self, target: str, ports: str = "common") -> ToolResult:
         """Scan host using Nmap."""
         if ports == "common":
-            command = ["nmap", "-sV", "-sC", target]
+            command = ["nmap", "-Pn", "-F", "-sV", "--version-light", target]
         else:
-            command = ["nmap", "-p", ports, "-sV", "-sC", target]
+            command = ["nmap", "-Pn", "-p", ports, "-sV", "--version-light", target]
         
         result = self.run_tool("nmap", command)
         
@@ -474,7 +691,11 @@ class WaybackMachineIntegration(ExternalToolsIntegration):
         
         try:
             # Use Wayback Machine CDX API
-            url = f"http://web.archive.org/cdx/search/cdx?url={domain}/*&output=json&fl=timestamp,original,statuscode,mimetype"
+            url = (
+                f"http://web.archive.org/cdx/search/cdx?url={domain}/*&output=json"
+                f"&fl=timestamp,original,statuscode,mimetype&collapse=urlkey"
+                f"&limit={MAX_ARTIFACTS_PER_TOOL}"
+            )
             response = requests.get(url, timeout=30)
             
             if response.status_code == 200:
@@ -509,7 +730,12 @@ class WaybackMachineIntegration(ExternalToolsIntegration):
 
 # Global integration instances
 _sherlock = SherlockIntegration()
+_maigret = MaigretIntegration()
+_holehe = HoleheIntegration()
 _theharvester = TheHarvesterIntegration()
+_subfinder = SubfinderIntegration()
+_sublist3r = Sublist3rIntegration()
+_whatweb = WhatWebIntegration()
 _shodan = ShodanIntegration()
 _amass = AmassIntegration()
 _whois = WhoisIntegration()
@@ -523,7 +749,12 @@ def get_tool_integrations() -> Dict[str, ExternalToolsIntegration]:
     """Get all available tool integrations."""
     return {
         "sherlock": _sherlock,
+        "maigret": _maigret,
+        "holehe": _holehe,
         "theharvester": _theharvester,
+        "subfinder": _subfinder,
+        "sublist3r": _sublist3r,
+        "whatweb": _whatweb,
         "shodan": _shodan,
         "amass": _amass,
         "whois": _whois,
@@ -532,6 +763,69 @@ def get_tool_integrations() -> Dict[str, ExternalToolsIntegration]:
         "exiftool": _exiftool,
         "wayback_machine": _wayback,
     }
+
+
+# Analysis type -> integration method name, per tool.
+ANALYSIS_METHODS: Dict[str, Dict[str, str]] = {
+    "sherlock": {"username_search": "search_username"},
+    "maigret": {"username_search": "search_username"},
+    "holehe": {"email_check": "check_email"},
+    "theharvester": {
+        "email_harvest": "harvest_email",
+        "subdomain_harvest": "harvest_subdomains",
+    },
+    "subfinder": {"subdomain_enum": "enumerate_subdomains"},
+    "sublist3r": {"subdomain_enum": "enumerate_subdomains"},
+    "whatweb": {"tech_fingerprint": "fingerprint"},
+    "shodan": {"host_search": "search_host"},
+    "amass": {"subdomain_enum": "enumerate_subdomains"},
+    "whois": {"domain_lookup": "lookup_domain"},
+    "dig": {"dns_lookup": "dns_lookup"},
+    "nmap": {"host_scan": "scan_host"},
+    "exiftool": {"metadata_extract": "extract_metadata"},
+    "wayback_machine": {"historical_urls": "get_historical_urls"},
+}
+
+# Artifact types each integrated tool contributes to an investigation.
+TOOL_ARTIFACT_TYPES: Dict[str, List[str]] = {
+    "sherlock": ["username_presence"],
+    "maigret": ["username_presence"],
+    "holehe": ["email_presence"],
+    "theharvester": ["email", "subdomain"],
+    "subfinder": ["subdomain"],
+    "sublist3r": ["subdomain"],
+    "whatweb": ["ip_address", "web_technology"],
+    "shodan": ["host_info", "open_port"],
+    "amass": ["subdomain"],
+    "whois": ["domain_info"],
+    "dig": ["ip_address", "dns_mx", "dns_ns", "dns_txt"],
+    "nmap": ["open_port"],
+    "exiftool": ["gps_coordinates", "camera_info", "creation_date"],
+    "wayback_machine": ["historical_url"],
+}
+
+
+def get_tool_coverage() -> Dict[str, Dict[str, Any]]:
+    """
+    Report, for every declared OSINT tool, whether it is integrated.
+
+    Returns a mapping of tool name to availability, integration status,
+    the artifact types it produces and, when unimplemented, the reason.
+    """
+    checker = get_tool_checker()
+    integrations = get_tool_integrations()
+    coverage = {}
+
+    for tool_name in checker.tools:
+        integrated = tool_name in integrations
+        coverage[tool_name] = {
+            "available": checker.is_available(tool_name),
+            "integrated": integrated,
+            "artifact_types": TOOL_ARTIFACT_TYPES.get(tool_name, []),
+            "reason": None if integrated else UNIMPLEMENTED_TOOLS.get(tool_name, "No integration implemented"),
+        }
+
+    return coverage
 
 
 # Per-run memoization of tool analyses. The BFS rediscovers the same
@@ -575,45 +869,23 @@ def run_tool_analysis(tool_name: str, analysis_type: str, target: str) -> ToolRe
         return ToolResult(tool_name=tool_name, success=False, error_message="Unknown tool")
     
     integration = integrations[tool_name]
-    
-    # Map analysis types to integration methods
-    analysis_methods = {
-        "sherlock": {
-            "username_search": integration.search_username,
-        },
-        "theharvester": {
-            "email_harvest": integration.harvest_email,
-            "subdomain_harvest": integration.harvest_subdomains,
-        },
-        "shodan": {
-            "host_search": integration.search_host,
-        },
-        "amass": {
-            "subdomain_enum": integration.enumerate_subdomains,
-        },
-        "whois": {
-            "domain_lookup": integration.lookup_domain,
-        },
-        "dig": {
-            "dns_lookup": integration.dns_lookup,
-        },
-        "nmap": {
-            "host_scan": integration.scan_host,
-        },
-        "exiftool": {
-            "metadata_extract": integration.extract_metadata,
-        },
-        "wayback_machine": {
-            "historical_urls": integration.get_historical_urls,
-        },
-    }
-    
-    if tool_name not in analysis_methods or analysis_type not in analysis_methods[tool_name]:
+
+    if analysis_type not in ANALYSIS_METHODS.get(tool_name, {}):
         logger.error(f"Unknown analysis type: {analysis_type} for tool: {tool_name}")
         return ToolResult(tool_name=tool_name, success=False, error_message="Unknown analysis type")
     
-    method = analysis_methods[tool_name][analysis_type]
+    method = getattr(integration, ANALYSIS_METHODS[tool_name][analysis_type])
     result = method(target)
+
+    if result is None:
+        # skip_if_not_available short-circuited the call
+        return ToolResult(
+            tool_name=tool_name,
+            success=False,
+            output="",
+            error_message=f"{tool_name} is not available",
+        )
+
     with _analysis_cache_lock:
         _analysis_cache[cache_key] = result
     return result

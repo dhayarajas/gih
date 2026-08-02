@@ -33,6 +33,7 @@ class ToolInfo:
     status: ToolStatus = ToolStatus.NOT_INSTALLED
     version: Optional[str] = None
     error_message: Optional[str] = None
+    api_based: bool = False  # Reached over HTTP, so no local command is required
     # Whether availability has already been resolved this process run. Used to
     # memoize check_tool so the `<tool> --version` subprocess runs at most once
     # per tool (it is otherwise invoked per-artifact per-tool inside the BFS loop).
@@ -90,13 +91,13 @@ class ToolChecker:
             ToolInfo(name="exiftool", command="exiftool", description="Read and write file metadata"),
             
             # Historical and Archive Tools
-            ToolInfo(name="wayback_machine", command="wayback_machine", description="Historical web data access"),
+            ToolInfo(name="wayback_machine", command="wayback_machine", description="Historical web data access", api_based=True),
             
             # Blockchain and Crypto Tools
             ToolInfo(name="etherscan", command="etherscan", description="Blockchain investigation tool"),
             
             # Search and Dorking Tools
-            ToolInfo(name="google_dorks", command="google_dorks", description="Google Dorks for advanced username discovery"),
+            ToolInfo(name="google_dorks", command="google_dorks", description="Google Dorks for advanced username discovery", api_based=True),
             
             # Geolocation Tools
             ToolInfo(name="geonames", command="geonames", description="Geographical database and search"),
@@ -152,8 +153,11 @@ class ToolChecker:
     def _resolve_tool(self, tool: ToolInfo) -> ToolInfo:
         """Resolve a tool's availability and version (no caching logic)."""
         try:
+            if tool.api_based:
+                tool.status = ToolStatus.AVAILABLE
+                tool.version = "HTTP API"
             # Check if command exists
-            if shutil.which(tool.command):
+            elif shutil.which(tool.command):
                 tool.status = ToolStatus.AVAILABLE
                 # Try to get version
                 try:

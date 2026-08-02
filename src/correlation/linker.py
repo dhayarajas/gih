@@ -119,6 +119,34 @@ MIN_ARTIFACT_CONFIDENCE = 0.3
 # Identity artifact types
 IDENTITY_ARTIFACT_TYPES = {"phone", "email", "username", "image", "fullname"}
 
+# Artifact types produced by external OSINT tools, mapped to the IdentityProfile
+# field they populate. These are infrastructure/context findings rather than
+# identity anchors, so they are attached to a profile instead of forming one.
+TOOL_ARTIFACT_FIELDS = {
+    "domain": "domains",
+    "domain_info": "domains",
+    "subdomain": "subdomains",
+    "ip_address": "ip_addresses",
+    "ip": "ip_addresses",
+    "dns_a": "ip_addresses",
+    "dns_mx": "dns_records",
+    "dns_ns": "dns_records",
+    "dns_txt": "dns_records",
+    "nameserver": "dns_records",
+    "mail_server": "dns_records",
+    "location": "geolocations",
+    "open_port": "open_ports",
+    "host_info": "hosts",
+    "historical_url": "historical_urls",
+    "web_technology": "web_technologies",
+    "gps_coordinates": "geolocations",
+    "camera_info": "device_info",
+    "creation_date": "device_info",
+}
+
+# Tool artifact types that represent an account on a platform.
+ACCOUNT_ARTIFACT_TYPES = {"username_presence", "email_presence"}
+
 
 def _extract_platform_from_url(url: str) -> str:
     """Extract platform name from a profile URL."""
@@ -266,9 +294,41 @@ class IdentityProfile:
     confidence: float = 0.0
     artifact_count: int = 0
 
+    # Findings contributed by external OSINT tools, attached to this identity
+    domains: list[str] = field(default_factory=list)
+    subdomains: list[str] = field(default_factory=list)
+    ip_addresses: list[str] = field(default_factory=list)
+    dns_records: list[str] = field(default_factory=list)
+    open_ports: list[str] = field(default_factory=list)
+    hosts: list[str] = field(default_factory=list)
+    historical_urls: list[str] = field(default_factory=list)
+    web_technologies: list[str] = field(default_factory=list)
+    geolocations: list[str] = field(default_factory=list)
+    device_info: list[str] = field(default_factory=list)
+    tool_findings: list[dict] = field(default_factory=list)
+
+    @property
+    def name(self) -> str:
+        """Human-readable label for the identity."""
+        for candidate in (self.usernames, self.emails, self.phones, self.images):
+            if candidate:
+                return candidate[0]
+        return self.profile_id
+
+    @property
+    def artifacts(self) -> list[str]:
+        """All identity-anchor values belonging to this profile."""
+        return self.phones + self.emails + self.usernames + self.images
+
+    @property
+    def tools_used(self) -> list[str]:
+        """Names of the external tools that contributed to this profile."""
+        return sorted({f["source"] for f in self.tool_findings if f.get("source")})
+
     def to_dict(self) -> dict:
         return {
             "profile_id": self.profile_id,
+            "name": self.name,
             "phones": self.phones,
             "emails": self.emails,
             "usernames": self.usernames,
@@ -277,6 +337,18 @@ class IdentityProfile:
             "risk_indicators": self.risk_indicators,
             "confidence": self.confidence,
             "artifact_count": self.artifact_count,
+            "domains": self.domains,
+            "subdomains": self.subdomains,
+            "ip_addresses": self.ip_addresses,
+            "dns_records": self.dns_records,
+            "open_ports": self.open_ports,
+            "hosts": self.hosts,
+            "historical_urls": self.historical_urls,
+            "web_technologies": self.web_technologies,
+            "geolocations": self.geolocations,
+            "device_info": self.device_info,
+            "tool_findings": self.tool_findings,
+            "tools_used": self.tools_used,
         }
 
 
@@ -385,6 +457,7 @@ def correlate_identities(conn: sqlite3.Connection, investigation_id: str) -> Cor
 
     valid_identities = []
     noise_artifacts = []
+    profile_components: list[tuple[IdentityProfile, set]] = []
     
     for i, component in enumerate(components):
         profile = IdentityProfile(profile_id=f"IDENTITY-{i + 1:03d}")
@@ -466,8 +539,14 @@ def correlate_identities(conn: sqlite3.Connection, investigation_id: str) -> Cor
         identity_type_count = sum(1 for field in [profile.phones, profile.emails, profile.usernames, profile.images] if field)
         
         # A valid identity should have at least one strong identity type
-        if identity_type_count >= 1 and (len(profile.emails) > 0 or len(profile.usernames) > 0 or len(profile.phones) > 0):
+        if identity_type_count >= 1 and (
+            len(profile.emails) > 0
+            or len(profile.usernames) > 0
+            or len(profile.phones) > 0
+            or len(profile.images) > 0
+        ):
             valid_identities.append(profile)
+            profile_components.append((profile, component))
         else:
             noise_artifacts.extend([G.nodes[n].get("value", "") for n in component])
 
@@ -482,6 +561,9 @@ def correlate_identities(conn: sqlite3.Connection, investigation_id: str) -> Cor
         noise_profile.risk_indicators = ["noise_artifacts"]
         valid_identities.append(noise_profile)
 
+    # Attach external tool findings to the identities they were discovered from
+    _attach_tool_findings(conn, investigation_id, profile_components, G)
+
     result.identities = valid_identities
 
     # Sort by artifact count (largest identity first)
@@ -492,6 +574,130 @@ def correlate_identities(conn: sqlite3.Connection, investigation_id: str) -> Cor
         result.graph_nodes, result.graph_edges, len(result.identities)
     )
     return result
+
+
+def _attach_tool_findings(
+    conn: sqlite3.Connection,
+    investigation_id: str,
+    profile_components: list[tuple[IdentityProfile, set]],
+    identity_graph: nx.Graph,
+) -> None:
+    """
+    Attach artifacts discovered by external OSINT tools to their identity profile.
+
+    Tool outputs (subdomains, open ports, historical URLs, account presences, ...)
+    are not identity anchors, so they are excluded from the correlation graph.
+    They are still linked to the seed artifact that produced them, so each profile
+    is expanded over the full link graph - stopping at artifacts that belong to a
+    different identity - and everything reachable is attributed to that profile.
+    """
+    if not profile_components:
+        return
+
+    artifacts = {a["artifact_id"]: a for a in db.get_artifacts(conn, investigation_id)}
+
+    full_graph = nx.Graph()
+    full_graph.add_nodes_from(artifacts)
+    for link in db.get_links(conn, investigation_id):
+        source, target = link["source_artifact"], link["target_artifact"]
+        if source in artifacts and target in artifacts:
+            full_graph.add_edge(source, target)
+
+    identity_nodes = set(identity_graph.nodes)
+
+    for profile, component in profile_components:
+        reachable = _expand_from_component(full_graph, component, identity_nodes)
+
+        for node_id in reachable:
+            artifact = artifacts[node_id]
+            artifact_type = artifact["artifact_type"]
+            value = artifact["value"]
+            source = artifact.get("source") or "unknown"
+
+            if artifact_type in ACCOUNT_ARTIFACT_TYPES:
+                platform = _platform_from_metadata(artifact) or _extract_platform_from_url(value)
+                profile.platforms.append({
+                    "platform": platform,
+                    "profile_url": value if value.startswith("http") else None,
+                    "username": _account_username(artifact, value),
+                    "display_name": None,
+                    "source": source,
+                })
+            elif artifact_type in TOOL_ARTIFACT_FIELDS:
+                getattr(profile, TOOL_ARTIFACT_FIELDS[artifact_type]).append(value)
+            else:
+                continue
+
+            profile.tool_findings.append({
+                "type": artifact_type,
+                "value": value,
+                "source": source,
+                "confidence": artifact.get("confidence"),
+            })
+
+        for field_name in set(TOOL_ARTIFACT_FIELDS.values()):
+            setattr(profile, field_name, sorted(set(getattr(profile, field_name))))
+
+        seen_platforms = set()
+        unique_platforms = []
+        for entry in profile.platforms:
+            key = (entry.get("platform"), entry.get("profile_url"))
+            if key in seen_platforms:
+                continue
+            seen_platforms.add(key)
+            unique_platforms.append(entry)
+        profile.platforms = unique_platforms
+
+        profile.tool_findings.sort(key=lambda f: (f["source"], f["type"], f["value"]))
+
+
+def _expand_from_component(full_graph: nx.Graph, component: set, identity_nodes: set) -> set:
+    """Return non-identity artifacts reachable from a component without crossing identities."""
+    visited = set(component)
+    queue = [n for n in component if full_graph.has_node(n)]
+    reachable = set()
+
+    while queue:
+        node = queue.pop()
+        for neighbor in full_graph.neighbors(node):
+            if neighbor in visited:
+                continue
+            visited.add(neighbor)
+            if neighbor in identity_nodes:
+                # Belongs to a different identity; do not traverse through it
+                continue
+            reachable.add(neighbor)
+            queue.append(neighbor)
+
+    return reachable
+
+
+def _platform_from_metadata(artifact: dict) -> str | None:
+    """Read the platform name a tool recorded in an artifact's metadata."""
+    metadata = artifact.get("metadata")
+    if not metadata:
+        return None
+    try:
+        parsed = json.loads(metadata) if isinstance(metadata, str) else metadata
+    except json.JSONDecodeError:
+        return None
+    return parsed.get("platform") if isinstance(parsed, dict) else None
+
+
+def _account_username(artifact: dict, value: str) -> str:
+    """Determine the account name a presence artifact refers to."""
+    metadata = artifact.get("metadata")
+    if metadata:
+        try:
+            parsed = json.loads(metadata) if isinstance(metadata, str) else metadata
+            if isinstance(parsed, dict) and parsed.get("username"):
+                return parsed["username"]
+        except json.JSONDecodeError:
+            pass
+
+    if value.startswith("http"):
+        return urlparse(value).path.strip("/").split("/")[-1]
+    return value
 
 
 def _compute_confidence(G: nx.Graph, component: set) -> float:

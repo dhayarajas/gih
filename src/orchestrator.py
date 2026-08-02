@@ -135,8 +135,62 @@ _INV_DEFAULTS = _get_investigation_defaults()
 # from discovered social accounts. Dropping it would silently disable that step.
 EXPANDABLE_ARTIFACT_TYPES = frozenset({
     "phone", "email", "username", "image", "fullname", "domain", "ip_address",
-    "platform_presence",
+    "platform_presence", "subdomain", "ip",
 })
+
+# Artifact keys consumed by the persistence layer itself; everything else a tool
+# attaches to a finding (platform, username, parsed fields, ...) is metadata.
+_ARTIFACT_RESERVED_KEYS = frozenset({
+    "type", "value", "source", "confidence", "link_type", "metadata", "depth",
+})
+
+# Tool findings that describe an account on a platform rather than a new artifact
+# to expand; they are also recorded as platform_presence rows.
+ACCOUNT_ARTIFACT_TYPES = frozenset({"username_presence", "email_presence"})
+
+
+def _artifact_metadata(artifact: dict) -> Optional[str]:
+    """Serialize a discovered artifact's metadata, keeping tool-specific extras."""
+    metadata = artifact.get("metadata")
+    if not isinstance(metadata, dict):
+        metadata = {} if metadata is None else {"value": metadata}
+
+    extras = {k: v for k, v in artifact.items() if k not in _ARTIFACT_RESERVED_KEYS}
+    merged = {**extras, **metadata}
+
+    return json.dumps(merged, default=str) if merged else None
+
+
+def _account_presences(discovered: list[dict]) -> list[dict]:
+    """Build db.add_platform_presence kwargs for account discoveries.
+
+    Sherlock/Maigret/Holehe findings are artifacts, not platform rows, so without
+    this they never reach the Platform Presence Matrix.
+    """
+    presences = []
+    seen = set()
+
+    for found in discovered:
+        if found.get("type") not in ACCOUNT_ARTIFACT_TYPES:
+            continue
+
+        platform = found.get("platform")
+        if not platform:
+            continue
+
+        value = found["value"]
+        profile_url = value if value.startswith("http") else None
+        if (platform, profile_url) in seen:
+            continue
+        seen.add((platform, profile_url))
+
+        presences.append({
+            "platform_name": platform,
+            "profile_url": profile_url,
+            "username": found.get("username"),
+        })
+
+    return presences
 
 
 @dataclass
@@ -400,9 +454,7 @@ def run_investigation(
                     break
                 seen.add(key)
 
-                metadata_value = artifact.get("metadata")
-                if metadata_value and isinstance(metadata_value, dict):
-                    metadata_value = json.dumps(metadata_value)
+                metadata_value = _artifact_metadata(artifact)
 
                 new_id = db.add_artifact(
                     conn,
@@ -645,6 +697,7 @@ def _process_artifact(
         logger.debug("Processing artifact with external OSINT tools")
         external_discovered = _process_external_tools(inv_id, artifact, config)
         result.discovered.extend(external_discovered)
+        result.platform_presences.extend(_account_presences(external_discovered))
         logger.debug("External tools returned %d additional artifacts", len(external_discovered))
     
     # Process with plugin system if available
@@ -896,6 +949,11 @@ def _process_external_tools(
 
     logger.debug("Processing artifact with external OSINT tools: %s=%s", artifact_type, value)
 
+    # Enumeration tools are only worth running on seed-level domains; re-running
+    # them on every discovered subdomain explodes the BFS frontier.
+    depth = artifact.get("depth") or 0
+    run_enumeration_tools = depth < 1 or artifact_type != "subdomain"
+
     # Build a list of independent (name, callable) tool tasks for this artifact.
     # Each callable performs one tool run and returns a list of discovered
     # artifacts; they are executed concurrently below.
@@ -917,6 +975,8 @@ def _process_external_tools(
         if artifact_type == "username":
             if check_tool_availability("sherlock"):
                 tasks.append(("sherlock", _tool_task("sherlock", "username_search", "Sherlock")))
+            if check_tool_availability("maigret"):
+                tasks.append(("maigret", _tool_task("maigret", "username_search", "Maigret")))
 
             if check_google_dorks_availability(config.google_api_key):
                 def _google_dorks() -> list[dict]:
@@ -936,33 +996,46 @@ def _process_external_tools(
                     return []
                 tasks.append(("google_dorks", _google_dorks))
 
-        elif artifact_type == "domain":
-            if check_tool_availability("theharvester"):
-                tasks.append(("theharvester_email",
-                              _tool_task("theharvester", "email_harvest", "theHarvester (email)")))
-                tasks.append(("theharvester_subdomain",
-                              _tool_task("theharvester", "subdomain_harvest", "theHarvester (subdomain)")))
-            if check_tool_availability("amass"):
-                tasks.append(("amass", _tool_task("amass", "subdomain_enum", "Amass")))
+        elif artifact_type in ("domain", "subdomain"):
             if check_tool_availability("whois"):
                 tasks.append(("whois", _tool_task("whois", "domain_lookup", "Whois")))
             if check_tool_availability("dig"):
                 tasks.append(("dig", _tool_task("dig", "dns_lookup", "Dig")))
-            # Wayback Machine uses a public API and runs regardless of local tools.
-            tasks.append(("wayback_machine",
-                          _tool_task("wayback_machine", "historical_urls", "Wayback Machine")))
+            if check_tool_availability("whatweb"):
+                tasks.append(("whatweb", _tool_task("whatweb", "tech_fingerprint", "WhatWeb")))
 
-        elif artifact_type == "ip_address":
-            if check_tool_availability("shodan"):
-                tasks.append(("shodan", _tool_task("shodan", "host_search", "Shodan")))
-            if check_tool_availability("nmap"):
-                tasks.append(("nmap", _tool_task("nmap", "host_scan", "Nmap")))
+            if run_enumeration_tools:
+                if check_tool_availability("theharvester"):
+                    tasks.append(("theharvester_email",
+                                  _tool_task("theharvester", "email_harvest", "theHarvester (email)")))
+                    tasks.append(("theharvester_subdomain",
+                                  _tool_task("theharvester", "subdomain_harvest", "theHarvester (subdomain)")))
+                if check_tool_availability("subfinder"):
+                    tasks.append(("subfinder", _tool_task("subfinder", "subdomain_enum", "Subfinder")))
+                if check_tool_availability("sublist3r"):
+                    tasks.append(("sublist3r", _tool_task("sublist3r", "subdomain_enum", "Sublist3r")))
+                if check_tool_availability("amass"):
+                    tasks.append(("amass", _tool_task("amass", "subdomain_enum", "Amass")))
+                # Wayback Machine uses a public API and runs regardless of local tools.
+                tasks.append(("wayback_machine",
+                              _tool_task("wayback_machine", "historical_urls", "Wayback Machine")))
+
+        elif artifact_type in ("ip_address", "ip"):
+            # Port scanning is expensive; keep it near the seeds.
+            if depth < 2:
+                if check_tool_availability("shodan"):
+                    tasks.append(("shodan", _tool_task("shodan", "host_search", "Shodan")))
+                if check_tool_availability("nmap"):
+                    tasks.append(("nmap", _tool_task("nmap", "host_scan", "Nmap")))
 
         elif artifact_type == "image":
             if check_tool_availability("exiftool"):
                 tasks.append(("exiftool", _tool_task("exiftool", "metadata_extract", "ExifTool")))
 
         elif artifact_type == "email":
+            if check_tool_availability("holehe"):
+                tasks.append(("holehe", _tool_task("holehe", "email_check", "Holehe")))
+
             # Extract domain from email for domain-based analysis (no tool run).
             if "@" in value:
                 domain = value.split("@")[1]
