@@ -148,7 +148,7 @@ print(dict(c.execute("select artifact_type,count(*) from artifacts where investi
 `historical_urls`, `web_technologies`, `geolocations`, `device_info`) and a `tools_used`
 property. Assert on those, not on an older `tool_finding_sections` API.
 
-## Devin Secrets Needed
+## Secrets Needed
 
 None for the flow above. `shodan` requires an API key (`shodan init`) and the Google Dorks
 API path needs `GOOGLE_API_KEY` / `GOOGLE_CX`; without them those branches are skipped and

@@ -116,7 +116,7 @@ worktree directory to keep its reports separate.
   `resp.text[:20]` and the parsed element count — decisive old-vs-new evidence
   without uninstalling anything.
 
-## Devin Secrets Needed
+## Secrets Needed
 
 - `GOOGLE_API_KEY` + `GOOGLE_CX` — only needed to exercise the Google Custom
   Search paths (`--use-google-api`, image CSE search). Without them those code
