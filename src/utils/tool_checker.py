@@ -210,7 +210,7 @@ class ToolChecker:
     def get_available_tools(self) -> List[str]:
         """Get list of available tool names."""
         available = []
-        for tool_name, tool_info in self.tools.items():
+        for tool_name, tool_info in self.check_all_tools().items():
             if tool_info.status == ToolStatus.AVAILABLE:
                 available.append(tool_name)
         return available
@@ -218,7 +218,7 @@ class ToolChecker:
     def get_missing_tools(self) -> List[str]:
         """Get list of missing tool names."""
         missing = []
-        for tool_name, tool_info in self.tools.items():
+        for tool_name, tool_info in self.check_all_tools().items():
             if tool_info.status != ToolStatus.AVAILABLE:
                 missing.append(tool_name)
         return missing
