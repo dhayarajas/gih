@@ -49,8 +49,25 @@ from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
 from src.config.loader import get_config
+from src.utils.concurrency import io_slot
 
 logger = logging.getLogger(__name__)
+
+
+class _BoundedSession(requests.Session):
+    """A requests.Session whose every request is counted against the global
+    I/O semaphore. ``get``/``post``/``head``/etc. all delegate to ``request``,
+    so wrapping it here bounds all HTTP that flows through the shared session
+    (the vast majority of the investigation's outbound traffic) without each
+    call site needing its own ``io_slot()``. The slot is held only for the
+    duration of the leaf HTTP call, never while coordinating tasks wait on
+    children, so no pool-within-pool deadlock is possible.
+    """
+
+    def request(self, *args, **kwargs):
+        with io_slot():
+            return super().request(*args, **kwargs)
+
 
 # Global session instance
 _http_session: Optional[requests.Session] = None
@@ -127,7 +144,7 @@ def _create_optimized_session() -> requests.Session:
         Configured requests.Session object
     """
     config = _get_http_config()
-    session = requests.Session()
+    session = _BoundedSession()
     
     # Configure retry strategy - DO NOT retry on rate limits (429)
     # Only retry on actual server errors

@@ -114,3 +114,30 @@ def test_rate_limit_does_not_serialize_under_lock(monkeypatch):
         t.join(timeout=2.0)
 
     assert lock_held_during_sleep["value"] is False
+
+
+def test_shared_session_acquires_io_slot(monkeypatch):
+    """Every request through the pooled session must pass through io_slot(),
+    so all callers using get_http_session() are bounded without wrapping each
+    call site individually."""
+    from src.utils import http_client
+
+    calls = {"slot": 0}
+    from contextlib import contextmanager
+
+    @contextmanager
+    def fake_io_slot():
+        calls["slot"] += 1
+        yield
+
+    # Patch the reference captured in http_client and short-circuit the actual
+    # network call at the base Session.request level.
+    monkeypatch.setattr(http_client, "io_slot", fake_io_slot)
+    monkeypatch.setattr(
+        http_client.requests.Session, "request", lambda self, *a, **k: "resp"
+    )
+
+    session = http_client._BoundedSession()
+    assert session.get("https://example.com") == "resp"
+    assert session.post("https://example.com") == "resp"
+    assert calls["slot"] == 2  # one slot acquired per request (get + post)
