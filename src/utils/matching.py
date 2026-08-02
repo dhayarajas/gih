@@ -9,9 +9,11 @@ report contains full matches rather than plausible ones.
 
 from __future__ import annotations
 
+import json
 import re
 from dataclasses import dataclass
 from typing import Any, Optional
+from urllib.parse import urlparse
 
 from src.config.loader import get_config
 
@@ -99,6 +101,42 @@ def contains_exact(haystack: Optional[str], target: str) -> bool:
     return False
 
 
+def is_host_label(url: Optional[str], handle: str) -> bool:
+    """True when ``handle`` is a whole hostname label of ``url``.
+
+    Sites like tumblr.com and wordpress.com put the handle in front of the site
+    name (``https://octocat.tumblr.com``), where a plain token match would read
+    the dot as part of a longer handle.
+    """
+    if not url or "//" not in url:
+        return False
+    try:
+        host = urlparse(url).hostname or ""
+    except ValueError:
+        return False
+    return handle.lower() in host.lower().split(".")
+
+
+def _match_fields(artifact: dict[str, Any]) -> list[Optional[str]]:
+    """Every field of an artifact that may spell out the account's handle.
+
+    Plugins keep the searched username inside ``metadata`` rather than at the top
+    level, so that dict is unpacked too.
+    """
+    fields = [artifact.get(key) for key in ("value", "username", "url", "profile_url")]
+
+    metadata = artifact.get("metadata")
+    if isinstance(metadata, str):
+        try:
+            metadata = json.loads(metadata)
+        except json.JSONDecodeError:
+            metadata = None
+    if isinstance(metadata, dict):
+        fields += [metadata.get(key) for key in ("username", "profile_url", "url")]
+
+    return [field for field in fields if isinstance(field, str)]
+
+
 def _target_handles(target: str, target_type: str) -> list[str]:
     """The forms of the target a finding may legitimately spell it with."""
     if target_type == "email":
@@ -127,9 +165,10 @@ def is_full_match(
     handles = _target_handles(target, target_type)
 
     if artifact_type in ACCOUNT_ARTIFACT_TYPES:
+        fields = _match_fields(artifact)
         return any(
-            contains_exact(artifact.get(key), handle)
-            for key in ("value", "username", "url", "profile_url")
+            contains_exact(field, handle) or is_host_label(field, handle)
+            for field in fields
             for handle in handles
         )
 

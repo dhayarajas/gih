@@ -179,6 +179,27 @@ def _keep_full_matches(
     return kept
 
 
+def _is_validated_presence_artifact(artifact: dict) -> bool:
+    """False only for a platform_presence proven by a bare HTTP 200.
+
+    Artifacts that carry no verdict (tool and plugin findings) are exact by
+    construction and are kept.
+    """
+    if artifact.get("type") != "platform_presence":
+        return True
+
+    metadata = artifact.get("metadata")
+    if isinstance(metadata, str):
+        try:
+            metadata = json.loads(metadata)
+        except json.JSONDecodeError:
+            return True
+    if not isinstance(metadata, dict) or "is_validated" not in metadata:
+        return True
+
+    return bool(metadata["is_validated"])
+
+
 def _apply_match_policy(
     result: "ArtifactProcessResult",
     target: str,
@@ -204,6 +225,12 @@ def _apply_match_policy(
                 len(result.platform_presences) - len(verified), target,
             )
         result.platform_presences = verified
+
+        # The same hits are also emitted as platform_presence artifacts; drop
+        # those too, or the findings list would contradict the presence table.
+        result.discovered = [
+            a for a in result.discovered if _is_validated_presence_artifact(a)
+        ]
 
 
 def _artifact_metadata(artifact: dict) -> Optional[str]:

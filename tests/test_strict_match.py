@@ -125,3 +125,52 @@ class TestOrchestratorIntegration:
         _process_fullname("Ada Lovelace", config, result)
 
         assert not [a for a in result.discovered if a["type"] == "username"]
+
+
+class TestHostLabelProfiles:
+    """Sites that put the handle in the hostname (tumblr, wordpress, ...)."""
+
+    def test_handle_as_hostname_label_is_a_full_match(self):
+        assert is_full_match(
+            {"type": "platform_presence", "value": "https://octocat.tumblr.com"}, "octocat"
+        )
+        assert not is_full_match(
+            {"type": "platform_presence", "value": "https://octocat-bot.tumblr.com"}, "octocat"
+        )
+
+    def test_username_nested_in_plugin_metadata_is_consulted(self):
+        artifact = {
+            "type": "platform_presence",
+            "value": "https://some.host/profile/12345",
+            "metadata": {"platform": "Tumblr", "username": "octocat"},
+        }
+        assert is_full_match(artifact, "octocat")
+
+
+class TestUnvalidatedPresenceArtifacts:
+    def _presence(self, is_validated):
+        import json as _json
+
+        return {
+            "type": "platform_presence",
+            "value": "https://www.pinterest.com/octocat/",
+            "metadata": _json.dumps({"is_validated": is_validated}),
+        }
+
+    def test_unvalidated_presence_artifact_is_dropped(self):
+        result = ArtifactProcessResult(artifact={"type": "username", "value": "octocat"})
+        result.discovered = [
+            self._presence(True),
+            self._presence(False),
+            {"type": "platform_presence", "value": "https://github.com/octocat"},  # no verdict
+        ]
+        _apply_match_policy(result, "octocat", "username", MatchPolicy())
+        assert len(result.discovered) == 2
+
+    def test_verdictless_artifacts_survive_when_validation_not_required(self):
+        result = ArtifactProcessResult(artifact={"type": "username", "value": "octocat"})
+        result.discovered = [self._presence(False)]
+        _apply_match_policy(
+            result, "octocat", "username", MatchPolicy(require_validated_presence=False)
+        )
+        assert len(result.discovered) == 1

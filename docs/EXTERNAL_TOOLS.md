@@ -124,5 +124,9 @@ every module, external-tool and plugin result (`_apply_match_policy` /
 counts as a full match only when the target appears as a whole token — separated
 by URL or punctuation boundaries — so `octocat` matches
 `https://github.com/octocat` but not `octocat-bot`, `octocat99` or
-`the_octocat`. Types that describe infrastructure rather than an identity claim
+`the_octocat`. A handle that forms a whole hostname label counts too, so
+blog-style profiles such as `https://octocat.tumblr.com` are kept, and a
+plugin's nested `metadata.username` is consulted when the URL carries no handle.
+With `require_validated_presence`, status-only hits are removed from both the
+presence table and the findings list. Types that describe infrastructure rather than an identity claim
 (subdomains, ports, DNS records, breaches) are never filtered.
