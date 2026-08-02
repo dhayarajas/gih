@@ -383,16 +383,22 @@ def add_platform_presence(
     follower_count: Optional[int] = None,
     profile_image_url: Optional[str] = None,
     artifact_id: Optional[str] = None,
+    is_verified: bool = False,
 ) -> str:
-    """Record platform presence."""
+    """Record platform presence.
+
+    ``is_verified`` marks presences whose existence was proven by content/API
+    validation rather than a bare HTTP status code.
+    """
     presence_id = f"PRS-{generate_id()}"
     conn.execute(
         "INSERT INTO platform_presence "
         "(presence_id, investigation_id, artifact_id, platform_name, profile_url, "
-        "username, display_name, bio, follower_count, profile_image_url) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        "username, display_name, bio, follower_count, profile_image_url, is_verified) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         (presence_id, investigation_id, artifact_id, platform_name, profile_url,
-         username, display_name, bio, follower_count, profile_image_url),
+         username, display_name, bio, follower_count, profile_image_url,
+         1 if is_verified else 0),
     )
     conn.commit()
     return presence_id

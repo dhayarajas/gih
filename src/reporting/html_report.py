@@ -194,6 +194,8 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         span.badge-ip_address { background: #e9d8fd; color: #553c9a; border: 1px solid #d6bcfa; }
         span.badge-platform_presence { background: #e2e8f0; color: #4a5568; border: 1px solid #cbd5e0; }
         span.badge-risk { background: #c53030; color: white; border: 1px solid #9b2c2c; }
+        span.badge-validated { background: #c6f6d5; color: #22543d; border: 1px solid #9ae6b4; }
+        span.badge-unvalidated { background: #fefcbf; color: #744210; border: 1px solid #f6e05e; }
         
         /* Risk Levels */
         .risk-critical { color: #c53030; font-weight: bold; background: #fed7d7; padding: 0.2rem 0.5rem; border-radius: 4px; }
@@ -653,15 +655,18 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
     <!-- Platform Presence -->
     <h2>3. Platform Presence</h2>
-    <p class="section-blurb">All discovered social media and online platform accounts with direct profile links for verification and understanding the target's online behavior and communication channels. Expand a platform to review the captured profile details.</p>
+    <p class="section-blurb">All discovered social media and online platform accounts with direct profile links for verification and understanding the target's online behavior and communication channels. Expand a platform to review the captured profile details.
+    <strong>Content-validated</strong> entries were confirmed by inspecting the profile page or API response; <strong>unvalidated (status only)</strong> entries rest on an HTTP 200 alone and may be soft 404s, login walls or app shells &mdash; treat them as leads, not findings.</p>
     <div class="card">
         {% if presences %}
+        <p class="section-blurb">{{ presences | selectattr('is_verified') | list | length }} of {{ presences | length }} platform presences are content-validated.</p>
         {% for presence in presences %}
         <details class="drilldown">
             <summary>
                 <span class="summary-value">{{ presence.platform_name or 'Unknown platform' }}</span>
                 <span class="summary-meta">{{ presence.username or 'no username' }}</span>
-                {% if presence.is_verified %}<span class="badge">Verified</span>{% endif %}
+                {% if presence.is_verified %}<span class="badge badge-validated">Content-validated</span>
+                {% else %}<span class="badge badge-unvalidated">Unvalidated (status only)</span>{% endif %}
                 {% if presence.profile_url %}
                 <span class="summary-meta">{{ presence.profile_url }}</span>
                 {% endif %}
@@ -685,7 +690,12 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                                     {% else %}-{% endif %}
                                 </td>
                             </tr>
-                            <tr><td>Verified</td><td>{{ 'Yes' if presence.is_verified else 'No' }}</td></tr>
+                            <tr>
+                                <td>Validation</td>
+                                <td>{{ 'Content-validated (profile page or API confirmed the account)'
+                                       if presence.is_verified else
+                                       'Unvalidated - HTTP status only, existence not confirmed' }}</td>
+                            </tr>
                             <tr><td>Followers</td><td>{{ presence.follower_count if presence.follower_count is not none else '-' }}</td></tr>
                             <tr><td>Account created</td><td>{{ presence.account_created or '-' }}</td></tr>
                             <tr><td>Last active</td><td>{{ presence.last_active or '-' }}</td></tr>
@@ -919,7 +929,7 @@ EXECUTIVE_TEMPLATE = """<!DOCTYPE html>
         <h2>Platform Presence</h2>
         <table>
             <thead>
-                <tr><th>Platform</th><th>Username</th><th>Profile URL</th></tr>
+                <tr><th>Platform</th><th>Username</th><th>Profile URL</th><th>Validation</th></tr>
             </thead>
             <tbody>
                 {% for p in presences[:10] %}
@@ -927,6 +937,7 @@ EXECUTIVE_TEMPLATE = """<!DOCTYPE html>
                     <td>{{ p.platform_name }}</td>
                     <td>{{ p.username or '-' }}</td>
                     <td>{% if p.profile_url %}<a href="{{ p.profile_url }}">Link</a>{% else %}-{% endif %}</td>
+                    <td>{{ 'Content-validated' if p.is_verified else 'Unvalidated (status only)' }}</td>
                 </tr>
                 {% endfor %}
             </tbody>
