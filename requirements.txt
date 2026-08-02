@@ -1,3 +1,6 @@
+# Runtime dependencies. Everything here is imported unconditionally by src/.
+# Dev tooling lives in requirements-dev.txt; heavy opt-in extras (face matching,
+# Neo4j backend) live in requirements-optional.txt.
 click>=8.1.0
 networkx>=3.0
 phonenumbers>=8.13.0
@@ -6,16 +9,10 @@ requests>=2.31.0
 # as undecodable bytes and every scraper silently returns nothing.
 Brotli>=1.1.0
 beautifulsoup4>=4.12.0
-python-whois>=0.9.0
 Pillow>=10.0.0
 pyvis>=0.3.2
 Jinja2>=3.1.0
 tabulate>=0.9.0
-neo4j>=5.0.0
 pyyaml>=6.0.0
-pytest>=7.0
-pytest-cov>=4.0
-ruff>=0.1.0
-face_recognition>=1.3.0
 numpy>=1.24.0
 urllib3>=2.0.0

@@ -75,8 +75,9 @@ neo4j start                  # Mac
 #### **Install Python Dependencies**
 ```bash
 # Install Ghost Identity Hunter with Neo4j support
-pip install -e ".[dev]"
-# Neo4j driver is included in requirements.txt
+pip install -r requirements.txt
+# The Neo4j driver is an optional extra, not a runtime dependency
+pip install "neo4j>=5.0.0"   # or: pip install -r requirements-optional.txt
 ```
 
 ### **Option 3: Neo4j Aura (Cloud)**
