@@ -48,6 +48,21 @@ def _get_tool_timeout(tool_name: str, default: int = DEFAULT_TOOL_TIMEOUT) -> in
         return default
 
 
+# Port selection for nmap; "common" maps to nmap's own -F top-100 list.
+DEFAULT_NMAP_PORTS = "common"
+
+
+def _get_nmap_ports(default: str = DEFAULT_NMAP_PORTS) -> str:
+    """Resolve the configured nmap port selection from config.yaml."""
+    try:
+        config = get_config()
+        nmap_cfg = (config.get("plugins", {}) or {}).get("nmap") or {}
+        ports = (nmap_cfg.get("custom_params") or {}).get("ports")
+        return str(ports) if ports else default
+    except Exception:
+        return default
+
+
 class ToolOutputFormat(Enum):
     """Output format types from OSINT tools."""
     JSON = "json"
@@ -415,12 +430,42 @@ def _parse_usufy_profiles(profiles: Any, username: str) -> List[Dict[str, Any]]:
 
 class TheHarvesterIntegration(ExternalToolsIntegration):
     """Integration for theHarvester OSINT tool."""
-    
+
+    def __init__(self):
+        super().__init__()
+        # One theHarvester run yields both the emails and the subdomains, so the
+        # two analyses share a single subprocess per domain instead of issuing
+        # the identical command twice.
+        self._runs: Dict[str, ToolResult] = {}
+        self._runs_lock = threading.Lock()
+
+    def _harvest(self, domain: str) -> ToolResult:
+        """Run theHarvester once per domain and memoize its raw output."""
+        with self._runs_lock:
+            cached = self._runs.get(domain)
+            if cached is not None:
+                return cached
+
+            command = ["theHarvester", "-d", domain, "-b", "duckduckgo"]
+            result = self.run_tool("theharvester", command)
+            self._runs[domain] = result
+            return result
+
+    def _fresh_result(self, domain: str) -> ToolResult:
+        """A per-analysis copy of the shared run, so parsers do not share state."""
+        shared = self._harvest(domain)
+        return ToolResult(
+            tool_name=shared.tool_name,
+            success=shared.success,
+            output=shared.output,
+            error_message=shared.error_message,
+            execution_time=shared.execution_time,
+        )
+
     @skip_if_not_available("theharvester")
     def harvest_email(self, domain: str) -> ToolResult:
         """Harvest emails from domain using theHarvester."""
-        command = ["theHarvester", "-d", domain, "-b", "duckduckgo"]
-        result = self.run_tool("theharvester", command)
+        result = self._fresh_result(domain)
         
         if result.success:
             # Extract email addresses from output
@@ -448,8 +493,7 @@ class TheHarvesterIntegration(ExternalToolsIntegration):
     @skip_if_not_available("theharvester")
     def harvest_subdomains(self, domain: str) -> ToolResult:
         """Harvest subdomains using theHarvester."""
-        command = ["theHarvester", "-d", domain, "-b", "duckduckgo"]
-        result = self.run_tool("theharvester", command)
+        result = self._fresh_result(domain)
         
         if result.success:
             result.artifacts_discovered = _parse_subdomains(result.output, domain, "theharvester")
@@ -672,6 +716,21 @@ class DigIntegration(ExternalToolsIntegration):
     """Integration for DNS dig tool."""
     
     @skip_if_not_available("dig")
+    def mx_lookup(self, domain: str) -> ToolResult:
+        """Look up the domain's MX records."""
+        return self.dns_lookup(domain, "MX")
+
+    @skip_if_not_available("dig")
+    def ns_lookup(self, domain: str) -> ToolResult:
+        """Look up the domain's NS records."""
+        return self.dns_lookup(domain, "NS")
+
+    @skip_if_not_available("dig")
+    def txt_lookup(self, domain: str) -> ToolResult:
+        """Look up the domain's TXT records."""
+        return self.dns_lookup(domain, "TXT")
+
+    @skip_if_not_available("dig")
     def dns_lookup(self, domain: str, record_type: str = "A") -> ToolResult:
         """Perform DNS lookup using dig."""
         command = ["dig", domain, record_type, "+short"]
@@ -701,8 +760,16 @@ class NmapIntegration(ExternalToolsIntegration):
     """Integration for Nmap network scanner."""
     
     @skip_if_not_available("nmap")
-    def scan_host(self, target: str, ports: str = "common") -> ToolResult:
-        """Scan host using Nmap."""
+    def scan_host(self, target: str, ports: Optional[str] = None) -> ToolResult:
+        """Scan host using Nmap.
+
+        ``ports`` defaults to ``plugins.nmap.custom_params.ports`` in
+        config.yaml, so an operator can widen or narrow the scan without a code
+        change; "common" keeps nmap's own top-100 list (``-F``).
+        """
+        if ports is None:
+            ports = _get_nmap_ports()
+
         if ports == "common":
             command = ["nmap", "-Pn", "-F", "-sV", "--version-light", target]
         else:
@@ -892,7 +959,12 @@ ANALYSIS_METHODS: Dict[str, Dict[str, str]] = {
     "shodan": {"host_search": "search_host"},
     "amass": {"subdomain_enum": "enumerate_subdomains"},
     "whois": {"domain_lookup": "lookup_domain"},
-    "dig": {"dns_lookup": "dns_lookup"},
+    "dig": {
+        "dns_lookup": "dns_lookup",
+        "mx_lookup": "mx_lookup",
+        "ns_lookup": "ns_lookup",
+        "txt_lookup": "txt_lookup",
+    },
     "nmap": {"host_scan": "scan_host"},
     "exiftool": {"metadata_extract": "extract_metadata"},
     "wayback_machine": {"historical_urls": "get_historical_urls"},
