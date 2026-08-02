@@ -1,0 +1,1750 @@
+07:49:44 [INFO] root: Logging to file: logs/dhaya_20260802_074944.log
+07:49:44 [INFO] src.orchestrator: Starting investigation with 1 seed artifact(s)
+07:49:44 [INFO] src.orchestrator: Available external tools: 0
+07:49:44 [INFO] src.orchestrator: Missing external tools: 35
+07:49:44 [INFO] src.plugins.registry: Registered plugin: ExifToolPlugin
+07:49:44 [INFO] src.plugins.registry: Registered plugin: SherlockPlugin
+07:49:44 [INFO] src.plugins.registry: Registered plugin: WhoisPlugin
+07:49:44 [INFO] src.plugins.registry: Registered plugin: Sublist3rPlugin
+07:49:44 [INFO] src.plugins.registry: Registered plugin: UsernameSearchPlugin
+07:49:44 [INFO] src.plugins.registry: Registered plugin: WaybackMachinePlugin
+07:49:44 [INFO] src.plugins.registry: Registered plugin: NmapPlugin
+07:49:44 [INFO] src.plugins.registry: Registered plugin: AmassPlugin
+07:49:44 [INFO] src.plugins.registry: Registered plugin: ProfileImagePlugin
+07:49:44 [INFO] src.plugins.registry: Registered plugin: TheHarvesterPlugin
+07:49:44 [INFO] src.plugins.registry: Registered plugin: DigPlugin
+07:49:44 [INFO] src.plugins.registry: Registered plugin: EmailBreachPlugin
+07:49:44 [INFO] src.plugins.registry: Registered plugin: OsrframeworkPlugin
+07:49:44 [INFO] src.plugins.registry: Registered plugin: SubfinderPlugin
+07:49:44 [INFO] src.plugins.registry: Registered plugin: ImageMatchPlugin
+07:49:44 [INFO] src.plugins.registry: Registered plugin: GoogleDorksPlugin
+07:49:44 [INFO] src.plugins.registry: Registered plugin: WhatWebPlugin
+07:49:44 [INFO] src.plugins.registry: Registered plugin: ShodanPlugin
+07:49:44 [INFO] src.plugins.registry: Registered plugin: MaigretPlugin
+07:49:44 [INFO] src.plugins.registry: Registered plugin: HolehePlugin
+07:49:44 [INFO] src.plugins.registry: Registered plugin: PhoneValidationPlugin
+07:49:45 [INFO] src.orchestrator: Available plugins: 9
+07:49:45 [INFO] src.orchestrator: Created investigation: INV-4cfc2ad5
+07:49:45 [INFO] src.orchestrator: Starting BFS processing with 1 artifacts in queue
+07:49:45 [INFO] src.orchestrator: Processing BFS level 1: 1 artifact(s) (elapsed=0.0s, workers=1)
+07:49:45 [INFO] src.modules.image_match: Starting identity search for: dhayanidhi rajasekaran
+07:49:45 [WARNING] src.modules.image_match: Google Custom Search returned HTTP 403 for "dhayanidhi rajasekaran"
+07:49:46 [INFO] src.modules.image_match: Dropped 16 scraped images unrelated to dhayanidhi rajasekaran
+07:49:49 [INFO] src.modules.image_match: Found 5 images for dhayanidhi rajasekaran
+07:49:52 [INFO] src.modules.image_match: Identity search complete for dhayanidhi rajasekaran: 5 images, 3 face matches, probability=0.38
+07:49:52 [INFO] src.orchestrator: Image match complete for dhayanidhi rajasekaran: 5 images, 3 face matches, probability=0.38
+07:49:52 [INFO] src.modules.google_dorks: Limiting patterns from 8 to 3 to avoid rate limiting
+07:49:52 [INFO] src.modules.google_dorks: Searching for username 'dhayanidhi rajasekaran' with 3 dork patterns
+07:49:52 [INFO] src.modules.google_dorks: DuckDuckGo search found 0 results for pattern 'social_platforms'
+07:49:52 [WARNING] src.modules.google_dorks: Pattern 'social_platforms' failed: None
+07:49:53 [INFO] src.modules.google_dorks: DuckDuckGo search found 10 results for pattern 'simple_search'
+07:49:53 [INFO] src.modules.google_dorks: Pattern 'simple_search' found 10 results
+07:49:53 [INFO] src.modules.google_dorks: DuckDuckGo search found 0 results for pattern 'profile_pages'
+07:49:53 [WARNING] src.modules.google_dorks: Pattern 'profile_pages' failed: None
+07:49:53 [INFO] src.modules.google_dorks: Google Dorks search discovered 15 artifacts
+07:49:53 [INFO] src.orchestrator: Google Dorks found 15 artifacts for dhayanidhi rajasekaran
+07:49:53 [INFO] src.plugins.builtins.image_match_plugin: Starting image match for: dhayanidhi rajasekaran
+07:49:53 [INFO] src.modules.image_match: Starting identity search for: dhayanidhi rajasekaran
+07:49:54 [INFO] src.modules.image_match: Dropped 16 scraped images unrelated to dhayanidhi rajasekaran
+07:49:56 [INFO] src.modules.image_match: Found 5 images for dhayanidhi rajasekaran
+07:50:01 [INFO] src.modules.image_match: Identity search complete for dhayanidhi rajasekaran: 5 images, 4 face matches, probability=0.35
+07:50:01 [INFO] src.plugins.builtins.image_match_plugin: Image match complete: 5 images, 4 face matches, probability=0.35
+07:50:01 [INFO] src.orchestrator: Plugin system processed 1 plugins, discovered 6 artifacts
+07:50:01 [INFO] src.orchestrator: BFS level 1 done in 16.0s (parallel=16.0s, db=0.0s); processed=1, seen=21, next_level=13
+07:50:01 [INFO] src.orchestrator: Processing BFS level 2: 13 artifact(s) (elapsed=16.0s, workers=13)
+07:50:01 [INFO] src.modules.external_tools: Running whois: whois instagram.com
+07:50:01 [INFO] src.modules.external_tools: Running dig: dig instagram.com A +short
+07:50:01 [INFO] src.modules.external_tools: Running whois: whois zoominfo.com
+07:50:01 [INFO] src.modules.external_tools: Running dig: dig zoominfo.com A +short
+07:50:01 [INFO] src.modules.external_tools: Running whois: whois in.linkedin.com
+07:50:01 [INFO] src.modules.external_tools: Running dig: dig in.linkedin.com A +short
+07:50:01 [INFO] src.modules.external_tools: Running whois: whois linkedin.com
+07:50:01 [INFO] src.modules.external_tools: Running dig: dig linkedin.com A +short
+07:50:01 [INFO] src.modules.username_search: Found rdhayanidhi on Instagram
+07:50:01 [INFO] src.modules.username_search: Found rdhayanidhi on GitHub
+07:50:01 [INFO] src.modules.username_search: Found drajasekaran on GitHub
+07:50:01 [INFO] src.modules.username_search: Found Rajasekaran on GitHub
+07:50:01 [ERROR] src.modules.username_search: Exception checking GitLab: 'expected_status'
+07:50:01 [ERROR] src.modules.username_search: Exception checking GitLab: 'expected_status'
+07:50:01 [ERROR] src.modules.username_search: Exception checking GitLab: 'expected_status'
+07:50:01 [ERROR] src.modules.username_search: Exception checking Reddit: 'expected_status'
+07:50:01 [ERROR] src.modules.username_search: Exception checking Reddit: 'expected_status'
+07:50:02 [INFO] src.modules.username_search: Found drajasekaran on Steam
+07:50:02 [INFO] src.modules.username_search: Found Rajasekaran on Steam
+07:50:02 [INFO] src.modules.username_search: Found drajasekaran on Instagram
+07:50:02 [INFO] src.modules.username_search: Found Rajasekaran on Instagram
+07:50:02 [ERROR] src.modules.username_search: Exception checking Reddit: 'expected_status'
+07:50:02 [INFO] src.modules.username_search: Found dhayanidhir on GitHub
+07:50:02 [ERROR] src.modules.username_search: Exception checking GitLab: 'expected_status'
+07:50:02 [INFO] src.modules.username_search: Found drajasekaran on Medium
+07:50:02 [INFO] src.modules.username_search: Found dhayanidhirajasekaran on Instagram
+07:50:02 [INFO] src.modules.external_tools: Dig found 1 A records for instagram.com
+07:50:02 [INFO] src.orchestrator: Dig found 1 artifacts for instagram.com
+07:50:02 [ERROR] src.modules.username_search: Exception checking Reddit: 'expected_status'
+07:50:02 [INFO] src.modules.username_search: Found dhayanidhirajasekaran on Steam
+07:50:02 [ERROR] src.modules.username_search: Exception checking GitLab: 'expected_status'
+07:50:02 [INFO] src.modules.username_search: Found Rajasekaran on Pinterest
+07:50:02 [ERROR] src.modules.username_search: Exception checking Reddit: 'expected_status'
+07:50:02 [INFO] src.modules.username_search: Found rdhayanidhi on Medium
+07:50:02 [INFO] src.modules.username_search: Found rdhayanidhi on Pinterest
+07:50:02 [INFO] src.modules.username_search: Found Rajasekaran on Keybase
+07:50:02 [INFO] src.modules.username_search: Found dhayanidhirajasekaran on Pinterest
+07:50:02 [INFO] src.modules.external_tools: Dig found 2 A records for zoominfo.com
+07:50:02 [INFO] src.orchestrator: Dig found 2 artifacts for zoominfo.com
+07:50:02 [INFO] src.modules.username_search: Found dhayanidhirajasekaran on Medium
+07:50:02 [INFO] src.modules.username_search: Found dhayanidhir on Steam
+07:50:02 [INFO] src.modules.username_search: Found drajasekaran on Pinterest
+07:50:02 [INFO] src.modules.username_search: Username search complete: drajasekaran → found on 5/12 platforms
+07:50:02 [INFO] src.modules.username_search: Found Rajasekaran on Medium
+07:50:02 [INFO] src.modules.username_search: Username search complete: Rajasekaran → found on 6/12 platforms
+07:50:02 [ERROR] src.modules.username_search: Exception checking GitLab: 'expected_status'
+07:50:02 [INFO] src.modules.external_tools: Dig found 5 A records for in.linkedin.com
+07:50:02 [INFO] src.orchestrator: Dig found 5 artifacts for in.linkedin.com
+07:50:02 [INFO] src.modules.username_search: Found rdhayanidhi on Steam
+07:50:02 [INFO] src.modules.username_search: Found dhayanidhir on Instagram
+07:50:02 [INFO] src.modules.username_search: Username search complete: rdhayanidhi → found on 5/12 platforms
+07:50:02 [INFO] src.modules.username_search: Found _._dhayanidhi_._ on Steam
+07:50:02 [INFO] src.modules.username_search: Username search complete: dhayanidhirajasekaran → found on 4/12 platforms
+07:50:02 [INFO] src.modules.username_search: Found _._dhayanidhi_._ on Instagram
+07:50:02 [ERROR] src.modules.username_search: Exception checking GitLab: 'expected_status'
+07:50:02 [INFO] src.modules.username_search: Found dhayanidhi.rajasekaran on Steam
+07:50:02 [INFO] src.modules.username_search: Found dhayanidhi.rajasekaran on Instagram
+07:50:02 [INFO] src.modules.username_search: Found _._dhayanidhi_._ on Mastodon
+07:50:03 [INFO] src.modules.username_search: Found _._dhayanidhi_._ on Pinterest
+07:50:03 [INFO] src.modules.username_search: Found _._dhayanidhi_._ on Medium
+07:50:03 [ERROR] src.modules.username_search: Exception checking GitLab: 'expected_status'
+07:50:03 [INFO] src.modules.username_search: Found dhayanidhi.rajasekaran on Pinterest
+07:50:03 [INFO] src.modules.username_search: Found dhayanidhir on Medium
+07:50:03 [INFO] src.modules.username_search: Found dhayanidhi_rajasekaran on Steam
+07:50:03 [INFO] src.modules.external_tools: Dig found 1 A records for linkedin.com
+07:50:03 [INFO] src.orchestrator: Dig found 1 artifacts for linkedin.com
+07:50:03 [ERROR] src.modules.username_search: Exception checking Reddit: 'expected_status'
+07:50:03 [INFO] src.modules.username_search: Found dhayanidhi_rajasekaran on Instagram
+07:50:03 [INFO] src.modules.username_search: Found dhayanidhir on Pinterest
+07:50:03 [INFO] src.modules.username_search: Username search complete: dhayanidhir → found on 5/12 platforms
+07:50:03 [ERROR] src.modules.username_search: Exception checking Reddit: 'expected_status'
+07:50:03 [ERROR] src.modules.username_search: Exception checking GitLab: 'expected_status'
+07:50:03 [INFO] src.modules.username_search: Found dhayanidhi-rajasekar-0b6084293 on Steam
+07:50:03 [ERROR] src.modules.username_search: Exception checking Reddit: 'expected_status'
+07:50:03 [INFO] src.modules.username_search: Username search complete: dhayanidhi.rajasekaran → found on 3/12 platforms
+07:50:03 [ERROR] src.modules.username_search: Exception checking Reddit: 'expected_status'
+07:50:03 [INFO] src.modules.username_search: Username search complete: _._dhayanidhi_._ → found on 5/12 platforms
+07:50:03 [INFO] src.modules.username_search: Found dhayanidhi_rajasekaran on Pinterest
+07:50:03 [INFO] src.modules.username_search: Found dhayanidhi_rajasekaran on Medium
+07:50:03 [INFO] src.modules.username_search: Username search complete: dhayanidhi_rajasekaran → found on 4/12 platforms
+07:50:03 [INFO] src.modules.username_search: Found dhayanidhi-rajasekar-0b6084293 on Instagram
+07:50:03 [INFO] src.modules.username_search: Found dhayanidhi-rajasekar-0b6084293 on Pinterest
+07:50:03 [INFO] src.modules.username_search: Found dhayanidhi-rajasekar-0b6084293 on Medium
+07:50:03 [INFO] src.modules.username_search: Username search complete: dhayanidhi-rajasekar-0b6084293 → found on 4/12 platforms
+07:50:03 [INFO] src.modules.external_tools: Whois lookup completed for in.linkedin.com
+07:50:03 [INFO] src.orchestrator: Whois found 1 artifacts for in.linkedin.com
+07:50:03 [INFO] src.modules.google_dorks: Limiting patterns from 8 to 3 to avoid rate limiting
+07:50:03 [INFO] src.modules.google_dorks: Searching for username 'drajasekaran' with 3 dork patterns
+07:50:03 [INFO] src.modules.google_dorks: Limiting patterns from 8 to 3 to avoid rate limiting
+07:50:03 [INFO] src.modules.google_dorks: Searching for username 'rdhayanidhi' with 3 dork patterns
+07:50:03 [INFO] src.modules.google_dorks: Pattern 'simple_search' found 10 results
+07:50:03 [INFO] src.modules.google_dorks: DuckDuckGo search found 0 results for pattern 'profile_pages'
+07:50:03 [WARNING] src.modules.google_dorks: Pattern 'profile_pages' failed: None
+07:50:03 [INFO] src.modules.google_dorks: DuckDuckGo search found 0 results for pattern 'social_platforms'
+07:50:03 [WARNING] src.modules.google_dorks: Pattern 'social_platforms' failed: None
+07:50:04 [INFO] src.modules.google_dorks: Limiting patterns from 8 to 3 to avoid rate limiting
+07:50:04 [INFO] src.modules.google_dorks: Searching for username 'dhayanidhi.rajasekaran' with 3 dork patterns
+07:50:04 [INFO] src.modules.google_dorks: Limiting patterns from 8 to 3 to avoid rate limiting
+07:50:04 [INFO] src.modules.google_dorks: Searching for username 'Rajasekaran' with 3 dork patterns
+07:50:04 [INFO] src.modules.google_dorks: DuckDuckGo search found 0 results for pattern 'social_platforms'
+07:50:04 [WARNING] src.modules.google_dorks: Pattern 'social_platforms' failed: None
+07:50:04 [INFO] src.modules.google_dorks: Limiting patterns from 8 to 3 to avoid rate limiting
+07:50:04 [INFO] src.modules.google_dorks: Searching for username 'dhayanidhir' with 3 dork patterns
+07:50:04 [INFO] src.modules.google_dorks: DuckDuckGo search found 0 results for pattern 'social_platforms'
+07:50:04 [WARNING] src.modules.google_dorks: Pattern 'social_platforms' failed: None
+07:50:04 [INFO] src.modules.google_dorks: Limiting patterns from 8 to 3 to avoid rate limiting
+07:50:04 [INFO] src.modules.google_dorks: Searching for username '_._dhayanidhi_._' with 3 dork patterns
+07:50:04 [INFO] src.modules.google_dorks: Pattern 'simple_search' found 10 results
+07:50:04 [INFO] src.modules.google_dorks: Pattern 'simple_search' found 10 results
+07:50:04 [INFO] src.modules.google_dorks: Limiting patterns from 8 to 3 to avoid rate limiting
+07:50:04 [INFO] src.modules.google_dorks: Searching for username 'dhayanidhi_rajasekaran' with 3 dork patterns
+07:50:04 [INFO] src.modules.google_dorks: DuckDuckGo search found 0 results for pattern 'profile_pages'
+07:50:04 [INFO] src.modules.google_dorks: DuckDuckGo search found 0 results for pattern 'social_platforms'
+07:50:04 [WARNING] src.modules.google_dorks: Pattern 'profile_pages' failed: None
+07:50:04 [WARNING] src.modules.google_dorks: Pattern 'social_platforms' failed: None
+07:50:04 [INFO] src.modules.google_dorks: Google Dorks search discovered 20 artifacts
+07:50:04 [INFO] src.orchestrator: Google Dorks found 20 artifacts for dhayanidhir
+07:50:04 [INFO] src.modules.google_dorks: Limiting patterns from 8 to 3 to avoid rate limiting
+07:50:04 [INFO] src.modules.google_dorks: Limiting patterns from 8 to 3 to avoid rate limiting
+07:50:04 [INFO] src.modules.google_dorks: Searching for username 'dhayanidhir' with 3 dork patterns
+07:50:04 [INFO] src.modules.google_dorks: Searching for username 'dhayanidhirajasekaran' with 3 dork patterns
+07:50:04 [INFO] src.modules.google_dorks: DuckDuckGo search found 0 results for pattern 'profile_pages'
+07:50:04 [WARNING] src.modules.google_dorks: Pattern 'profile_pages' failed: None
+07:50:04 [INFO] src.modules.username_search: Found dhayanidhir on Steam
+07:50:04 [INFO] src.modules.username_search: Found dhayanidhir on GitHub
+07:50:04 [INFO] src.modules.username_search: Found dhayanidhir on Medium
+07:50:04 [INFO] src.modules.username_search: Found dhayanidhir on Pinterest
+07:50:04 [INFO] src.modules.username_search: Found dhayanidhir on Instagram
+07:50:04 [INFO] src.modules.google_dorks: DuckDuckGo search found 0 results for pattern 'simple_search'
+07:50:04 [WARNING] src.modules.google_dorks: Pattern 'simple_search' failed: None
+07:50:04 [INFO] src.modules.google_dorks: DuckDuckGo search found 0 results for pattern 'social_platforms'
+07:50:04 [WARNING] src.modules.google_dorks: Pattern 'social_platforms' failed: None
+07:50:04 [INFO] src.modules.google_dorks: DuckDuckGo search found 0 results for pattern 'simple_search'
+07:50:04 [INFO] src.modules.google_dorks: DuckDuckGo search found 0 results for pattern 'social_platforms'
+07:50:04 [WARNING] src.modules.google_dorks: Pattern 'simple_search' failed: None
+07:50:04 [WARNING] src.modules.google_dorks: Pattern 'social_platforms' failed: None
+07:50:04 [INFO] src.modules.google_dorks: DuckDuckGo search found 0 results for pattern 'profile_pages'
+07:50:04 [WARNING] src.modules.google_dorks: Pattern 'profile_pages' failed: None
+07:50:04 [INFO] src.modules.google_dorks: Google Dorks search discovered 0 artifacts
+07:50:04 [INFO] src.modules.google_dorks: Limiting patterns from 8 to 3 to avoid rate limiting
+07:50:04 [INFO] src.modules.google_dorks: Searching for username 'Rajasekaran' with 3 dork patterns
+07:50:04 [INFO] src.modules.username_search: Found Rajasekaran on GitHub
+07:50:04 [INFO] src.modules.username_search: Found Rajasekaran on Instagram
+07:50:04 [INFO] src.modules.username_search: Found Rajasekaran on Keybase
+07:50:04 [INFO] src.modules.username_search: Found Rajasekaran on Medium
+07:50:04 [INFO] src.modules.username_search: Found Rajasekaran on Pinterest
+07:50:04 [INFO] src.modules.username_search: Found Rajasekaran on Steam
+07:50:04 [INFO] src.modules.google_dorks: Google search found 1 results for pattern 'simple_search'
+07:50:04 [INFO] src.modules.google_dorks: Pattern 'simple_search' found 1 results
+07:50:04 [INFO] src.modules.google_dorks: DuckDuckGo search found 0 results for pattern 'profile_pages'
+07:50:04 [WARNING] src.modules.google_dorks: Pattern 'profile_pages' failed: None
+07:50:04 [INFO] src.modules.google_dorks: DuckDuckGo search found 0 results for pattern 'social_platforms'
+07:50:04 [WARNING] src.modules.google_dorks: Pattern 'social_platforms' failed: None
+07:50:04 [INFO] src.modules.google_dorks: Google Dorks search discovered 20 artifacts
+07:50:04 [INFO] src.orchestrator: Google Dorks found 20 artifacts for _._dhayanidhi_._
+07:50:04 [INFO] src.modules.google_dorks: Limiting patterns from 8 to 3 to avoid rate limiting
+07:50:04 [INFO] src.modules.google_dorks: Searching for username '_._dhayanidhi_._' with 3 dork patterns
+07:50:04 [INFO] src.modules.username_search: Found _._dhayanidhi_._ on Steam
+07:50:04 [INFO] src.modules.username_search: Found _._dhayanidhi_._ on Mastodon
+07:50:04 [INFO] src.modules.username_search: Found _._dhayanidhi_._ on Instagram
+07:50:04 [INFO] src.modules.username_search: Found _._dhayanidhi_._ on Pinterest
+07:50:04 [INFO] src.modules.username_search: Found _._dhayanidhi_._ on Medium
+07:50:04 [INFO] src.modules.google_dorks: DuckDuckGo search found 0 results for pattern 'social_platforms'
+07:50:04 [INFO] src.modules.external_tools: Whois lookup completed for zoominfo.com
+07:50:04 [INFO] src.orchestrator: Whois found 1 artifacts for zoominfo.com
+07:50:04 [WARNING] src.modules.google_dorks: Pattern 'social_platforms' failed: None
+07:50:04 [INFO] src.modules.google_dorks: DuckDuckGo search found 0 results for pattern 'simple_search'
+07:50:04 [WARNING] src.modules.google_dorks: Pattern 'simple_search' failed: None
+07:50:04 [INFO] src.modules.external_tools: Whois lookup completed for linkedin.com
+07:50:04 [INFO] src.orchestrator: Whois found 1 artifacts for linkedin.com
+07:50:04 [INFO] src.modules.google_dorks: DuckDuckGo search found 0 results for pattern 'profile_pages'
+07:50:04 [WARNING] src.modules.google_dorks: Pattern 'profile_pages' failed: None
+07:50:04 [INFO] src.modules.google_dorks: Google Dorks search discovered 0 artifacts
+07:50:04 [INFO] src.modules.google_dorks: Limiting patterns from 8 to 3 to avoid rate limiting
+07:50:04 [INFO] src.modules.google_dorks: Searching for username 'dhayanidhi_rajasekaran' with 3 dork patterns
+07:50:04 [INFO] src.modules.username_search: Found dhayanidhi_rajasekaran on Instagram
+07:50:04 [INFO] src.modules.username_search: Found dhayanidhi_rajasekaran on Medium
+07:50:04 [INFO] src.modules.username_search: Found dhayanidhi_rajasekaran on Pinterest
+07:50:04 [INFO] src.modules.username_search: Found dhayanidhi_rajasekaran on Steam
+07:50:04 [INFO] src.modules.google_dorks: DuckDuckGo search found 0 results for pattern 'profile_pages'
+07:50:04 [WARNING] src.modules.google_dorks: Pattern 'profile_pages' failed: None
+07:50:04 [INFO] src.modules.google_dorks: Google Dorks search discovered 0 artifacts
+07:50:04 [INFO] src.modules.google_dorks: Limiting patterns from 8 to 3 to avoid rate limiting
+07:50:04 [INFO] src.modules.google_dorks: Searching for username 'dhayanidhirajasekaran' with 3 dork patterns
+07:50:04 [INFO] src.modules.username_search: Found dhayanidhirajasekaran on Instagram
+07:50:04 [INFO] src.modules.username_search: Found dhayanidhirajasekaran on Medium
+07:50:04 [INFO] src.modules.username_search: Found dhayanidhirajasekaran on Pinterest
+07:50:04 [INFO] src.modules.username_search: Found dhayanidhirajasekaran on Steam
+07:50:04 [ERROR] src.modules.username_search: Exception checking GitLab: 'expected_status'
+07:50:04 [INFO] src.modules.google_dorks: DuckDuckGo search found 10 results for pattern 'simple_search'
+07:50:04 [INFO] src.modules.google_dorks: Pattern 'simple_search' found 10 results
+07:50:04 [INFO] src.modules.google_dorks: Google Dorks search discovered 19 artifacts
+07:50:04 [INFO] src.orchestrator: Google Dorks found 19 artifacts for drajasekaran
+07:50:04 [INFO] src.modules.google_dorks: Limiting patterns from 8 to 3 to avoid rate limiting
+07:50:04 [INFO] src.modules.google_dorks: Searching for username 'drajasekaran' with 3 dork patterns
+07:50:04 [INFO] src.modules.username_search: Found drajasekaran on GitHub
+07:50:04 [INFO] src.modules.username_search: Found drajasekaran on Pinterest
+07:50:04 [INFO] src.modules.username_search: Found drajasekaran on Steam
+07:50:04 [INFO] src.modules.username_search: Found drajasekaran on Medium
+07:50:04 [INFO] src.modules.username_search: Found drajasekaran on Instagram
+07:50:04 [ERROR] src.modules.username_search: Exception checking Reddit: 'expected_status'
+07:50:04 [INFO] src.modules.username_search: Username search complete: dhayanidhir → found on 5/12 platforms
+07:50:04 [ERROR] src.modules.username_search: Exception checking GitLab: 'expected_status'
+07:50:04 [ERROR] src.modules.username_search: Exception checking Reddit: 'expected_status'
+07:50:04 [INFO] src.modules.username_search: Username search complete: Rajasekaran → found on 6/12 platforms
+07:50:04 [INFO] src.modules.google_dorks: DuckDuckGo search found 0 results for pattern 'profile_pages'
+07:50:04 [WARNING] src.modules.google_dorks: Pattern 'profile_pages' failed: None
+07:50:04 [INFO] src.modules.google_dorks: Google Dorks search discovered 20 artifacts
+07:50:04 [INFO] src.orchestrator: Google Dorks found 20 artifacts for rdhayanidhi
+07:50:04 [INFO] src.modules.google_dorks: Limiting patterns from 8 to 3 to avoid rate limiting
+07:50:04 [INFO] src.modules.google_dorks: Searching for username 'rdhayanidhi' with 3 dork patterns
+07:50:04 [INFO] src.modules.username_search: Found rdhayanidhi on Pinterest
+07:50:04 [INFO] src.modules.username_search: Found rdhayanidhi on Instagram
+07:50:04 [INFO] src.modules.username_search: Found rdhayanidhi on GitHub
+07:50:04 [INFO] src.modules.username_search: Found rdhayanidhi on Steam
+07:50:04 [INFO] src.modules.username_search: Found rdhayanidhi on Medium
+07:50:04 [INFO] src.modules.google_dorks: DuckDuckGo search found 10 results for pattern 'simple_search'
+07:50:04 [ERROR] src.modules.username_search: Exception checking GitLab: 'expected_status'
+07:50:04 [INFO] src.modules.google_dorks: Pattern 'simple_search' found 10 results
+07:50:04 [INFO] src.modules.google_dorks: Google Dorks search discovered 15 artifacts
+07:50:04 [INFO] src.orchestrator: Google Dorks found 15 artifacts for dhayanidhi.rajasekaran
+07:50:04 [INFO] src.modules.google_dorks: Limiting patterns from 8 to 3 to avoid rate limiting
+07:50:04 [INFO] src.modules.google_dorks: Searching for username 'dhayanidhi.rajasekaran' with 3 dork patterns
+07:50:04 [INFO] src.modules.username_search: Found dhayanidhi.rajasekaran on Instagram
+07:50:04 [INFO] src.modules.username_search: Found dhayanidhi.rajasekaran on Pinterest
+07:50:04 [INFO] src.modules.username_search: Found dhayanidhi.rajasekaran on Steam
+07:50:04 [ERROR] src.modules.username_search: Exception checking Reddit: 'expected_status'
+07:50:04 [ERROR] src.modules.username_search: Exception checking GitLab: 'expected_status'
+07:50:04 [INFO] src.modules.google_dorks: Limiting patterns from 8 to 3 to avoid rate limiting
+07:50:04 [INFO] src.modules.google_dorks: Searching for username 'dhayanidhi-rajasekar-0b6084293' with 3 dork patterns
+07:50:04 [INFO] src.modules.google_dorks: DuckDuckGo search found 0 results for pattern 'profile_pages'
+07:50:04 [WARNING] src.modules.google_dorks: Pattern 'profile_pages' failed: None
+07:50:04 [ERROR] src.modules.username_search: Exception checking GitLab: 'expected_status'
+07:50:04 [INFO] src.modules.username_search: Username search complete: dhayanidhirajasekaran → found on 4/12 platforms
+07:50:04 [INFO] src.modules.google_dorks: DuckDuckGo search found 0 results for pattern 'social_platforms'
+07:50:04 [WARNING] src.modules.google_dorks: Pattern 'social_platforms' failed: None
+07:50:04 [INFO] src.modules.google_dorks: DuckDuckGo search found 0 results for pattern 'simple_search'
+07:50:04 [WARNING] src.modules.google_dorks: Pattern 'simple_search' failed: None
+07:50:04 [INFO] src.modules.google_dorks: Google Dorks search discovered 0 artifacts
+07:50:04 [INFO] src.modules.google_dorks: Limiting patterns from 8 to 3 to avoid rate limiting
+07:50:04 [INFO] src.modules.google_dorks: Searching for username 'dhayanidhi-rajasekar-0b6084293' with 3 dork patterns
+07:50:04 [INFO] src.modules.username_search: Found dhayanidhi-rajasekar-0b6084293 on Medium
+07:50:04 [INFO] src.modules.username_search: Found dhayanidhi-rajasekar-0b6084293 on Instagram
+07:50:04 [INFO] src.modules.username_search: Found dhayanidhi-rajasekar-0b6084293 on Pinterest
+07:50:04 [INFO] src.modules.username_search: Found dhayanidhi-rajasekar-0b6084293 on Steam
+07:50:04 [ERROR] src.modules.username_search: Exception checking Reddit: 'expected_status'
+07:50:04 [ERROR] src.modules.username_search: Exception checking GitLab: 'expected_status'
+07:50:04 [INFO] src.modules.username_search: Username search complete: drajasekaran → found on 5/12 platforms
+07:50:05 [ERROR] src.modules.username_search: Exception checking Reddit: 'expected_status'
+07:50:05 [ERROR] src.modules.username_search: Exception checking GitLab: 'expected_status'
+07:50:05 [INFO] src.modules.username_search: Username search complete: rdhayanidhi → found on 5/12 platforms
+07:50:05 [ERROR] src.modules.username_search: Exception checking GitLab: 'expected_status'
+07:50:05 [ERROR] src.modules.username_search: Exception checking Reddit: 'expected_status'
+07:50:05 [INFO] src.modules.username_search: Username search complete: _._dhayanidhi_._ → found on 5/12 platforms
+07:50:05 [ERROR] src.modules.username_search: Exception checking Reddit: 'expected_status'
+07:50:05 [INFO] src.modules.username_search: Username search complete: dhayanidhi_rajasekaran → found on 4/12 platforms
+07:50:05 [ERROR] src.modules.username_search: Exception checking GitLab: 'expected_status'
+07:50:05 [ERROR] src.modules.username_search: Exception checking Reddit: 'expected_status'
+07:50:05 [INFO] src.modules.username_search: Username search complete: dhayanidhi.rajasekaran → found on 3/12 platforms
+07:50:05 [ERROR] src.modules.username_search: Exception checking Reddit: 'expected_status'
+07:50:05 [INFO] src.modules.username_search: Username search complete: dhayanidhi-rajasekar-0b6084293 → found on 4/12 platforms
+07:50:05 [INFO] src.modules.external_tools: Whois lookup completed for instagram.com
+07:50:05 [INFO] src.orchestrator: Whois found 1 artifacts for instagram.com
+07:50:06 [INFO] src.modules.google_dorks: Google search found 1 results for pattern 'social_platforms'
+07:50:06 [INFO] src.modules.google_dorks: Pattern 'social_platforms' found 1 results
+07:50:08 [INFO] src.modules.google_dorks: Google search found 1 results for pattern 'profile_pages'
+07:50:08 [INFO] src.modules.google_dorks: Pattern 'profile_pages' found 1 results
+07:50:08 [INFO] src.modules.google_dorks: Google Dorks search discovered 6 artifacts
+07:50:08 [INFO] src.orchestrator: Plugin system processed 2 plugins, discovered 6 artifacts
+07:50:10 [INFO] src.modules.google_dorks: Google search found 1 results for pattern 'simple_search'
+07:50:10 [INFO] src.modules.google_dorks: Pattern 'simple_search' found 1 results
+07:50:10 [INFO] src.modules.external_tools: Wayback Machine found 15 historical URLs for zoominfo.com
+07:50:10 [INFO] src.orchestrator: Wayback Machine found 15 artifacts for zoominfo.com
+07:50:10 [INFO] src.orchestrator: Plugin system processed 3 plugins, discovered 21 artifacts
+07:50:12 [INFO] src.modules.google_dorks: Google search found 1 results for pattern 'social_platforms'
+07:50:12 [INFO] src.modules.google_dorks: Pattern 'social_platforms' found 1 results
+07:50:14 [INFO] src.modules.google_dorks: Google search found 1 results for pattern 'profile_pages'
+07:50:14 [INFO] src.modules.google_dorks: Pattern 'profile_pages' found 1 results
+07:50:14 [INFO] src.modules.google_dorks: Google Dorks search discovered 6 artifacts
+07:50:14 [INFO] src.orchestrator: Plugin system processed 2 plugins, discovered 6 artifacts
+07:50:16 [INFO] src.modules.google_dorks: Google search found 1 results for pattern 'simple_search'
+07:50:16 [INFO] src.modules.google_dorks: Pattern 'simple_search' found 1 results
+07:50:18 [INFO] src.modules.google_dorks: Google search found 1 results for pattern 'social_platforms'
+07:50:18 [INFO] src.modules.google_dorks: Pattern 'social_platforms' found 1 results
+07:50:20 [INFO] src.modules.google_dorks: Google search found 1 results for pattern 'profile_pages'
+07:50:20 [INFO] src.modules.google_dorks: Pattern 'profile_pages' found 1 results
+07:50:20 [INFO] src.modules.google_dorks: Google Dorks search discovered 6 artifacts
+07:50:20 [INFO] src.orchestrator: Plugin system processed 2 plugins, discovered 6 artifacts
+07:50:22 [INFO] src.modules.google_dorks: Google search found 1 results for pattern 'social_platforms'
+07:50:22 [INFO] src.modules.google_dorks: Pattern 'social_platforms' found 1 results
+07:50:24 [INFO] src.modules.google_dorks: Google search found 1 results for pattern 'simple_search'
+07:50:24 [INFO] src.modules.google_dorks: Pattern 'simple_search' found 1 results
+07:50:26 [INFO] src.modules.google_dorks: Google search found 1 results for pattern 'profile_pages'
+07:50:26 [INFO] src.modules.google_dorks: Pattern 'profile_pages' found 1 results
+07:50:26 [INFO] src.modules.google_dorks: Google Dorks search discovered 6 artifacts
+07:50:26 [INFO] src.orchestrator: Plugin system processed 2 plugins, discovered 6 artifacts
+07:50:28 [INFO] src.modules.google_dorks: Google search found 1 results for pattern 'simple_search'
+07:50:28 [INFO] src.modules.google_dorks: Pattern 'simple_search' found 1 results
+07:50:30 [INFO] src.modules.google_dorks: Google search found 1 results for pattern 'profile_pages'
+07:50:30 [INFO] src.modules.google_dorks: Pattern 'profile_pages' found 1 results
+07:50:32 [INFO] src.modules.google_dorks: Google search found 1 results for pattern 'social_platforms'
+07:50:32 [INFO] src.modules.google_dorks: Pattern 'social_platforms' found 1 results
+07:50:32 [INFO] src.modules.google_dorks: Google Dorks search discovered 6 artifacts
+07:50:32 [INFO] src.orchestrator: Plugin system processed 2 plugins, discovered 6 artifacts
+07:50:32 [ERROR] src.modules.external_tools: Wayback Machine error: HTTPConnectionPool(host='web.archive.org', port=80): Read timed out. (read timeout=30)
+07:50:32 [ERROR] src.modules.external_tools: Wayback Machine error: HTTPConnectionPool(host='web.archive.org', port=80): Read timed out. (read timeout=30)
+07:50:33 [INFO] src.orchestrator: Plugin system processed 3 plugins, discovered 7 artifacts
+07:50:33 [INFO] src.orchestrator: Plugin system processed 3 plugins, discovered 11 artifacts
+07:50:33 [ERROR] src.modules.external_tools: Wayback Machine error: HTTPConnectionPool(host='web.archive.org', port=80): Read timed out. (read timeout=30)
+07:50:33 [INFO] src.orchestrator: Plugin system processed 3 plugins, discovered 13 artifacts
+07:50:34 [INFO] src.modules.google_dorks: Google search found 1 results for pattern 'simple_search'
+07:50:34 [INFO] src.modules.google_dorks: Pattern 'simple_search' found 1 results
+07:50:36 [INFO] src.modules.google_dorks: Google search found 1 results for pattern 'social_platforms'
+07:50:36 [INFO] src.modules.google_dorks: Pattern 'social_platforms' found 1 results
+07:50:38 [INFO] src.modules.google_dorks: Google search found 1 results for pattern 'profile_pages'
+07:50:38 [INFO] src.modules.google_dorks: Pattern 'profile_pages' found 1 results
+07:50:38 [INFO] src.modules.google_dorks: Google Dorks search discovered 6 artifacts
+07:50:38 [INFO] src.orchestrator: Plugin system processed 2 plugins, discovered 6 artifacts
+07:50:40 [INFO] src.modules.google_dorks: Google search found 1 results for pattern 'simple_search'
+07:50:40 [INFO] src.modules.google_dorks: Pattern 'simple_search' found 1 results
+07:50:42 [INFO] src.modules.google_dorks: Google search found 1 results for pattern 'social_platforms'
+07:50:42 [INFO] src.modules.google_dorks: Pattern 'social_platforms' found 1 results
+07:50:44 [INFO] src.modules.google_dorks: Google search found 1 results for pattern 'profile_pages'
+07:50:44 [INFO] src.modules.google_dorks: Pattern 'profile_pages' found 1 results
+07:50:44 [INFO] src.modules.google_dorks: Google Dorks search discovered 6 artifacts
+07:50:44 [INFO] src.orchestrator: Plugin system processed 2 plugins, discovered 6 artifacts
+07:50:46 [INFO] src.modules.google_dorks: Google search found 1 results for pattern 'simple_search'
+07:50:46 [INFO] src.modules.google_dorks: Pattern 'simple_search' found 1 results
+07:50:48 [INFO] src.modules.google_dorks: Google search found 1 results for pattern 'profile_pages'
+07:50:48 [INFO] src.modules.google_dorks: Pattern 'profile_pages' found 1 results
+07:50:50 [INFO] src.modules.google_dorks: Google search found 1 results for pattern 'social_platforms'
+07:50:50 [INFO] src.modules.google_dorks: Pattern 'social_platforms' found 1 results
+07:50:50 [INFO] src.modules.google_dorks: Google Dorks search discovered 6 artifacts
+07:50:50 [INFO] src.orchestrator: Plugin system processed 2 plugins, discovered 6 artifacts
+07:50:52 [INFO] src.modules.google_dorks: Google search found 1 results for pattern 'simple_search'
+07:50:52 [INFO] src.modules.google_dorks: Pattern 'simple_search' found 1 results
+07:50:54 [INFO] src.modules.google_dorks: Google search found 1 results for pattern 'social_platforms'
+07:50:54 [INFO] src.modules.google_dorks: Pattern 'social_platforms' found 1 results
+07:50:56 [INFO] src.modules.google_dorks: Google search found 1 results for pattern 'profile_pages'
+07:50:56 [INFO] src.modules.google_dorks: Pattern 'profile_pages' found 1 results
+07:50:56 [INFO] src.modules.google_dorks: Google Dorks search discovered 6 artifacts
+07:50:56 [INFO] src.orchestrator: Plugin system processed 2 plugins, discovered 6 artifacts
+07:50:56 [INFO] src.orchestrator: BFS level 2 done in 55.4s (parallel=55.4s, db=0.1s); processed=14, seen=179, next_level=108
+07:50:56 [INFO] src.orchestrator: Processing BFS level 3: 108 artifact(s) (elapsed=71.4s, workers=15)
+07:50:56 [WARNING] src.plugins.manager: No plugins available for artifact type: image
+07:50:56 [INFO] src.orchestrator: Plugin system processed 0 plugins, discovered 0 artifacts
+07:50:56 [INFO] src.plugins.builtins.profile_image_plugin: Extracting profile image from: https://github.com/dhayanidhir
+07:50:56 [WARNING] src.plugins.manager: No plugins available for artifact type: image
+07:50:56 [INFO] src.orchestrator: Plugin system processed 0 plugins, discovered 0 artifacts
+07:50:56 [INFO] src.plugins.builtins.profile_image_plugin: Extracting profile image from: https://steamcommunity.com/id/dhayanidhir
+07:50:56 [INFO] src.plugins.builtins.profile_image_plugin: Extracting profile image from: https://www.instagram.com/dhayanidhir/
+07:50:56 [INFO] src.plugins.builtins.profile_image_plugin: Extracting profile image from: https://medium.com/@dhayanidhir
+07:50:56 [INFO] src.plugins.builtins.profile_image_plugin: Extracting profile image from: https://www.pinterest.com/dhayanidhir/
+07:50:56 [INFO] src.modules.external_tools: Running whois: whois en.wikipedia.org
+07:50:56 [INFO] src.modules.external_tools: Running dig: dig en.wikipedia.org A +short
+07:50:56 [INFO] src.modules.external_tools: Running whois: whois starsunfolded.com
+07:50:56 [INFO] src.modules.external_tools: Running dig: dig starsunfolded.com A +short
+07:50:56 [INFO] src.modules.external_tools: Running whois: whois facebook.com
+07:50:56 [INFO] src.modules.external_tools: Running dig: dig facebook.com A +short
+07:50:56 [INFO] src.modules.external_tools: Running whois: whois x.com
+07:50:56 [INFO] src.modules.external_tools: Running dig: dig x.com A +short
+07:50:56 [INFO] src.modules.external_tools: Dig found 2 A records for en.wikipedia.org
+07:50:56 [INFO] src.orchestrator: Dig found 2 artifacts for en.wikipedia.org
+07:50:56 [INFO] src.modules.external_tools: Dig found 3 A records for starsunfolded.com
+07:50:56 [INFO] src.orchestrator: Dig found 3 artifacts for starsunfolded.com
+07:50:56 [INFO] src.orchestrator: Plugin system processed 1 plugins, discovered 0 artifacts
+07:50:56 [INFO] src.modules.external_tools: Dig found 1 A records for facebook.com
+07:50:56 [INFO] src.orchestrator: Dig found 1 artifacts for facebook.com
+07:50:56 [INFO] src.modules.username_search: Found DhayanidhiAlagiriOfficial on Steam
+07:50:56 [ERROR] src.modules.username_search: Exception checking GitLab: 'expected_status'
+07:50:56 [ERROR] src.modules.username_search: Exception checking GitLab: 'expected_status'
+07:50:56 [INFO] src.orchestrator: Plugin system processed 1 plugins, discovered 0 artifacts
+07:50:56 [INFO] src.modules.external_tools: Running whois: whois thehindu.com
+07:50:56 [INFO] src.modules.external_tools: Running dig: dig thehindu.com A +short
+07:50:56 [INFO] src.modules.username_search: Found DhayanidhiAlagiriOfficial on Instagram
+07:50:56 [INFO] src.modules.username_search: Found Udhayanidhi_Stalin on Instagram
+07:50:56 [INFO] src.modules.username_search: Found DhayanidhiAlagiriOfficial on Medium
+07:50:56 [ERROR] src.modules.username_search: Exception checking Reddit: 'expected_status'
+07:50:57 [ERROR] src.modules.username_search: Exception checking Reddit: 'expected_status'
+07:50:57 [INFO] src.modules.username_search: Found Udhayanidhi_Stalin on Steam
+07:50:57 [ERROR] src.modules.username_search: Exception checking GitLab: 'expected_status'
+07:50:57 [INFO] src.modules.username_search: Found Udhayanidhi_Stalin on Medium
+07:50:57 [ERROR] src.modules.username_search: Exception checking Reddit: 'expected_status'
+07:50:57 [INFO] src.modules.username_search: Found DhayanidhiAlagiriOfficial on Pinterest
+07:50:57 [INFO] src.modules.username_search: Found Dayanidhi_Maran on Steam
+07:50:57 [INFO] src.modules.username_search: Found Dayanidhi_Maran on Instagram
+07:50:57 [ERROR] src.modules.username_search: Exception checking Reddit: 'expected_status'
+07:50:57 [INFO] src.modules.username_search: Found Udhayanidhi_Stalin on Pinterest
+07:50:57 [ERROR] src.modules.username_search: Exception checking GitLab: 'expected_status'
+07:50:57 [INFO] src.modules.username_search: Found alagiridhaya on Instagram
+07:50:57 [INFO] src.modules.external_tools: Dig found 1 A records for x.com
+07:50:57 [INFO] src.orchestrator: Dig found 1 artifacts for x.com
+07:50:57 [INFO] src.modules.username_search: Found alagiridhaya on Steam
+07:50:57 [ERROR] src.modules.username_search: Exception checking Reddit: 'expected_status'
+07:50:57 [ERROR] src.modules.username_search: Exception checking GitLab: 'expected_status'
+07:50:57 [INFO] src.plugins.builtins.profile_image_plugin: Found profile image for https://www.pinterest.com/dhayanidhir/: https://s.pinimg.com/images/default_open_graph_1200.png
+07:50:57 [INFO] src.orchestrator: Plugin system processed 1 plugins, discovered 1 artifacts
+07:50:57 [INFO] src.modules.username_search: Found Dayanidhi_Maran on Pinterest
+07:50:57 [INFO] src.modules.username_search: Found dayanidhimaranmp on Steam
+07:50:57 [ERROR] src.modules.username_search: Exception checking GitLab: 'expected_status'
+07:50:57 [INFO] src.modules.username_search: Found dayanidhimaranmp on Instagram
+07:50:57 [INFO] src.modules.username_search: Found dayanidhi-maran on Steam
+07:50:57 [INFO] src.modules.username_search: Found alagiridhaya on Medium
+07:50:57 [INFO] src.modules.username_search: Found dayanidhi-maran on Instagram
+07:50:57 [INFO] src.modules.username_search: Found dayanidhimaranmp on Pinterest
+07:50:57 [INFO] src.modules.username_search: Found Dayanidhi_Maran on Medium
+07:50:57 [INFO] src.modules.username_search: Found dayanidhimaranmp on Medium
+07:50:57 [INFO] src.modules.username_search: Username search complete: Dayanidhi_Maran → found on 4/12 platforms
+07:50:57 [INFO] src.modules.username_search: Username search complete: Udhayanidhi_Stalin → found on 4/12 platforms
+07:50:57 [INFO] src.modules.username_search: Username search complete: dayanidhimaranmp → found on 4/12 platforms
+07:50:57 [INFO] src.modules.external_tools: Dig found 2 A records for thehindu.com
+07:50:57 [INFO] src.orchestrator: Dig found 2 artifacts for thehindu.com
+07:50:58 [ERROR] src.modules.username_search: Exception checking GitLab: 'expected_status'
+07:50:58 [INFO] src.modules.username_search: Found dayanidhi-maran on Medium
+07:50:58 [ERROR] src.modules.username_search: Exception checking Reddit: 'expected_status'
+07:50:58 [INFO] src.modules.username_search: Found article68676666.ece on Steam
+07:50:58 [INFO] src.modules.username_search: Found article68676666.ece on Instagram
+07:50:58 [ERROR] src.modules.username_search: Exception checking GitLab: 'expected_status'
+07:50:58 [INFO] src.modules.external_tools: Whois lookup completed for en.wikipedia.org
+07:50:58 [INFO] src.orchestrator: Whois found 1 artifacts for en.wikipedia.org
+07:50:58 [INFO] src.orchestrator: Plugin system processed 1 plugins, discovered 0 artifacts
+07:50:58 [INFO] src.modules.external_tools: Whois lookup completed for starsunfolded.com
+07:50:58 [INFO] src.modules.external_tools: Running whois: whois tamil.oneindia.com
+07:50:58 [INFO] src.modules.external_tools: Running dig: dig tamil.oneindia.com A +short
+07:50:58 [INFO] src.orchestrator: Whois found 1 artifacts for starsunfolded.com
+07:50:58 [ERROR] src.modules.username_search: Exception checking Reddit: 'expected_status'
+07:50:58 [ERROR] src.modules.username_search: Exception checking Reddit: 'expected_status'
+07:50:58 [INFO] src.modules.username_search: Found dayanidhi-maran-35325.html on Steam
+07:50:58 [INFO] src.modules.username_search: Found alagiridhaya on Pinterest
+07:50:58 [INFO] src.modules.username_search: Username search complete: alagiridhaya → found on 4/12 platforms
+07:50:58 [INFO] src.modules.username_search: Found dayanidhi-maran-35325.html on Instagram
+07:50:58 [INFO] src.modules.username_search: Found article68676666.ece on Pinterest
+07:50:58 [INFO] src.modules.username_search: Found dayanidhi-maran on Pinterest
+07:50:58 [INFO] src.modules.username_search: Username search complete: dayanidhi-maran → found on 4/12 platforms
+07:50:58 [INFO] src.modules.external_tools: Dig found 2 A records for tamil.oneindia.com
+07:50:58 [INFO] src.orchestrator: Dig found 2 artifacts for tamil.oneindia.com
+07:50:58 [INFO] src.modules.username_search: Found article68676666.ece on Medium
+07:50:58 [INFO] src.modules.username_search: Username search complete: article68676666.ece → found on 4/12 platforms
+07:50:58 [INFO] src.modules.external_tools: Whois lookup completed for x.com
+07:50:58 [INFO] src.orchestrator: Whois found 1 artifacts for x.com
+07:50:58 [INFO] src.modules.username_search: Username search complete: DhayanidhiAlagiriOfficial → found on 4/12 platforms
+07:50:58 [INFO] src.modules.external_tools: Whois lookup completed for facebook.com
+07:50:58 [INFO] src.orchestrator: Whois found 1 artifacts for facebook.com
+07:50:58 [INFO] src.modules.username_search: Found dayanidhi-maran-35325.html on Medium
+07:50:59 [INFO] src.modules.google_dorks: Limiting patterns from 8 to 3 to avoid rate limiting
+07:50:59 [INFO] src.modules.google_dorks: Searching for username 'dayanidhimaranmp' with 3 dork patterns
+07:50:59 [INFO] src.modules.google_dorks: Limiting patterns from 8 to 3 to avoid rate limiting
+07:50:59 [INFO] src.modules.google_dorks: Searching for username 'Udhayanidhi_Stalin' with 3 dork patterns
+07:50:59 [INFO] src.modules.username_search: Found dayanidhi-maran-35325.html on Pinterest
+07:50:59 [INFO] src.modules.username_search: Username search complete: dayanidhi-maran-35325.html → found on 4/12 platforms
+07:50:59 [INFO] src.modules.external_tools: Whois lookup completed for tamil.oneindia.com
+07:50:59 [INFO] src.orchestrator: Whois found 1 artifacts for tamil.oneindia.com
+07:50:59 [INFO] src.modules.google_dorks: DuckDuckGo search found 0 results for pattern 'social_platforms'
+07:50:59 [INFO] src.modules.google_dorks: DuckDuckGo search found 0 results for pattern 'profile_pages'
+07:50:59 [WARNING] src.modules.google_dorks: Pattern 'social_platforms' failed: None
+07:50:59 [INFO] src.modules.google_dorks: DuckDuckGo search found 0 results for pattern 'social_platforms'
+07:50:59 [WARNING] src.modules.google_dorks: Pattern 'profile_pages' failed: None
+07:50:59 [INFO] src.modules.google_dorks: DuckDuckGo search found 0 results for pattern 'simple_search'
+07:50:59 [WARNING] src.modules.google_dorks: Pattern 'social_platforms' failed: None
+07:50:59 [INFO] src.modules.google_dorks: DuckDuckGo search found 0 results for pattern 'simple_search'
+07:50:59 [WARNING] src.modules.google_dorks: Pattern 'simple_search' failed: None
+07:50:59 [WARNING] src.modules.google_dorks: Pattern 'simple_search' failed: None
+07:50:59 [INFO] src.modules.google_dorks: Google Dorks search discovered 0 artifacts
+07:50:59 [INFO] src.modules.google_dorks: Limiting patterns from 8 to 3 to avoid rate limiting
+07:50:59 [INFO] src.modules.google_dorks: Searching for username 'Udhayanidhi_Stalin' with 3 dork patterns
+07:50:59 [INFO] src.modules.google_dorks: DuckDuckGo search found 0 results for pattern 'profile_pages'
+07:50:59 [WARNING] src.modules.google_dorks: Pattern 'profile_pages' failed: None
+07:50:59 [INFO] src.modules.google_dorks: Limiting patterns from 8 to 3 to avoid rate limiting
+07:50:59 [INFO] src.modules.google_dorks: Searching for username 'Dayanidhi_Maran' with 3 dork patterns
+07:50:59 [INFO] src.modules.google_dorks: Google Dorks search discovered 0 artifacts
+07:50:59 [INFO] src.modules.username_search: Found Udhayanidhi_Stalin on Medium
+07:50:59 [INFO] src.modules.username_search: Found Udhayanidhi_Stalin on Instagram
+07:50:59 [INFO] src.modules.username_search: Found Udhayanidhi_Stalin on Pinterest
+07:50:59 [INFO] src.modules.username_search: Found Udhayanidhi_Stalin on Steam
+07:50:59 [INFO] src.modules.google_dorks: Limiting patterns from 8 to 3 to avoid rate limiting
+07:50:59 [INFO] src.modules.google_dorks: Searching for username 'dayanidhimaranmp' with 3 dork patterns
+07:50:59 [INFO] src.modules.username_search: Found dayanidhimaranmp on Instagram
+07:50:59 [INFO] src.modules.username_search: Found dayanidhimaranmp on Medium
+07:50:59 [INFO] src.modules.username_search: Found dayanidhimaranmp on Pinterest
+07:50:59 [INFO] src.modules.username_search: Found dayanidhimaranmp on Steam
+07:50:59 [INFO] src.modules.google_dorks: DuckDuckGo search found 0 results for pattern 'social_platforms'
+07:50:59 [INFO] src.modules.google_dorks: DuckDuckGo search found 0 results for pattern 'profile_pages'
+07:50:59 [WARNING] src.modules.google_dorks: Pattern 'social_platforms' failed: None
+07:50:59 [WARNING] src.modules.google_dorks: Pattern 'profile_pages' failed: None
+07:50:59 [INFO] src.modules.google_dorks: DuckDuckGo search found 0 results for pattern 'simple_search'
+07:50:59 [WARNING] src.modules.google_dorks: Pattern 'simple_search' failed: None
+07:50:59 [INFO] src.modules.google_dorks: Google Dorks search discovered 0 artifacts
+07:50:59 [INFO] src.modules.google_dorks: Limiting patterns from 8 to 3 to avoid rate limiting
+07:50:59 [INFO] src.modules.google_dorks: Searching for username 'Dayanidhi_Maran' with 3 dork patterns
+07:50:59 [INFO] src.modules.username_search: Found Dayanidhi_Maran on Instagram
+07:50:59 [INFO] src.modules.username_search: Found Dayanidhi_Maran on Medium
+07:50:59 [INFO] src.modules.username_search: Found Dayanidhi_Maran on Pinterest
+07:50:59 [INFO] src.modules.username_search: Found Dayanidhi_Maran on Steam
+07:50:59 [INFO] src.modules.google_dorks: Google search found 1 results for pattern 'simple_search'
+07:50:59 [INFO] src.modules.google_dorks: Pattern 'simple_search' found 1 results
+07:50:59 [INFO] src.modules.google_dorks: Limiting patterns from 8 to 3 to avoid rate limiting
+07:50:59 [INFO] src.modules.google_dorks: Searching for username 'article68676666.ece' with 3 dork patterns
+07:50:59 [INFO] src.modules.google_dorks: DuckDuckGo search found 0 results for pattern 'social_platforms'
+07:50:59 [INFO] src.modules.google_dorks: DuckDuckGo search found 0 results for pattern 'profile_pages'
+07:50:59 [WARNING] src.modules.google_dorks: Pattern 'social_platforms' failed: None
+07:50:59 [INFO] src.modules.google_dorks: DuckDuckGo search found 0 results for pattern 'simple_search'
+07:50:59 [WARNING] src.modules.google_dorks: Pattern 'profile_pages' failed: None
+07:50:59 [WARNING] src.modules.google_dorks: Pattern 'simple_search' failed: None
+07:50:59 [INFO] src.modules.google_dorks: Google Dorks search discovered 0 artifacts
+07:50:59 [INFO] src.modules.google_dorks: Limiting patterns from 8 to 3 to avoid rate limiting
+07:50:59 [INFO] src.modules.google_dorks: Searching for username 'article68676666.ece' with 3 dork patterns
+07:50:59 [INFO] src.modules.username_search: Found article68676666.ece on Pinterest
+07:50:59 [INFO] src.modules.username_search: Found article68676666.ece on Medium
+07:50:59 [INFO] src.modules.username_search: Found article68676666.ece on Steam
+07:50:59 [INFO] src.modules.username_search: Found article68676666.ece on Instagram
+07:50:59 [INFO] src.modules.google_dorks: Limiting patterns from 8 to 3 to avoid rate limiting
+07:50:59 [INFO] src.modules.google_dorks: Searching for username 'DhayanidhiAlagiriOfficial' with 3 dork patterns
+07:50:59 [ERROR] src.modules.username_search: Exception checking Reddit: 'expected_status'
+07:50:59 [ERROR] src.modules.username_search: Exception checking GitLab: 'expected_status'
+07:50:59 [INFO] src.modules.username_search: Username search complete: Udhayanidhi_Stalin → found on 4/12 platforms
+07:50:59 [ERROR] src.modules.username_search: Exception checking Reddit: 'expected_status'
+07:50:59 [ERROR] src.modules.username_search: Exception checking GitLab: 'expected_status'
+07:50:59 [INFO] src.modules.username_search: Username search complete: dayanidhimaranmp → found on 4/12 platforms
+07:50:59 [INFO] src.modules.google_dorks: DuckDuckGo search found 0 results for pattern 'simple_search'
+07:50:59 [INFO] src.modules.google_dorks: DuckDuckGo search found 0 results for pattern 'profile_pages'
+07:50:59 [WARNING] src.modules.google_dorks: Pattern 'simple_search' failed: None
+07:50:59 [WARNING] src.modules.google_dorks: Pattern 'profile_pages' failed: None
+07:50:59 [INFO] src.modules.google_dorks: DuckDuckGo search found 0 results for pattern 'social_platforms'
+07:50:59 [WARNING] src.modules.google_dorks: Pattern 'social_platforms' failed: None
+07:50:59 [INFO] src.modules.google_dorks: Google Dorks search discovered 0 artifacts
+07:50:59 [INFO] src.modules.google_dorks: Limiting patterns from 8 to 3 to avoid rate limiting
+07:50:59 [INFO] src.modules.google_dorks: Searching for username 'DhayanidhiAlagiriOfficial' with 3 dork patterns
+07:50:59 [INFO] src.modules.username_search: Found DhayanidhiAlagiriOfficial on Instagram
+07:50:59 [INFO] src.modules.username_search: Found DhayanidhiAlagiriOfficial on Medium
+07:50:59 [INFO] src.modules.username_search: Found DhayanidhiAlagiriOfficial on Pinterest
+07:50:59 [INFO] src.modules.username_search: Found DhayanidhiAlagiriOfficial on Steam
+07:50:59 [ERROR] src.modules.username_search: Exception checking Reddit: 'expected_status'
+07:50:59 [ERROR] src.modules.username_search: Exception checking GitLab: 'expected_status'
+07:50:59 [INFO] src.modules.username_search: Username search complete: Dayanidhi_Maran → found on 4/12 platforms
+07:50:59 [INFO] src.modules.google_dorks: Limiting patterns from 8 to 3 to avoid rate limiting
+07:50:59 [INFO] src.modules.google_dorks: Searching for username 'dayanidhi-maran-35325.html' with 3 dork patterns
+07:50:59 [ERROR] src.modules.username_search: Exception checking Reddit: 'expected_status'
+07:50:59 [INFO] src.modules.google_dorks: DuckDuckGo search found 0 results for pattern 'simple_search'
+07:50:59 [INFO] src.modules.google_dorks: DuckDuckGo search found 0 results for pattern 'social_platforms'
+07:50:59 [INFO] src.modules.google_dorks: DuckDuckGo search found 0 results for pattern 'profile_pages'
+07:50:59 [WARNING] src.modules.google_dorks: Pattern 'simple_search' failed: None
+07:50:59 [WARNING] src.modules.google_dorks: Pattern 'social_platforms' failed: None
+07:50:59 [WARNING] src.modules.google_dorks: Pattern 'profile_pages' failed: None
+07:51:00 [INFO] src.modules.google_dorks: Google Dorks search discovered 0 artifacts
+07:51:00 [INFO] src.modules.google_dorks: Limiting patterns from 8 to 3 to avoid rate limiting
+07:51:00 [INFO] src.modules.google_dorks: Searching for username 'dayanidhi-maran-35325.html' with 3 dork patterns
+07:51:00 [INFO] src.modules.username_search: Found dayanidhi-maran-35325.html on Medium
+07:51:00 [INFO] src.modules.username_search: Found dayanidhi-maran-35325.html on Instagram
+07:51:00 [INFO] src.modules.username_search: Found dayanidhi-maran-35325.html on Pinterest
+07:51:00 [INFO] src.modules.username_search: Found dayanidhi-maran-35325.html on Steam
+07:51:00 [INFO] src.modules.google_dorks: Limiting patterns from 8 to 3 to avoid rate limiting
+07:51:00 [INFO] src.modules.google_dorks: Searching for username 'dayanidhi-maran' with 3 dork patterns
+07:51:00 [INFO] src.modules.google_dorks: DuckDuckGo search found 0 results for pattern 'simple_search'
+07:51:00 [INFO] src.modules.google_dorks: DuckDuckGo search found 0 results for pattern 'profile_pages'
+07:51:00 [INFO] src.modules.google_dorks: DuckDuckGo search found 0 results for pattern 'social_platforms'
+07:51:00 [WARNING] src.modules.google_dorks: Pattern 'simple_search' failed: None
+07:51:00 [WARNING] src.modules.google_dorks: Pattern 'profile_pages' failed: None
+07:51:00 [WARNING] src.modules.google_dorks: Pattern 'social_platforms' failed: None
+07:51:00 [INFO] src.modules.google_dorks: Google Dorks search discovered 0 artifacts
+07:51:00 [ERROR] src.modules.username_search: Exception checking Reddit: 'expected_status'
+07:51:00 [INFO] src.modules.google_dorks: Limiting patterns from 8 to 3 to avoid rate limiting
+07:51:00 [INFO] src.modules.google_dorks: Searching for username 'dayanidhi-maran' with 3 dork patterns
+07:51:00 [INFO] src.modules.username_search: Found dayanidhi-maran on Steam
+07:51:00 [INFO] src.modules.username_search: Found dayanidhi-maran on Pinterest
+07:51:00 [INFO] src.modules.username_search: Found dayanidhi-maran on Medium
+07:51:00 [INFO] src.modules.username_search: Found dayanidhi-maran on Instagram
+07:51:00 [ERROR] src.modules.username_search: Exception checking GitLab: 'expected_status'
+07:51:00 [INFO] src.modules.username_search: Username search complete: DhayanidhiAlagiriOfficial → found on 4/12 platforms
+07:51:00 [ERROR] src.modules.username_search: Exception checking GitLab: 'expected_status'
+07:51:00 [ERROR] src.modules.username_search: Exception checking Reddit: 'expected_status'
+07:51:00 [INFO] src.modules.username_search: Username search complete: dayanidhi-maran-35325.html → found on 4/12 platforms
+07:51:00 [ERROR] src.modules.username_search: Exception checking GitLab: 'expected_status'
+07:51:00 [INFO] src.modules.external_tools: Whois lookup completed for thehindu.com
+07:51:00 [INFO] src.orchestrator: Whois found 1 artifacts for thehindu.com
+07:51:00 [ERROR] src.modules.username_search: Exception checking Reddit: 'expected_status'
+07:51:00 [INFO] src.modules.username_search: Username search complete: dayanidhi-maran → found on 4/12 platforms
+07:51:00 [ERROR] src.modules.username_search: Exception checking GitLab: 'expected_status'
+07:51:00 [INFO] src.modules.username_search: Username search complete: article68676666.ece → found on 4/12 platforms
+07:51:01 [INFO] src.modules.google_dorks: Google search found 1 results for pattern 'social_platforms'
+07:51:01 [INFO] src.modules.google_dorks: Pattern 'social_platforms' found 1 results
+07:51:02 [INFO] src.modules.google_dorks: Limiting patterns from 8 to 3 to avoid rate limiting
+07:51:02 [INFO] src.modules.google_dorks: Searching for username 'alagiridhaya' with 3 dork patterns
+07:51:02 [INFO] src.modules.google_dorks: DuckDuckGo search found 0 results for pattern 'simple_search'
+07:51:02 [INFO] src.modules.google_dorks: DuckDuckGo search found 0 results for pattern 'profile_pages'
+07:51:02 [INFO] src.modules.google_dorks: DuckDuckGo search found 0 results for pattern 'social_platforms'
+07:51:02 [WARNING] src.modules.google_dorks: Pattern 'simple_search' failed: None
+07:51:02 [WARNING] src.modules.google_dorks: Pattern 'profile_pages' failed: None
+07:51:02 [WARNING] src.modules.google_dorks: Pattern 'social_platforms' failed: None
+07:51:02 [INFO] src.modules.google_dorks: Google Dorks search discovered 0 artifacts
+07:51:02 [INFO] src.modules.google_dorks: Limiting patterns from 8 to 3 to avoid rate limiting
+07:51:02 [INFO] src.modules.google_dorks: Searching for username 'alagiridhaya' with 3 dork patterns
+07:51:02 [INFO] src.modules.username_search: Found alagiridhaya on Instagram
+07:51:02 [INFO] src.modules.username_search: Found alagiridhaya on Medium
+07:51:02 [INFO] src.modules.username_search: Found alagiridhaya on Pinterest
+07:51:02 [INFO] src.modules.username_search: Found alagiridhaya on Steam
+07:51:02 [ERROR] src.modules.username_search: Exception checking Reddit: 'expected_status'
+07:51:02 [ERROR] src.modules.username_search: Exception checking GitLab: 'expected_status'
+07:51:02 [INFO] src.modules.username_search: Username search complete: alagiridhaya → found on 4/12 platforms
+07:51:04 [WARNING] src.modules.google_dorks: Google rate limited (429) for query: intitle:"profile" "dayanidhimaranmp" OR intitle:"user" "dayanidhimaranmp"
+07:51:04 [WARNING] src.modules.google_dorks: Pattern 'profile_pages' failed: Rate limited by Google (429)
+07:51:04 [INFO] src.modules.google_dorks: Google Dorks search discovered 4 artifacts
+07:51:04 [INFO] src.orchestrator: Plugin system processed 2 plugins, discovered 4 artifacts
+07:51:04 [INFO] src.modules.username_search: Found dayanidhi.maran.official on Steam
+07:51:04 [ERROR] src.modules.username_search: Exception checking Reddit: 'expected_status'
+07:51:04 [ERROR] src.modules.username_search: Exception checking GitLab: 'expected_status'
+07:51:04 [INFO] src.modules.username_search: Found dayanidhi.maran.official on Instagram
+07:51:04 [INFO] src.modules.username_search: Found dayanidhi.maran.official on Mastodon
+07:51:04 [INFO] src.modules.username_search: Found dayanidhi.maran.official on Medium
+07:51:05 [INFO] src.modules.username_search: Found dayanidhi.maran.official on Pinterest
+07:51:05 [INFO] src.modules.username_search: Username search complete: dayanidhi.maran.official → found on 5/12 platforms
+07:51:05 [INFO] src.modules.external_tools: Wayback Machine found 15 historical URLs for starsunfolded.com
+07:51:05 [INFO] src.orchestrator: Wayback Machine found 15 artifacts for starsunfolded.com
+07:51:06 [INFO] src.orchestrator: Plugin system processed 3 plugins, discovered 23 artifacts
+07:51:06 [INFO] src.modules.username_search: Found websearch on GitHub
+07:51:06 [INFO] src.modules.username_search: Found websearch on Steam
+07:51:06 [ERROR] src.modules.username_search: Exception checking GitLab: 'expected_status'
+07:51:06 [ERROR] src.modules.username_search: Exception checking Reddit: 'expected_status'
+07:51:06 [INFO] src.modules.username_search: Found websearch on Instagram
+07:51:06 [INFO] src.modules.google_dorks: Limiting patterns from 8 to 3 to avoid rate limiting
+07:51:06 [INFO] src.modules.google_dorks: Searching for username 'dayanidhi.maran.official' with 3 dork patterns
+07:51:06 [WARNING] src.modules.google_dorks: Google rate limited (429) for query: Udhayanidhi_Stalin
+07:51:06 [WARNING] src.modules.google_dorks: Pattern 'simple_search' failed: Rate limited by Google (429)
+07:51:06 [INFO] src.modules.google_dorks: DuckDuckGo search found 0 results for pattern 'profile_pages'
+07:51:06 [WARNING] src.modules.google_dorks: Pattern 'profile_pages' failed: None
+07:51:06 [INFO] src.modules.google_dorks: DuckDuckGo search found 0 results for pattern 'simple_search'
+07:51:06 [WARNING] src.modules.google_dorks: Pattern 'simple_search' failed: None
+07:51:06 [INFO] src.modules.google_dorks: DuckDuckGo search found 0 results for pattern 'social_platforms'
+07:51:06 [WARNING] src.modules.google_dorks: Pattern 'social_platforms' failed: None
+07:51:06 [INFO] src.modules.google_dorks: Google Dorks search discovered 0 artifacts
+07:51:06 [INFO] src.modules.google_dorks: Limiting patterns from 8 to 3 to avoid rate limiting
+07:51:06 [INFO] src.modules.google_dorks: Searching for username 'dayanidhi.maran.official' with 3 dork patterns
+07:51:06 [INFO] src.modules.username_search: Found dayanidhi.maran.official on Medium
+07:51:06 [INFO] src.modules.username_search: Found dayanidhi.maran.official on Pinterest
+07:51:06 [INFO] src.modules.username_search: Found dayanidhi.maran.official on Instagram
+07:51:06 [INFO] src.modules.username_search: Found dayanidhi.maran.official on Mastodon
+07:51:06 [INFO] src.modules.username_search: Found dayanidhi.maran.official on Steam
+07:51:06 [INFO] src.modules.username_search: Found websearch on Medium
+07:51:06 [INFO] src.modules.username_search: Found websearch on Pinterest
+07:51:06 [INFO] src.modules.username_search: Username search complete: websearch → found on 5/12 platforms
+07:51:07 [ERROR] src.modules.username_search: Exception checking GitLab: 'expected_status'
+07:51:07 [ERROR] src.modules.username_search: Exception checking Reddit: 'expected_status'
+07:51:07 [INFO] src.modules.username_search: Username search complete: dayanidhi.maran.official → found on 5/12 platforms
+07:51:07 [INFO] src.modules.google_dorks: Limiting patterns from 8 to 3 to avoid rate limiting
+07:51:07 [INFO] src.modules.google_dorks: Searching for username 'websearch' with 3 dork patterns
+07:51:07 [INFO] src.modules.google_dorks: Pattern 'simple_search' found 10 results
+07:51:08 [INFO] src.modules.google_dorks: DuckDuckGo search found 0 results for pattern 'profile_pages'
+07:51:08 [INFO] src.modules.google_dorks: DuckDuckGo search found 0 results for pattern 'social_platforms'
+07:51:08 [WARNING] src.modules.google_dorks: Pattern 'profile_pages' failed: None
+07:51:08 [WARNING] src.modules.google_dorks: Pattern 'social_platforms' failed: None
+07:51:08 [INFO] src.modules.google_dorks: Google Dorks search discovered 20 artifacts
+07:51:08 [INFO] src.orchestrator: Google Dorks found 20 artifacts for websearch
+07:51:08 [INFO] src.modules.google_dorks: Limiting patterns from 8 to 3 to avoid rate limiting
+07:51:08 [INFO] src.modules.google_dorks: Searching for username 'websearch' with 3 dork patterns
+07:51:08 [INFO] src.modules.username_search: Found websearch on Medium
+07:51:08 [INFO] src.modules.username_search: Found websearch on Instagram
+07:51:08 [INFO] src.modules.username_search: Found websearch on GitHub
+07:51:08 [INFO] src.modules.username_search: Found websearch on Pinterest
+07:51:08 [INFO] src.modules.username_search: Found websearch on Steam
+07:51:08 [INFO] src.modules.google_dorks: Pattern 'simple_search' found 1 results
+07:51:08 [INFO] src.modules.google_dorks: Pattern 'social_platforms' found 1 results
+07:51:08 [INFO] src.modules.google_dorks: Pattern 'profile_pages' found 1 results
+07:51:08 [INFO] src.modules.google_dorks: Google Dorks search discovered 6 artifacts
+07:51:08 [WARNING] src.modules.google_dorks: Google rate limited (429) for query: intitle:"profile" "Udhayanidhi_Stalin" OR intitle:"user" "Udhayanidhi_Stalin"
+07:51:08 [WARNING] src.modules.google_dorks: Pattern 'profile_pages' failed: Rate limited by Google (429)
+07:51:08 [ERROR] src.modules.username_search: Exception checking Reddit: 'expected_status'
+07:51:08 [ERROR] src.modules.username_search: Exception checking GitLab: 'expected_status'
+07:51:08 [INFO] src.modules.username_search: Username search complete: websearch → found on 5/12 platforms
+07:51:08 [INFO] src.orchestrator: Plugin system processed 2 plugins, discovered 6 artifacts
+07:51:08 [INFO] src.modules.external_tools: Running whois: whois support.google.com
+07:51:08 [INFO] src.modules.external_tools: Running dig: dig support.google.com A +short
+07:51:08 [INFO] src.modules.external_tools: Dig found 1 A records for support.google.com
+07:51:08 [INFO] src.orchestrator: Dig found 1 artifacts for support.google.com
+07:51:09 [INFO] src.modules.external_tools: Whois lookup completed for support.google.com
+07:51:09 [INFO] src.orchestrator: Whois found 1 artifacts for support.google.com
+07:51:09 [WARNING] src.modules.google_dorks: Google rate limited (429) for query: site:twitter.com "Udhayanidhi_Stalin" OR site:linkedin.com "Udhayanidhi_Stalin" OR site:github.com "Udhayanidhi_Stalin" OR site:instagram.com "Udhayanidhi_Stalin"
+07:51:09 [WARNING] src.modules.google_dorks: Pattern 'social_platforms' failed: Rate limited by Google (429)
+07:51:09 [INFO] src.modules.google_dorks: Google Dorks search discovered 0 artifacts
+07:51:09 [INFO] src.orchestrator: Plugin system processed 2 plugins, discovered 0 artifacts
+07:51:09 [INFO] src.orchestrator: Plugin system processed 1 plugins, discovered 0 artifacts
+07:51:10 [INFO] src.orchestrator: Plugin system processed 1 plugins, discovered 0 artifacts
+07:51:10 [WARNING] src.plugins.manager: No plugins available for artifact type: image
+07:51:10 [INFO] src.orchestrator: Plugin system processed 0 plugins, discovered 0 artifacts
+07:51:10 [WARNING] src.plugins.manager: No plugins available for artifact type: image
+07:51:10 [INFO] src.orchestrator: Plugin system processed 0 plugins, discovered 0 artifacts
+07:51:10 [WARNING] src.plugins.manager: No plugins available for artifact type: image
+07:51:10 [INFO] src.orchestrator: Plugin system processed 0 plugins, discovered 0 artifacts
+07:51:10 [WARNING] src.plugins.manager: No plugins available for artifact type: image
+07:51:10 [INFO] src.orchestrator: Plugin system processed 0 plugins, discovered 0 artifacts
+07:51:10 [INFO] src.plugins.builtins.profile_image_plugin: Extracting profile image from: https://github.com/rajasekaran
+07:51:12 [WARNING] src.modules.google_dorks: Google rate limited (429) for query: Dayanidhi_Maran
+07:51:12 [WARNING] src.modules.google_dorks: Pattern 'simple_search' failed: Rate limited by Google (429)
+07:51:14 [WARNING] src.modules.google_dorks: Google rate limited (429) for query: site:twitter.com "Dayanidhi_Maran" OR site:linkedin.com "Dayanidhi_Maran" OR site:github.com "Dayanidhi_Maran" OR site:instagram.com "Dayanidhi_Maran"
+07:51:14 [WARNING] src.modules.google_dorks: Pattern 'social_platforms' failed: Rate limited by Google (429)
+07:51:14 [INFO] src.orchestrator: Plugin system processed 3 plugins, discovered 1 artifacts
+07:51:14 [INFO] src.plugins.builtins.profile_image_plugin: Extracting profile image from: https://steamcommunity.com/id/Rajasekaran
+07:51:15 [INFO] src.plugins.builtins.profile_image_plugin: Found profile image for https://steamcommunity.com/id/Rajasekaran: https://community.fastly.steamstatic.com/public/shared/images/responsive/steam_share_image.jpg
+07:51:15 [INFO] src.orchestrator: Plugin system processed 1 plugins, discovered 1 artifacts
+07:51:15 [INFO] src.plugins.builtins.profile_image_plugin: Extracting profile image from: https://www.instagram.com/Rajasekaran/
+07:51:15 [INFO] src.orchestrator: Plugin system processed 1 plugins, discovered 0 artifacts
+07:51:15 [INFO] src.plugins.builtins.profile_image_plugin: Extracting profile image from: https://www.pinterest.com/Rajasekaran/
+07:51:15 [WARNING] src.modules.google_dorks: Google rate limited (429) for query: intitle:"profile" "Dayanidhi_Maran" OR intitle:"user" "Dayanidhi_Maran"
+07:51:15 [WARNING] src.modules.google_dorks: Pattern 'profile_pages' failed: Rate limited by Google (429)
+07:51:15 [INFO] src.modules.google_dorks: Google Dorks search discovered 0 artifacts
+07:51:15 [INFO] src.orchestrator: Plugin system processed 2 plugins, discovered 0 artifacts
+07:51:15 [INFO] src.plugins.builtins.profile_image_plugin: Extracting profile image from: https://keybase.io/Rajasekaran
+07:51:16 [INFO] src.orchestrator: Plugin system processed 1 plugins, discovered 0 artifacts
+07:51:16 [INFO] src.plugins.builtins.profile_image_plugin: Extracting profile image from: https://medium.com/@Rajasekaran
+07:51:16 [INFO] src.plugins.builtins.profile_image_plugin: Found profile image for https://www.pinterest.com/Rajasekaran/: https://s.pinimg.com/images/default_open_graph_1200.png
+07:51:16 [INFO] src.orchestrator: Plugin system processed 1 plugins, discovered 1 artifacts
+07:51:16 [WARNING] src.plugins.manager: No plugins available for artifact type: image
+07:51:16 [INFO] src.orchestrator: Plugin system processed 0 plugins, discovered 0 artifacts
+07:51:16 [INFO] src.plugins.builtins.profile_image_plugin: Extracting profile image from: https://steamcommunity.com/id/_._dhayanidhi_._
+07:51:17 [INFO] src.orchestrator: Plugin system processed 1 plugins, discovered 0 artifacts
+07:51:17 [INFO] src.plugins.builtins.profile_image_plugin: Extracting profile image from: https://www.instagram.com/_._dhayanidhi_._/
+07:51:17 [INFO] src.plugins.builtins.profile_image_plugin: Found profile image for https://medium.com/@Rajasekaran: https://miro.medium.com/v2/resize:fit:2400/0*7iqxc0GlUE7Db5hN.
+07:51:17 [INFO] src.orchestrator: Plugin system processed 1 plugins, discovered 1 artifacts
+07:51:17 [INFO] src.plugins.builtins.profile_image_plugin: Extracting profile image from: https://mastodon.social/@_._dhayanidhi_._
+07:51:17 [INFO] src.orchestrator: Plugin system processed 1 plugins, discovered 0 artifacts
+07:51:17 [INFO] src.plugins.builtins.profile_image_plugin: Extracting profile image from: https://www.pinterest.com/_._dhayanidhi_._/
+07:51:18 [WARNING] src.modules.google_dorks: Google rate limited (429) for query: article68676666.ece
+07:51:18 [WARNING] src.modules.google_dorks: Pattern 'simple_search' failed: Rate limited by Google (429)
+07:51:18 [INFO] src.orchestrator: Plugin system processed 1 plugins, discovered 0 artifacts
+07:51:18 [INFO] src.plugins.builtins.profile_image_plugin: Extracting profile image from: https://medium.com/@_._dhayanidhi_._
+07:51:18 [INFO] src.plugins.builtins.profile_image_plugin: Found profile image for https://mastodon.social/@_._dhayanidhi_._: https://files.mastodon.social/site_uploads/files/000/000/001/@1x/57c12f441d083cde.png
+07:51:18 [INFO] src.orchestrator: Plugin system processed 1 plugins, discovered 1 artifacts
+07:51:18 [INFO] src.modules.username_search: Found DaVo3v8zvrn on Steam
+07:51:19 [ERROR] src.modules.username_search: Exception checking GitLab: 'expected_status'
+07:51:19 [ERROR] src.modules.username_search: Exception checking Reddit: 'expected_status'
+07:51:19 [INFO] src.modules.username_search: Found DaVo3v8zvrn on Medium
+07:51:19 [INFO] src.modules.username_search: Found DaVo3v8zvrn on Instagram
+07:51:19 [INFO] src.modules.username_search: Found DaVo3v8zvrn on Pinterest
+07:51:19 [INFO] src.modules.username_search: Username search complete: DaVo3v8zvrn → found on 4/12 platforms
+07:51:19 [INFO] src.orchestrator: Plugin system processed 1 plugins, discovered 0 artifacts
+07:51:19 [ERROR] src.modules.username_search: Exception checking GitLab: 'expected_status'
+07:51:19 [ERROR] src.modules.username_search: Exception checking Reddit: 'expected_status'
+07:51:19 [INFO] src.modules.username_search: Found UdhayStalin on Instagram
+07:51:20 [INFO] src.modules.username_search: Found UdhayStalin on Medium
+07:51:20 [INFO] src.modules.google_dorks: Limiting patterns from 8 to 3 to avoid rate limiting
+07:51:20 [INFO] src.modules.google_dorks: Searching for username 'DaVo3v8zvrn' with 3 dork patterns
+07:51:20 [WARNING] src.modules.google_dorks: Google rate limited (429) for query: site:twitter.com "article68676666.ece" OR site:linkedin.com "article68676666.ece" OR site:github.com "article68676666.ece" OR site:instagram.com "article68676666.ece"
+07:51:20 [WARNING] src.modules.google_dorks: Pattern 'social_platforms' failed: Rate limited by Google (429)
+07:51:20 [INFO] src.modules.google_dorks: DuckDuckGo search found 0 results for pattern 'profile_pages'
+07:51:20 [INFO] src.modules.google_dorks: DuckDuckGo search found 0 results for pattern 'simple_search'
+07:51:20 [INFO] src.modules.google_dorks: DuckDuckGo search found 0 results for pattern 'social_platforms'
+07:51:20 [WARNING] src.modules.google_dorks: Pattern 'profile_pages' failed: None
+07:51:20 [WARNING] src.modules.google_dorks: Pattern 'simple_search' failed: None
+07:51:20 [WARNING] src.modules.google_dorks: Pattern 'social_platforms' failed: None
+07:51:20 [INFO] src.modules.google_dorks: Google Dorks search discovered 0 artifacts
+07:51:20 [INFO] src.modules.google_dorks: Limiting patterns from 8 to 3 to avoid rate limiting
+07:51:20 [INFO] src.modules.google_dorks: Searching for username 'DaVo3v8zvrn' with 3 dork patterns
+07:51:20 [INFO] src.modules.username_search: Found DaVo3v8zvrn on Instagram
+07:51:20 [INFO] src.modules.username_search: Found DaVo3v8zvrn on Medium
+07:51:20 [INFO] src.modules.username_search: Found DaVo3v8zvrn on Pinterest
+07:51:20 [INFO] src.modules.username_search: Found DaVo3v8zvrn on Steam
+07:51:20 [INFO] src.modules.username_search: Found UdhayStalin on Steam
+07:51:20 [INFO] src.modules.username_search: Found UdhayStalin on Pinterest
+07:51:20 [INFO] src.modules.username_search: Username search complete: UdhayStalin → found on 4/12 platforms
+07:51:20 [ERROR] src.modules.username_search: Exception checking Reddit: 'expected_status'
+07:51:20 [ERROR] src.modules.username_search: Exception checking GitLab: 'expected_status'
+07:51:20 [INFO] src.modules.username_search: Username search complete: DaVo3v8zvrn → found on 4/12 platforms
+07:51:21 [INFO] src.modules.external_tools: Wayback Machine found 15 historical URLs for x.com
+07:51:21 [INFO] src.orchestrator: Wayback Machine found 15 artifacts for x.com
+07:51:21 [INFO] src.modules.google_dorks: Limiting patterns from 8 to 3 to avoid rate limiting
+07:51:21 [INFO] src.modules.google_dorks: Searching for username 'UdhayStalin' with 3 dork patterns
+07:51:21 [INFO] src.modules.google_dorks: DuckDuckGo search found 0 results for pattern 'profile_pages'
+07:51:21 [WARNING] src.modules.google_dorks: Pattern 'profile_pages' failed: None
+07:51:21 [INFO] src.modules.google_dorks: DuckDuckGo search found 0 results for pattern 'simple_search'
+07:51:21 [WARNING] src.modules.google_dorks: Pattern 'simple_search' failed: None
+07:51:21 [INFO] src.modules.google_dorks: DuckDuckGo search found 0 results for pattern 'social_platforms'
+07:51:21 [WARNING] src.modules.google_dorks: Pattern 'social_platforms' failed: None
+07:51:21 [INFO] src.modules.google_dorks: Google Dorks search discovered 0 artifacts
+07:51:21 [INFO] src.modules.google_dorks: Limiting patterns from 8 to 3 to avoid rate limiting
+07:51:21 [INFO] src.modules.google_dorks: Searching for username 'UdhayStalin' with 3 dork patterns
+07:51:21 [INFO] src.modules.username_search: Found UdhayStalin on Pinterest
+07:51:21 [INFO] src.modules.username_search: Found UdhayStalin on Steam
+07:51:21 [INFO] src.modules.username_search: Found UdhayStalin on Medium
+07:51:21 [INFO] src.modules.username_search: Found UdhayStalin on Instagram
+07:51:21 [ERROR] src.modules.username_search: Exception checking Reddit: 'expected_status'
+07:51:22 [ERROR] src.modules.username_search: Exception checking GitLab: 'expected_status'
+07:51:22 [INFO] src.modules.username_search: Username search complete: UdhayStalin → found on 4/12 platforms
+07:51:22 [WARNING] src.modules.google_dorks: Google rate limited (429) for query: intitle:"profile" "article68676666.ece" OR intitle:"user" "article68676666.ece"
+07:51:22 [WARNING] src.modules.google_dorks: Pattern 'profile_pages' failed: Rate limited by Google (429)
+07:51:22 [INFO] src.modules.google_dorks: Google Dorks search discovered 0 artifacts
+07:51:22 [INFO] src.orchestrator: Plugin system processed 2 plugins, discovered 0 artifacts
+07:51:22 [INFO] src.modules.username_search: Found username-search on GitHub
+07:51:22 [INFO] src.modules.username_search: Found username-search on Steam
+07:51:22 [ERROR] src.modules.username_search: Exception checking Reddit: 'expected_status'
+07:51:22 [ERROR] src.modules.username_search: Exception checking GitLab: 'expected_status'
+07:51:22 [INFO] src.modules.username_search: Found username-search on Instagram
+07:51:22 [INFO] src.modules.username_search: Found username-search on Pinterest
+07:51:22 [INFO] src.modules.username_search: Found username-search on Medium
+07:51:22 [INFO] src.modules.username_search: Username search complete: username-search → found on 5/12 platforms
+07:51:24 [WARNING] src.modules.google_dorks: Google rate limited (429) for query: site:twitter.com "DhayanidhiAlagiriOfficial" OR site:linkedin.com "DhayanidhiAlagiriOfficial" OR site:github.com "DhayanidhiAlagiriOfficial" OR site:instagram.com "DhayanidhiAlagiriOfficial"
+07:51:24 [WARNING] src.modules.google_dorks: Pattern 'social_platforms' failed: Rate limited by Google (429)
+07:51:24 [INFO] src.modules.google_dorks: Limiting patterns from 8 to 3 to avoid rate limiting
+07:51:24 [INFO] src.modules.google_dorks: Searching for username 'username-search' with 3 dork patterns
+07:51:24 [INFO] src.modules.google_dorks: DuckDuckGo search found 0 results for pattern 'social_platforms'
+07:51:24 [WARNING] src.modules.google_dorks: Pattern 'social_platforms' failed: None
+07:51:24 [INFO] src.modules.google_dorks: DuckDuckGo search found 10 results for pattern 'simple_search'
+07:51:24 [INFO] src.modules.google_dorks: Pattern 'simple_search' found 10 results
+07:51:25 [INFO] src.modules.google_dorks: DuckDuckGo search found 0 results for pattern 'profile_pages'
+07:51:25 [WARNING] src.modules.google_dorks: Pattern 'profile_pages' failed: None
+07:51:25 [INFO] src.modules.google_dorks: Google Dorks search discovered 20 artifacts
+07:51:25 [INFO] src.orchestrator: Google Dorks found 20 artifacts for username-search
+07:51:25 [INFO] src.modules.google_dorks: Limiting patterns from 8 to 3 to avoid rate limiting
+07:51:25 [INFO] src.modules.google_dorks: Searching for username 'username-search' with 3 dork patterns
+07:51:25 [INFO] src.modules.username_search: Found username-search on Pinterest
+07:51:25 [INFO] src.modules.username_search: Found username-search on Medium
+07:51:25 [INFO] src.modules.username_search: Found username-search on GitHub
+07:51:25 [INFO] src.modules.username_search: Found username-search on Instagram
+07:51:25 [INFO] src.modules.username_search: Found username-search on Steam
+07:51:25 [ERROR] src.modules.username_search: Exception checking GitLab: 'expected_status'
+07:51:25 [ERROR] src.modules.username_search: Exception checking Reddit: 'expected_status'
+07:51:25 [INFO] src.modules.username_search: Username search complete: username-search → found on 5/12 platforms
+07:51:26 [WARNING] src.modules.google_dorks: Google rate limited (429) for query: intitle:"profile" "DhayanidhiAlagiriOfficial" OR intitle:"user" "DhayanidhiAlagiriOfficial"
+07:51:26 [WARNING] src.modules.google_dorks: Pattern 'profile_pages' failed: Rate limited by Google (429)
+07:51:26 [INFO] src.plugins.builtins.profile_image_plugin: Found profile image for https://github.com/dhayanidhir: https://avatars.githubusercontent.com/u/29723040?v=4
+07:51:26 [INFO] src.orchestrator: Plugin system processed 1 plugins, discovered 1 artifacts
+07:51:26 [INFO] src.modules.external_tools: Running whois: whois idcrawl.com
+07:51:26 [INFO] src.modules.external_tools: Running dig: dig idcrawl.com A +short
+07:51:26 [INFO] src.modules.external_tools: Dig found 2 A records for idcrawl.com
+07:51:26 [INFO] src.orchestrator: Dig found 2 artifacts for idcrawl.com
+07:51:26 [ERROR] src.modules.external_tools: Wayback Machine error: HTTPConnectionPool(host='web.archive.org', port=80): Read timed out. (read timeout=30)
+07:51:26 [INFO] src.modules.external_tools: Wayback Machine found 15 historical URLs for tamil.oneindia.com
+07:51:26 [INFO] src.orchestrator: Wayback Machine found 15 artifacts for tamil.oneindia.com
+07:51:27 [INFO] src.orchestrator: Plugin system processed 3 plugins, discovered 17 artifacts
+07:51:27 [ERROR] src.modules.external_tools: Wayback Machine error: HTTPConnectionPool(host='web.archive.org', port=80): Read timed out. (read timeout=30)
+07:51:27 [INFO] src.orchestrator: Plugin system processed 3 plugins, discovered 4 artifacts
+07:51:27 [INFO] src.modules.username_search: Found DTNSmPBDN7- on Steam
+07:51:27 [INFO] src.orchestrator: Plugin system processed 3 plugins, discovered 6 artifacts
+07:51:27 [ERROR] src.modules.username_search: Exception checking GitLab: 'expected_status'
+07:51:27 [ERROR] src.modules.username_search: Exception checking Reddit: 'expected_status'
+07:51:27 [INFO] src.modules.username_search: Found DQOo8Bxkeqm on Steam
+07:51:27 [ERROR] src.modules.username_search: Exception checking Reddit: 'expected_status'
+07:51:27 [ERROR] src.modules.username_search: Exception checking GitLab: 'expected_status'
+07:51:27 [INFO] src.modules.username_search: Found DTNSmPBDN7- on Instagram
+07:51:27 [INFO] src.modules.username_search: Found DQOo8Bxkeqm on Instagram
+07:51:27 [INFO] src.modules.username_search: Found DTNSmPBDN7- on Medium
+07:51:27 [INFO] src.modules.username_search: Found reels on GitHub
+07:51:27 [ERROR] src.modules.username_search: Exception checking GitLab: 'expected_status'
+07:51:27 [ERROR] src.modules.username_search: Exception checking Reddit: 'expected_status'
+07:51:27 [INFO] src.modules.username_search: Found DTNSmPBDN7- on Pinterest
+07:51:27 [INFO] src.modules.username_search: Username search complete: DTNSmPBDN7- → found on 4/12 platforms
+07:51:27 [INFO] src.modules.username_search: Found DQOo8Bxkeqm on Medium
+07:51:27 [INFO] src.modules.username_search: Found reels on Mastodon
+07:51:28 [INFO] src.modules.username_search: Found DQOo8Bxkeqm on Pinterest
+07:51:28 [INFO] src.modules.username_search: Username search complete: DQOo8Bxkeqm → found on 4/12 platforms
+07:51:28 [INFO] src.modules.external_tools: Whois lookup completed for idcrawl.com
+07:51:28 [INFO] src.orchestrator: Whois found 1 artifacts for idcrawl.com
+07:51:28 [INFO] src.modules.username_search: Found reels on Medium
+07:51:28 [ERROR] src.modules.external_tools: Wayback Machine error: HTTPConnectionPool(host='web.archive.org', port=80): Read timed out. (read timeout=30)
+07:51:28 [INFO] src.modules.google_dorks: Limiting patterns from 8 to 3 to avoid rate limiting
+07:51:28 [INFO] src.modules.google_dorks: Searching for username 'DTNSmPBDN7-' with 3 dork patterns
+07:51:28 [INFO] src.modules.username_search: Found reels on Pinterest
+07:51:28 [INFO] src.modules.username_search: Username search complete: reels → found on 4/12 platforms
+07:51:28 [INFO] src.modules.google_dorks: DuckDuckGo search found 0 results for pattern 'simple_search'
+07:51:28 [WARNING] src.modules.google_dorks: Pattern 'simple_search' failed: None
+07:51:28 [INFO] src.modules.google_dorks: DuckDuckGo search found 0 results for pattern 'profile_pages'
+07:51:28 [INFO] src.modules.google_dorks: DuckDuckGo search found 0 results for pattern 'social_platforms'
+07:51:28 [WARNING] src.modules.google_dorks: Pattern 'profile_pages' failed: None
+07:51:28 [WARNING] src.modules.google_dorks: Pattern 'social_platforms' failed: None
+07:51:28 [INFO] src.orchestrator: Plugin system processed 3 plugins, discovered 5 artifacts
+07:51:28 [INFO] src.modules.google_dorks: Google Dorks search discovered 0 artifacts
+07:51:28 [INFO] src.modules.google_dorks: Limiting patterns from 8 to 3 to avoid rate limiting
+07:51:28 [INFO] src.modules.google_dorks: Searching for username 'DTNSmPBDN7-' with 3 dork patterns
+07:51:28 [INFO] src.modules.username_search: Found DTNSmPBDN7- on Medium
+07:51:28 [INFO] src.modules.username_search: Found DTNSmPBDN7- on Instagram
+07:51:28 [INFO] src.modules.username_search: Found DTNSmPBDN7- on Pinterest
+07:51:28 [INFO] src.modules.username_search: Found DTNSmPBDN7- on Steam
+07:51:28 [INFO] src.modules.google_dorks: Limiting patterns from 8 to 3 to avoid rate limiting
+07:51:28 [INFO] src.modules.google_dorks: Searching for username 'DQOo8Bxkeqm' with 3 dork patterns
+07:51:28 [INFO] src.modules.username_search: Found udhayanidhi-stalin on Steam
+07:51:28 [INFO] src.modules.google_dorks: DuckDuckGo search found 0 results for pattern 'social_platforms'
+07:51:28 [ERROR] src.modules.username_search: Exception checking GitLab: 'expected_status'
+07:51:28 [INFO] src.modules.google_dorks: DuckDuckGo search found 0 results for pattern 'simple_search'
+07:51:28 [INFO] src.modules.google_dorks: DuckDuckGo search found 0 results for pattern 'profile_pages'
+07:51:28 [WARNING] src.modules.google_dorks: Pattern 'social_platforms' failed: None
+07:51:28 [WARNING] src.modules.google_dorks: Pattern 'simple_search' failed: None
+07:51:28 [WARNING] src.modules.google_dorks: Pattern 'profile_pages' failed: None
+07:51:28 [INFO] src.modules.google_dorks: Google Dorks search discovered 0 artifacts
+07:51:28 [INFO] src.modules.google_dorks: Limiting patterns from 8 to 3 to avoid rate limiting
+07:51:28 [INFO] src.modules.google_dorks: Searching for username 'DQOo8Bxkeqm' with 3 dork patterns
+07:51:28 [INFO] src.modules.username_search: Found DQOo8Bxkeqm on Medium
+07:51:28 [INFO] src.modules.username_search: Found DQOo8Bxkeqm on Instagram
+07:51:28 [INFO] src.modules.username_search: Found DQOo8Bxkeqm on Pinterest
+07:51:28 [INFO] src.modules.username_search: Found DQOo8Bxkeqm on Steam
+07:51:28 [ERROR] src.modules.username_search: Exception checking GitLab: 'expected_status'
+07:51:28 [ERROR] src.modules.username_search: Exception checking Reddit: 'expected_status'
+07:51:28 [ERROR] src.modules.username_search: Exception checking Reddit: 'expected_status'
+07:51:28 [INFO] src.modules.username_search: Username search complete: DTNSmPBDN7- → found on 4/12 platforms
+07:51:28 [INFO] src.modules.username_search: Found udhayanidhi-stalin on Instagram
+07:51:29 [ERROR] src.modules.username_search: Exception checking Reddit: 'expected_status'
+07:51:29 [INFO] src.modules.username_search: Found udhayanidhi-stalin on Pinterest
+07:51:29 [ERROR] src.modules.username_search: Exception checking GitLab: 'expected_status'
+07:51:29 [INFO] src.modules.username_search: Username search complete: DQOo8Bxkeqm → found on 4/12 platforms
+07:51:29 [INFO] src.modules.username_search: Found udhayanidhi-stalin on Medium
+07:51:29 [INFO] src.modules.username_search: Username search complete: udhayanidhi-stalin → found on 4/12 platforms
+07:51:29 [INFO] src.modules.google_dorks: Limiting patterns from 8 to 3 to avoid rate limiting
+07:51:29 [INFO] src.modules.google_dorks: Searching for username 'reels' with 3 dork patterns
+07:51:29 [WARNING] src.modules.google_dorks: Google rate limited (429) for query: DhayanidhiAlagiriOfficial
+07:51:29 [WARNING] src.modules.google_dorks: Pattern 'simple_search' failed: Rate limited by Google (429)
+07:51:29 [INFO] src.modules.google_dorks: Google Dorks search discovered 0 artifacts
+07:51:29 [INFO] src.orchestrator: Plugin system processed 2 plugins, discovered 0 artifacts
+07:51:29 [INFO] src.modules.external_tools: Running whois: whois news18.com
+07:51:29 [INFO] src.modules.external_tools: Running dig: dig news18.com A +short
+07:51:29 [INFO] src.modules.external_tools: Dig found 2 A records for news18.com
+07:51:29 [INFO] src.orchestrator: Dig found 2 artifacts for news18.com
+07:51:29 [INFO] src.modules.google_dorks: DuckDuckGo search found 0 results for pattern 'social_platforms'
+07:51:29 [INFO] src.modules.google_dorks: DuckDuckGo search found 0 results for pattern 'profile_pages'
+07:51:29 [WARNING] src.modules.google_dorks: Pattern 'social_platforms' failed: None
+07:51:29 [WARNING] src.modules.google_dorks: Pattern 'profile_pages' failed: None
+07:51:29 [INFO] src.modules.google_dorks: Limiting patterns from 8 to 3 to avoid rate limiting
+07:51:29 [INFO] src.modules.google_dorks: Searching for username 'udhayanidhi-stalin' with 3 dork patterns
+07:51:29 [INFO] src.modules.google_dorks: DuckDuckGo search found 0 results for pattern 'simple_search'
+07:51:29 [INFO] src.modules.google_dorks: DuckDuckGo search found 0 results for pattern 'profile_pages'
+07:51:29 [WARNING] src.modules.google_dorks: Pattern 'simple_search' failed: None
+07:51:29 [WARNING] src.modules.google_dorks: Pattern 'profile_pages' failed: None
+07:51:29 [INFO] src.modules.google_dorks: DuckDuckGo search found 0 results for pattern 'social_platforms'
+07:51:29 [WARNING] src.modules.google_dorks: Pattern 'social_platforms' failed: None
+07:51:29 [INFO] src.modules.google_dorks: Google Dorks search discovered 0 artifacts
+07:51:29 [INFO] src.modules.google_dorks: Limiting patterns from 8 to 3 to avoid rate limiting
+07:51:29 [INFO] src.modules.google_dorks: Searching for username 'udhayanidhi-stalin' with 3 dork patterns
+07:51:29 [INFO] src.modules.username_search: Found udhayanidhi-stalin on Instagram
+07:51:29 [INFO] src.modules.username_search: Found udhayanidhi-stalin on Medium
+07:51:29 [INFO] src.modules.username_search: Found udhayanidhi-stalin on Pinterest
+07:51:29 [INFO] src.modules.username_search: Found udhayanidhi-stalin on Steam
+07:51:30 [INFO] src.modules.google_dorks: DuckDuckGo search found 9 results for pattern 'simple_search'
+07:51:30 [INFO] src.modules.google_dorks: Pattern 'simple_search' found 9 results
+07:51:30 [INFO] src.modules.google_dorks: Google Dorks search discovered 15 artifacts
+07:51:30 [INFO] src.orchestrator: Google Dorks found 15 artifacts for reels
+07:51:30 [INFO] src.modules.google_dorks: Limiting patterns from 8 to 3 to avoid rate limiting
+07:51:30 [INFO] src.modules.google_dorks: Searching for username 'reels' with 3 dork patterns
+07:51:30 [INFO] src.modules.username_search: Found reels on Mastodon
+07:51:30 [INFO] src.modules.username_search: Found reels on GitHub
+07:51:30 [INFO] src.modules.username_search: Found reels on Medium
+07:51:30 [INFO] src.modules.username_search: Found reels on Pinterest
+07:51:30 [ERROR] src.modules.username_search: Exception checking Reddit: 'expected_status'
+07:51:30 [ERROR] src.modules.username_search: Exception checking GitLab: 'expected_status'
+07:51:30 [INFO] src.modules.username_search: Username search complete: udhayanidhi-stalin → found on 4/12 platforms
+07:51:30 [ERROR] src.modules.username_search: Exception checking Reddit: 'expected_status'
+07:51:30 [ERROR] src.modules.username_search: Exception checking GitLab: 'expected_status'
+07:51:30 [INFO] src.modules.username_search: Username search complete: reels → found on 4/12 platforms
+07:51:30 [WARNING] src.modules.google_dorks: Google rate limited (429) for query: dayanidhi-maran-35325.html
+07:51:30 [WARNING] src.modules.google_dorks: Pattern 'simple_search' failed: Rate limited by Google (429)
+07:51:31 [INFO] src.orchestrator: Plugin system processed 3 plugins, discovered 15 artifacts
+07:51:31 [INFO] src.modules.external_tools: Running whois: whois reversethatlookup.com
+07:51:31 [INFO] src.modules.external_tools: Running dig: dig reversethatlookup.com A +short
+07:51:31 [INFO] src.modules.external_tools: Whois lookup completed for news18.com
+07:51:31 [INFO] src.orchestrator: Whois found 1 artifacts for news18.com
+07:51:31 [WARNING] src.modules.google_dorks: Google rate limited (429) for query: intitle:"profile" "dayanidhi-maran-35325.html" OR intitle:"user" "dayanidhi-maran-35325.html"
+07:51:31 [WARNING] src.modules.google_dorks: Pattern 'profile_pages' failed: Rate limited by Google (429)
+07:51:32 [INFO] src.modules.external_tools: Dig found 2 A records for reversethatlookup.com
+07:51:32 [INFO] src.orchestrator: Dig found 2 artifacts for reversethatlookup.com
+07:51:32 [INFO] src.orchestrator: Plugin system processed 3 plugins, discovered 12 artifacts
+07:51:32 [INFO] src.plugins.builtins.profile_image_plugin: Extracting profile image from: https://steamcommunity.com/id/dhayanidhi_rajasekaran
+07:51:32 [INFO] src.orchestrator: Plugin system processed 1 plugins, discovered 0 artifacts
+07:51:32 [INFO] src.plugins.builtins.profile_image_plugin: Extracting profile image from: https://www.instagram.com/dhayanidhi_rajasekaran/
+07:51:33 [INFO] src.modules.external_tools: Whois lookup completed for reversethatlookup.com
+07:51:33 [INFO] src.orchestrator: Whois found 1 artifacts for reversethatlookup.com
+07:51:33 [INFO] src.orchestrator: Plugin system processed 1 plugins, discovered 0 artifacts
+07:51:33 [INFO] src.plugins.builtins.profile_image_plugin: Extracting profile image from: https://www.pinterest.com/dhayanidhi_rajasekaran/
+07:51:33 [WARNING] src.modules.google_dorks: Google rate limited (429) for query: site:twitter.com "dayanidhi-maran-35325.html" OR site:linkedin.com "dayanidhi-maran-35325.html" OR site:github.com "dayanidhi-maran-35325.html" OR site:instagram.com "dayanidhi-maran-35325.html"
+07:51:33 [WARNING] src.modules.google_dorks: Pattern 'social_platforms' failed: Rate limited by Google (429)
+07:51:33 [INFO] src.modules.google_dorks: Google Dorks search discovered 0 artifacts
+07:51:33 [INFO] src.orchestrator: Plugin system processed 2 plugins, discovered 0 artifacts
+07:51:33 [INFO] src.plugins.builtins.profile_image_plugin: Extracting profile image from: https://medium.com/@dhayanidhi_rajasekaran
+07:51:33 [INFO] src.orchestrator: Plugin system processed 1 plugins, discovered 0 artifacts
+07:51:33 [INFO] src.plugins.builtins.profile_image_plugin: Extracting profile image from: https://www.instagram.com/dhayanidhirajasekaran/
+07:51:34 [INFO] src.orchestrator: Plugin system processed 1 plugins, discovered 0 artifacts
+07:51:34 [INFO] src.plugins.builtins.profile_image_plugin: Extracting profile image from: https://steamcommunity.com/id/dhayanidhirajasekaran
+07:51:34 [INFO] src.orchestrator: Plugin system processed 1 plugins, discovered 0 artifacts
+07:51:34 [INFO] src.plugins.builtins.profile_image_plugin: Extracting profile image from: https://www.pinterest.com/dhayanidhirajasekaran/
+07:51:35 [INFO] src.orchestrator: Plugin system processed 1 plugins, discovered 0 artifacts
+07:51:35 [INFO] src.plugins.builtins.profile_image_plugin: Extracting profile image from: https://medium.com/@dhayanidhirajasekaran
+07:51:35 [INFO] src.orchestrator: Plugin system processed 1 plugins, discovered 0 artifacts
+07:51:35 [INFO] src.orchestrator: Plugin system processed 1 plugins, discovered 0 artifacts
+07:51:35 [INFO] src.orchestrator: Plugin system processed 1 plugins, discovered 0 artifacts
+07:51:35 [INFO] src.orchestrator: Plugin system processed 1 plugins, discovered 0 artifacts
+07:51:35 [INFO] src.orchestrator: Plugin system processed 1 plugins, discovered 0 artifacts
+07:51:35 [INFO] src.orchestrator: Plugin system processed 1 plugins, discovered 0 artifacts
+07:51:35 [INFO] src.orchestrator: Plugin system processed 1 plugins, discovered 0 artifacts
+07:51:35 [INFO] src.orchestrator: Plugin system processed 1 plugins, discovered 0 artifacts
+07:51:35 [WARNING] src.plugins.manager: No plugins available for artifact type: image
+07:51:35 [INFO] src.orchestrator: Plugin system processed 0 plugins, discovered 0 artifacts
+07:51:35 [INFO] src.plugins.builtins.profile_image_plugin: Extracting profile image from: https://github.com/DRajasekaran
+07:51:35 [INFO] src.orchestrator: Plugin system processed 1 plugins, discovered 0 artifacts
+07:51:35 [INFO] src.plugins.builtins.profile_image_plugin: Extracting profile image from: https://steamcommunity.com/id/drajasekaran
+07:51:36 [INFO] src.orchestrator: Plugin system processed 1 plugins, discovered 0 artifacts
+07:51:36 [INFO] src.plugins.builtins.profile_image_plugin: Extracting profile image from: https://www.instagram.com/drajasekaran/
+07:51:36 [WARNING] src.modules.google_dorks: Google rate limited (429) for query: dayanidhi-maran
+07:51:36 [WARNING] src.modules.google_dorks: Pattern 'simple_search' failed: Rate limited by Google (429)
+07:51:36 [INFO] src.orchestrator: Plugin system processed 1 plugins, discovered 0 artifacts
+07:51:36 [INFO] src.plugins.builtins.profile_image_plugin: Extracting profile image from: https://medium.com/@drajasekaran
+07:51:36 [INFO] src.plugins.builtins.profile_image_plugin: Found profile image for https://github.com/DRajasekaran: https://avatars.githubusercontent.com/u/124973823?v=4
+07:51:36 [INFO] src.orchestrator: Plugin system processed 1 plugins, discovered 1 artifacts
+07:51:36 [INFO] src.plugins.builtins.profile_image_plugin: Extracting profile image from: https://www.pinterest.com/drajasekaran/
+07:51:37 [INFO] src.orchestrator: Plugin system processed 1 plugins, discovered 0 artifacts
+07:51:37 [INFO] src.modules.username_search: Found drajasekaran9 on Steam
+07:51:37 [ERROR] src.modules.username_search: Exception checking Reddit: 'expected_status'
+07:51:37 [ERROR] src.modules.username_search: Exception checking GitLab: 'expected_status'
+07:51:37 [INFO] src.modules.username_search: Found drajasekaran9 on Instagram
+07:51:37 [INFO] src.modules.username_search: Found drajasekaran9 on Pinterest
+07:51:37 [INFO] src.plugins.builtins.profile_image_plugin: Found profile image for https://www.pinterest.com/drajasekaran/: https://s.pinimg.com/images/default_open_graph_1200.png
+07:51:37 [INFO] src.orchestrator: Plugin system processed 1 plugins, discovered 1 artifacts
+07:51:37 [INFO] src.modules.username_search: Found drajasekaran9 on Medium
+07:51:38 [INFO] src.modules.username_search: Found drajasekaran.rajasekaran on Steam
+07:51:38 [ERROR] src.modules.username_search: Exception checking Reddit: 'expected_status'
+07:51:38 [ERROR] src.modules.username_search: Exception checking GitLab: 'expected_status'
+07:51:38 [WARNING] src.modules.google_dorks: Google rate limited (429) for query: site:twitter.com "dayanidhi-maran" OR site:linkedin.com "dayanidhi-maran" OR site:github.com "dayanidhi-maran" OR site:instagram.com "dayanidhi-maran"
+07:51:38 [WARNING] src.modules.google_dorks: Pattern 'social_platforms' failed: Rate limited by Google (429)
+07:51:38 [INFO] src.modules.username_search: Found drajasekaran.rajasekaran on Instagram
+07:51:38 [INFO] src.modules.username_search: Username search complete: drajasekaran9 → found on 4/12 platforms
+07:51:38 [INFO] src.modules.username_search: Found drajasekaran.rajasekaran on Pinterest
+07:51:38 [INFO] src.modules.username_search: Found drajasekaran.rajasekaran on Medium
+07:51:38 [INFO] src.modules.username_search: Username search complete: drajasekaran.rajasekaran → found on 4/12 platforms
+07:51:38 [INFO] src.plugins.builtins.profile_image_plugin: Found profile image for https://github.com/rajasekaran: https://avatars.githubusercontent.com/u/119774?v=4
+07:51:38 [INFO] src.orchestrator: Plugin system processed 1 plugins, discovered 1 artifacts
+07:51:39 [INFO] src.modules.username_search: Found drajasekaran.rajasekaran.3 on Steam
+07:51:39 [INFO] src.modules.username_search: Found drajasekaran.rajasekaran.3 on Mastodon
+07:51:39 [ERROR] src.modules.username_search: Exception checking Reddit: 'expected_status'
+07:51:39 [ERROR] src.modules.username_search: Exception checking GitLab: 'expected_status'
+07:51:39 [INFO] src.modules.username_search: Found drajasekaran.rajasekaran.3 on Instagram
+07:51:39 [INFO] src.modules.google_dorks: Limiting patterns from 8 to 3 to avoid rate limiting
+07:51:39 [INFO] src.modules.google_dorks: Searching for username 'drajasekaran9' with 3 dork patterns
+07:51:39 [INFO] src.modules.google_dorks: DuckDuckGo search found 0 results for pattern 'profile_pages'
+07:51:39 [INFO] src.modules.google_dorks: DuckDuckGo search found 0 results for pattern 'simple_search'
+07:51:39 [INFO] src.modules.google_dorks: DuckDuckGo search found 0 results for pattern 'social_platforms'
+07:51:39 [WARNING] src.modules.google_dorks: Pattern 'profile_pages' failed: None
+07:51:39 [WARNING] src.modules.google_dorks: Pattern 'simple_search' failed: None
+07:51:39 [WARNING] src.modules.google_dorks: Pattern 'social_platforms' failed: None
+07:51:39 [INFO] src.modules.google_dorks: Google Dorks search discovered 0 artifacts
+07:51:39 [INFO] src.modules.google_dorks: Limiting patterns from 8 to 3 to avoid rate limiting
+07:51:39 [INFO] src.modules.google_dorks: Searching for username 'drajasekaran9' with 3 dork patterns
+07:51:39 [INFO] src.modules.username_search: Found drajasekaran9 on Instagram
+07:51:39 [INFO] src.modules.username_search: Found drajasekaran9 on Steam
+07:51:39 [INFO] src.modules.username_search: Found drajasekaran9 on Pinterest
+07:51:39 [INFO] src.modules.username_search: Found drajasekaran9 on Medium
+07:51:39 [INFO] src.modules.google_dorks: Limiting patterns from 8 to 3 to avoid rate limiting
+07:51:39 [INFO] src.modules.google_dorks: Searching for username 'drajasekaran.rajasekaran' with 3 dork patterns
+07:51:39 [INFO] src.modules.google_dorks: DuckDuckGo search found 0 results for pattern 'simple_search'
+07:51:39 [INFO] src.modules.google_dorks: DuckDuckGo search found 0 results for pattern 'social_platforms'
+07:51:39 [WARNING] src.modules.google_dorks: Pattern 'simple_search' failed: None
+07:51:39 [WARNING] src.modules.google_dorks: Pattern 'social_platforms' failed: None
+07:51:39 [INFO] src.modules.google_dorks: DuckDuckGo search found 0 results for pattern 'profile_pages'
+07:51:39 [WARNING] src.modules.google_dorks: Pattern 'profile_pages' failed: None
+07:51:39 [INFO] src.modules.google_dorks: Google Dorks search discovered 0 artifacts
+07:51:39 [INFO] src.modules.google_dorks: Limiting patterns from 8 to 3 to avoid rate limiting
+07:51:39 [INFO] src.modules.google_dorks: Searching for username 'drajasekaran.rajasekaran' with 3 dork patterns
+07:51:39 [INFO] src.modules.username_search: Found drajasekaran.rajasekaran on Instagram
+07:51:39 [INFO] src.modules.username_search: Found drajasekaran.rajasekaran on Medium
+07:51:39 [INFO] src.modules.username_search: Found drajasekaran.rajasekaran on Pinterest
+07:51:39 [INFO] src.modules.username_search: Found drajasekaran.rajasekaran on Steam
+07:51:39 [INFO] src.modules.username_search: Found drajasekaran.rajasekaran.3 on Pinterest
+07:51:39 [INFO] src.modules.username_search: Found drajasekaran.rajasekaran.3 on Medium
+07:51:39 [INFO] src.modules.username_search: Username search complete: drajasekaran.rajasekaran.3 → found on 5/12 platforms
+07:51:39 [INFO] src.modules.google_dorks: Google search found 1 results for pattern 'profile_pages'
+07:51:39 [INFO] src.modules.google_dorks: Pattern 'profile_pages' found 1 results
+07:51:39 [INFO] src.modules.google_dorks: Google Dorks search discovered 2 artifacts
+07:51:39 [INFO] src.orchestrator: Plugin system processed 2 plugins, discovered 2 artifacts
+07:51:39 [ERROR] src.modules.username_search: Exception checking Reddit: 'expected_status'
+07:51:39 [ERROR] src.modules.username_search: Exception checking GitLab: 'expected_status'
+07:51:39 [INFO] src.modules.username_search: Username search complete: drajasekaran9 → found on 4/12 platforms
+07:51:39 [ERROR] src.modules.username_search: Exception checking Reddit: 'expected_status'
+07:51:39 [ERROR] src.modules.username_search: Exception checking GitLab: 'expected_status'
+07:51:39 [INFO] src.modules.username_search: Username search complete: drajasekaran.rajasekaran → found on 4/12 platforms
+07:51:39 [INFO] src.modules.username_search: Found DRajasekaran on GitHub
+07:51:39 [INFO] src.modules.username_search: Found DRajasekaran on Steam
+07:51:40 [ERROR] src.modules.username_search: Exception checking Reddit: 'expected_status'
+07:51:40 [ERROR] src.modules.username_search: Exception checking GitLab: 'expected_status'
+07:51:40 [INFO] src.modules.username_search: Found DRajasekaran on Medium
+07:51:40 [INFO] src.modules.username_search: Found DRajasekaran on Instagram
+07:51:40 [INFO] src.modules.google_dorks: Limiting patterns from 8 to 3 to avoid rate limiting
+07:51:40 [INFO] src.modules.google_dorks: Searching for username 'drajasekaran.rajasekaran.3' with 3 dork patterns
+07:51:40 [INFO] src.modules.username_search: Found DRajasekaran on Pinterest
+07:51:40 [INFO] src.modules.username_search: Username search complete: DRajasekaran → found on 5/12 platforms
+07:51:40 [INFO] src.modules.google_dorks: DuckDuckGo search found 0 results for pattern 'simple_search'
+07:51:40 [WARNING] src.modules.google_dorks: Pattern 'simple_search' failed: None
+07:51:40 [INFO] src.modules.google_dorks: DuckDuckGo search found 0 results for pattern 'profile_pages'
+07:51:40 [WARNING] src.modules.google_dorks: Pattern 'profile_pages' failed: None
+07:51:40 [INFO] src.modules.google_dorks: DuckDuckGo search found 0 results for pattern 'social_platforms'
+07:51:40 [WARNING] src.modules.google_dorks: Pattern 'social_platforms' failed: None
+07:51:40 [INFO] src.modules.google_dorks: Google Dorks search discovered 0 artifacts
+07:51:40 [INFO] src.modules.google_dorks: Limiting patterns from 8 to 3 to avoid rate limiting
+07:51:40 [INFO] src.modules.google_dorks: Searching for username 'drajasekaran.rajasekaran.3' with 3 dork patterns
+07:51:40 [INFO] src.modules.username_search: Found drajasekaran.rajasekaran.3 on Instagram
+07:51:40 [INFO] src.modules.username_search: Found drajasekaran.rajasekaran.3 on Medium
+07:51:40 [INFO] src.modules.username_search: Found drajasekaran.rajasekaran.3 on Pinterest
+07:51:40 [INFO] src.modules.username_search: Found drajasekaran.rajasekaran.3 on Steam
+07:51:40 [INFO] src.modules.username_search: Found drajasekaran.rajasekaran.3 on Mastodon
+07:51:40 [ERROR] src.modules.username_search: Exception checking Reddit: 'expected_status'
+07:51:40 [ERROR] src.modules.username_search: Exception checking GitLab: 'expected_status'
+07:51:40 [INFO] src.modules.username_search: Username search complete: drajasekaran.rajasekaran.3 → found on 5/12 platforms
+07:51:41 [INFO] src.modules.google_dorks: Limiting patterns from 8 to 3 to avoid rate limiting
+07:51:41 [INFO] src.modules.google_dorks: Searching for username 'DRajasekaran' with 3 dork patterns
+07:51:41 [INFO] src.modules.google_dorks: DuckDuckGo search found 0 results for pattern 'profile_pages'
+07:51:41 [INFO] src.modules.google_dorks: DuckDuckGo search found 0 results for pattern 'simple_search'
+07:51:41 [INFO] src.modules.google_dorks: DuckDuckGo search found 0 results for pattern 'social_platforms'
+07:51:41 [WARNING] src.modules.google_dorks: Pattern 'profile_pages' failed: None
+07:51:41 [WARNING] src.modules.google_dorks: Pattern 'simple_search' failed: None
+07:51:41 [WARNING] src.modules.google_dorks: Pattern 'social_platforms' failed: None
+07:51:41 [INFO] src.modules.google_dorks: Google Dorks search discovered 0 artifacts
+07:51:41 [INFO] src.modules.google_dorks: Limiting patterns from 8 to 3 to avoid rate limiting
+07:51:41 [INFO] src.modules.google_dorks: Searching for username 'DRajasekaran' with 3 dork patterns
+07:51:41 [INFO] src.modules.username_search: Found DRajasekaran on GitHub
+07:51:41 [INFO] src.modules.username_search: Found DRajasekaran on Pinterest
+07:51:41 [INFO] src.modules.username_search: Found DRajasekaran on Medium
+07:51:41 [INFO] src.modules.username_search: Found DRajasekaran on Instagram
+07:51:41 [INFO] src.modules.username_search: Found DRajasekaran on Steam
+07:51:41 [ERROR] src.modules.username_search: Exception checking Reddit: 'expected_status'
+07:51:41 [ERROR] src.modules.username_search: Exception checking GitLab: 'expected_status'
+07:51:41 [INFO] src.modules.username_search: Username search complete: DRajasekaran → found on 5/12 platforms
+07:51:41 [WARNING] src.modules.google_dorks: Google rate limited (429) for query: alagiridhaya
+07:51:41 [WARNING] src.modules.google_dorks: Pattern 'simple_search' failed: Rate limited by Google (429)
+07:51:43 [WARNING] src.modules.google_dorks: Google rate limited (429) for query: site:twitter.com "alagiridhaya" OR site:linkedin.com "alagiridhaya" OR site:github.com "alagiridhaya" OR site:instagram.com "alagiridhaya"
+07:51:43 [WARNING] src.modules.google_dorks: Pattern 'social_platforms' failed: Rate limited by Google (429)
+07:51:45 [WARNING] src.modules.google_dorks: Google rate limited (429) for query: intitle:"profile" "alagiridhaya" OR intitle:"user" "alagiridhaya"
+07:51:45 [WARNING] src.modules.google_dorks: Pattern 'profile_pages' failed: Rate limited by Google (429)
+07:51:45 [INFO] src.modules.google_dorks: Google Dorks search discovered 0 artifacts
+07:51:45 [INFO] src.orchestrator: Plugin system processed 2 plugins, discovered 0 artifacts
+07:51:46 [INFO] src.modules.external_tools: Running whois: whois github.com
+07:51:46 [INFO] src.modules.external_tools: Running dig: dig github.com A +short
+07:51:46 [INFO] src.modules.external_tools: Dig found 1 A records for github.com
+07:51:46 [INFO] src.orchestrator: Dig found 1 artifacts for github.com
+07:51:48 [WARNING] src.modules.google_dorks: Google rate limited (429) for query: dayanidhi.maran.official
+07:51:48 [WARNING] src.modules.google_dorks: Pattern 'simple_search' failed: Rate limited by Google (429)
+07:51:48 [INFO] src.modules.external_tools: Whois lookup completed for github.com
+07:51:48 [INFO] src.orchestrator: Whois found 1 artifacts for github.com
+07:51:49 [WARNING] src.modules.google_dorks: Google rate limited (429) for query: site:twitter.com "dayanidhi.maran.official" OR site:linkedin.com "dayanidhi.maran.official" OR site:github.com "dayanidhi.maran.official" OR site:instagram.com "dayanidhi.maran.official"
+07:51:49 [WARNING] src.modules.google_dorks: Pattern 'social_platforms' failed: Rate limited by Google (429)
+07:51:52 [WARNING] src.modules.google_dorks: Google rate limited (429) for query: intitle:"profile" "dayanidhi.maran.official" OR intitle:"user" "dayanidhi.maran.official"
+07:51:52 [WARNING] src.modules.google_dorks: Pattern 'profile_pages' failed: Rate limited by Google (429)
+07:51:52 [INFO] src.modules.google_dorks: Google Dorks search discovered 0 artifacts
+07:51:52 [INFO] src.orchestrator: Plugin system processed 2 plugins, discovered 0 artifacts
+07:51:52 [INFO] src.modules.external_tools: Running whois: whois youtube.com
+07:51:52 [INFO] src.modules.external_tools: Running dig: dig youtube.com A +short
+07:51:52 [INFO] src.modules.external_tools: Dig found 1 A records for youtube.com
+07:51:52 [INFO] src.orchestrator: Dig found 1 artifacts for youtube.com
+07:51:53 [INFO] src.modules.external_tools: Whois lookup completed for youtube.com
+07:51:53 [INFO] src.orchestrator: Whois found 1 artifacts for youtube.com
+07:51:53 [WARNING] src.modules.google_dorks: Google rate limited (429) for query: DaVo3v8zvrn
+07:51:53 [WARNING] src.modules.google_dorks: Pattern 'simple_search' failed: Rate limited by Google (429)
+07:51:55 [WARNING] src.modules.google_dorks: Google rate limited (429) for query: intitle:"profile" "DaVo3v8zvrn" OR intitle:"user" "DaVo3v8zvrn"
+07:51:55 [WARNING] src.modules.google_dorks: Pattern 'profile_pages' failed: Rate limited by Google (429)
+07:51:57 [INFO] src.modules.external_tools: Wayback Machine found 15 historical URLs for reversethatlookup.com
+07:51:57 [INFO] src.orchestrator: Wayback Machine found 15 artifacts for reversethatlookup.com
+07:51:58 [WARNING] src.modules.google_dorks: Google rate limited (429) for query: site:twitter.com "DaVo3v8zvrn" OR site:linkedin.com "DaVo3v8zvrn" OR site:github.com "DaVo3v8zvrn" OR site:instagram.com "DaVo3v8zvrn"
+07:51:58 [WARNING] src.modules.google_dorks: Pattern 'social_platforms' failed: Rate limited by Google (429)
+07:51:58 [INFO] src.modules.google_dorks: Google Dorks search discovered 0 artifacts
+07:51:58 [INFO] src.orchestrator: Plugin system processed 2 plugins, discovered 0 artifacts
+07:51:58 [INFO] src.modules.username_search: Found testsys-drajasekaran on Steam
+07:51:58 [INFO] src.modules.username_search: Found testsys-drajasekaran on GitHub
+07:51:58 [ERROR] src.modules.username_search: Exception checking GitLab: 'expected_status'
+07:51:58 [ERROR] src.modules.username_search: Exception checking Reddit: 'expected_status'
+07:51:58 [INFO] src.modules.username_search: Found testsys-drajasekaran on Instagram
+07:51:58 [INFO] src.modules.username_search: Found testsys-drajasekaran on Medium
+07:51:58 [INFO] src.modules.username_search: Found testsys-drajasekaran on Pinterest
+07:51:58 [INFO] src.modules.username_search: Username search complete: testsys-drajasekaran → found on 5/12 platforms
+07:51:59 [INFO] src.orchestrator: Plugin system processed 3 plugins, discovered 20 artifacts
+07:51:59 [INFO] src.modules.external_tools: Running whois: whois padlet.com
+07:51:59 [INFO] src.modules.external_tools: Running dig: dig padlet.com A +short
+07:51:59 [INFO] src.modules.external_tools: Dig found 2 A records for padlet.com
+07:51:59 [INFO] src.orchestrator: Dig found 2 artifacts for padlet.com
+07:51:59 [INFO] src.modules.google_dorks: Limiting patterns from 8 to 3 to avoid rate limiting
+07:51:59 [INFO] src.modules.google_dorks: Searching for username 'testsys-drajasekaran' with 3 dork patterns
+07:51:59 [INFO] src.modules.google_dorks: DuckDuckGo search found 0 results for pattern 'profile_pages'
+07:51:59 [INFO] src.modules.google_dorks: DuckDuckGo search found 0 results for pattern 'social_platforms'
+07:51:59 [INFO] src.modules.google_dorks: DuckDuckGo search found 0 results for pattern 'simple_search'
+07:51:59 [WARNING] src.modules.google_dorks: Pattern 'profile_pages' failed: None
+07:51:59 [WARNING] src.modules.google_dorks: Pattern 'social_platforms' failed: None
+07:51:59 [WARNING] src.modules.google_dorks: Pattern 'simple_search' failed: None
+07:51:59 [INFO] src.modules.google_dorks: Google Dorks search discovered 0 artifacts
+07:51:59 [INFO] src.modules.google_dorks: Limiting patterns from 8 to 3 to avoid rate limiting
+07:51:59 [INFO] src.modules.google_dorks: Searching for username 'testsys-drajasekaran' with 3 dork patterns
+07:51:59 [INFO] src.modules.username_search: Found testsys-drajasekaran on Pinterest
+07:51:59 [INFO] src.modules.username_search: Found testsys-drajasekaran on Medium
+07:51:59 [INFO] src.modules.username_search: Found testsys-drajasekaran on Steam
+07:51:59 [INFO] src.modules.username_search: Found testsys-drajasekaran on GitHub
+07:51:59 [INFO] src.modules.username_search: Found testsys-drajasekaran on Instagram
+07:51:59 [ERROR] src.modules.external_tools: Wayback Machine error: HTTPConnectionPool(host='web.archive.org', port=80): Read timed out. (read timeout=30)
+07:51:59 [ERROR] src.modules.username_search: Exception checking GitLab: 'expected_status'
+07:51:59 [ERROR] src.modules.username_search: Exception checking Reddit: 'expected_status'
+07:51:59 [INFO] src.modules.username_search: Username search complete: testsys-drajasekaran → found on 5/12 platforms
+07:52:00 [WARNING] src.modules.google_dorks: Google rate limited (429) for query: UdhayStalin
+07:52:00 [WARNING] src.modules.google_dorks: Pattern 'simple_search' failed: Rate limited by Google (429)
+07:52:00 [INFO] src.orchestrator: Plugin system processed 3 plugins, discovered 13 artifacts
+07:52:00 [ERROR] src.modules.username_search: Exception checking Reddit: 'expected_status'
+07:52:00 [INFO] src.modules.username_search: Found sri-drajasekaran-and-rpradeep-chandran on Steam
+07:52:00 [ERROR] src.modules.username_search: Exception checking GitLab: 'expected_status'
+07:52:00 [INFO] src.modules.username_search: Found sri-drajasekaran-and-rpradeep-chandran on Instagram
+07:52:00 [INFO] src.modules.username_search: Found sri-drajasekaran-and-rpradeep-chandran on Pinterest
+07:52:00 [INFO] src.modules.username_search: Found sri-drajasekaran-and-rpradeep-chandran on Medium
+07:52:01 [INFO] src.modules.username_search: Username search complete: sri-drajasekaran-and-rpradeep-chandran → found on 4/12 platforms
+07:52:02 [WARNING] src.modules.google_dorks: Google rate limited (429) for query: site:twitter.com "UdhayStalin" OR site:linkedin.com "UdhayStalin" OR site:github.com "UdhayStalin" OR site:instagram.com "UdhayStalin"
+07:52:02 [WARNING] src.modules.google_dorks: Pattern 'social_platforms' failed: Rate limited by Google (429)
+07:52:02 [INFO] src.modules.google_dorks: Limiting patterns from 8 to 3 to avoid rate limiting
+07:52:02 [INFO] src.modules.google_dorks: Searching for username 'sri-drajasekaran-and-rpradeep-chandran' with 3 dork patterns
+07:52:02 [INFO] src.modules.google_dorks: DuckDuckGo search found 0 results for pattern 'simple_search'
+07:52:02 [INFO] src.modules.google_dorks: DuckDuckGo search found 0 results for pattern 'profile_pages'
+07:52:02 [INFO] src.modules.google_dorks: DuckDuckGo search found 0 results for pattern 'social_platforms'
+07:52:02 [WARNING] src.modules.google_dorks: Pattern 'simple_search' failed: None
+07:52:02 [WARNING] src.modules.google_dorks: Pattern 'profile_pages' failed: None
+07:52:02 [WARNING] src.modules.google_dorks: Pattern 'social_platforms' failed: None
+07:52:02 [INFO] src.modules.google_dorks: Google Dorks search discovered 0 artifacts
+07:52:02 [INFO] src.modules.google_dorks: Limiting patterns from 8 to 3 to avoid rate limiting
+07:52:02 [INFO] src.modules.google_dorks: Searching for username 'sri-drajasekaran-and-rpradeep-chandran' with 3 dork patterns
+07:52:02 [INFO] src.modules.username_search: Found sri-drajasekaran-and-rpradeep-chandran on Medium
+07:52:02 [INFO] src.modules.username_search: Found sri-drajasekaran-and-rpradeep-chandran on Steam
+07:52:02 [INFO] src.modules.username_search: Found sri-drajasekaran-and-rpradeep-chandran on Pinterest
+07:52:02 [INFO] src.modules.username_search: Found sri-drajasekaran-and-rpradeep-chandran on Instagram
+07:52:02 [ERROR] src.modules.username_search: Exception checking Reddit: 'expected_status'
+07:52:03 [ERROR] src.modules.username_search: Exception checking GitLab: 'expected_status'
+07:52:03 [INFO] src.modules.username_search: Username search complete: sri-drajasekaran-and-rpradeep-chandran → found on 4/12 platforms
+07:52:04 [WARNING] src.modules.google_dorks: Google rate limited (429) for query: intitle:"profile" "UdhayStalin" OR intitle:"user" "UdhayStalin"
+07:52:04 [WARNING] src.modules.google_dorks: Pattern 'profile_pages' failed: Rate limited by Google (429)
+07:52:04 [INFO] src.modules.google_dorks: Google Dorks search discovered 0 artifacts
+07:52:04 [INFO] src.orchestrator: Plugin system processed 2 plugins, discovered 0 artifacts
+07:52:04 [INFO] src.modules.external_tools: Running whois: whois ecourtsindia.com
+07:52:04 [INFO] src.modules.external_tools: Running dig: dig ecourtsindia.com A +short
+07:52:04 [INFO] src.modules.external_tools: Dig found 2 A records for ecourtsindia.com
+07:52:04 [INFO] src.orchestrator: Dig found 2 artifacts for ecourtsindia.com
+07:52:05 [INFO] src.modules.external_tools: Whois lookup completed for ecourtsindia.com
+07:52:05 [INFO] src.orchestrator: Whois found 1 artifacts for ecourtsindia.com
+07:52:05 [INFO] src.modules.google_dorks: Google search found 1 results for pattern 'simple_search'
+07:52:05 [INFO] src.modules.google_dorks: Pattern 'simple_search' found 1 results
+07:52:07 [WARNING] src.modules.google_dorks: Google rate limited (429) for query: site:twitter.com "username-search" OR site:linkedin.com "username-search" OR site:github.com "username-search" OR site:instagram.com "username-search"
+07:52:07 [WARNING] src.modules.google_dorks: Pattern 'social_platforms' failed: Rate limited by Google (429)
+07:52:09 [WARNING] src.modules.google_dorks: Google rate limited (429) for query: intitle:"profile" "username-search" OR intitle:"user" "username-search"
+07:52:09 [WARNING] src.modules.google_dorks: Pattern 'profile_pages' failed: Rate limited by Google (429)
+07:52:09 [INFO] src.modules.google_dorks: Google Dorks search discovered 2 artifacts
+07:52:09 [INFO] src.orchestrator: Plugin system processed 2 plugins, discovered 2 artifacts
+07:52:09 [WARNING] src.plugins.manager: No plugins available for artifact type: image
+07:52:09 [INFO] src.orchestrator: Plugin system processed 0 plugins, discovered 0 artifacts
+07:52:09 [INFO] src.plugins.builtins.profile_image_plugin: Extracting profile image from: https://www.instagram.com/rdhayanidhi/
+07:52:10 [INFO] src.orchestrator: Plugin system processed 1 plugins, discovered 0 artifacts
+07:52:10 [INFO] src.plugins.builtins.profile_image_plugin: Extracting profile image from: https://github.com/rdhayanidhi
+07:52:10 [INFO] src.modules.external_tools: Wayback Machine found 15 historical URLs for ecourtsindia.com
+07:52:10 [INFO] src.orchestrator: Wayback Machine found 15 artifacts for ecourtsindia.com
+07:52:10 [INFO] src.orchestrator: Plugin system processed 3 plugins, discovered 24 artifacts
+07:52:10 [INFO] src.plugins.builtins.profile_image_plugin: Extracting profile image from: https://medium.com/@rdhayanidhi
+07:52:11 [INFO] src.plugins.builtins.profile_image_plugin: Found profile image for https://github.com/rdhayanidhi: https://avatars.githubusercontent.com/u/273396450?v=4
+07:52:11 [INFO] src.orchestrator: Plugin system processed 1 plugins, discovered 1 artifacts
+07:52:11 [INFO] src.plugins.builtins.profile_image_plugin: Extracting profile image from: https://www.pinterest.com/rdhayanidhi/
+07:52:11 [INFO] src.orchestrator: Plugin system processed 1 plugins, discovered 0 artifacts
+07:52:11 [INFO] src.plugins.builtins.profile_image_plugin: Extracting profile image from: https://steamcommunity.com/id/rdhayanidhi
+07:52:11 [INFO] src.orchestrator: Plugin system processed 1 plugins, discovered 0 artifacts
+07:52:11 [ERROR] src.modules.username_search: Exception checking Reddit: 'expected_status'
+07:52:11 [INFO] src.modules.username_search: Found watch?v=XWCFDnr9nY8 on GitHub
+07:52:11 [ERROR] src.modules.username_search: Exception checking GitLab: 'expected_status'
+07:52:11 [INFO] src.modules.username_search: Found watch?v=XWCFDnr9nY8 on Steam
+07:52:11 [INFO] src.plugins.builtins.profile_image_plugin: Found profile image for https://www.pinterest.com/rdhayanidhi/: https://s.pinimg.com/images/default_open_graph_1200.png
+07:52:11 [INFO] src.orchestrator: Plugin system processed 1 plugins, discovered 1 artifacts
+07:52:11 [INFO] src.modules.username_search: Found watch?v=XWCFDnr9nY8 on Instagram
+07:52:11 [INFO] src.modules.username_search: Found watch?v=XWCFDnr9nY8 on Mastodon
+07:52:12 [WARNING] src.modules.google_dorks: Google rate limited (429) for query: DTNSmPBDN7-
+07:52:12 [WARNING] src.modules.google_dorks: Pattern 'simple_search' failed: Rate limited by Google (429)
+07:52:12 [INFO] src.modules.username_search: Username search complete: watch?v=XWCFDnr9nY8 → found on 4/12 platforms
+07:52:12 [INFO] src.modules.username_search: Found @Udhaystalin on Steam
+07:52:12 [ERROR] src.modules.username_search: Exception checking Reddit: 'expected_status'
+07:52:12 [ERROR] src.modules.username_search: Exception checking GitLab: 'expected_status'
+07:52:12 [INFO] src.modules.username_search: Found @Udhaystalin on Mastodon
+07:52:12 [INFO] src.modules.username_search: Found @Udhaystalin on Instagram
+07:52:12 [INFO] src.modules.username_search: Found @Udhaystalin on Medium
+07:52:12 [INFO] src.modules.google_dorks: Limiting patterns from 8 to 3 to avoid rate limiting
+07:52:12 [INFO] src.modules.google_dorks: Searching for username 'watch?v=XWCFDnr9nY8' with 3 dork patterns
+07:52:12 [INFO] src.modules.google_dorks: DuckDuckGo search found 0 results for pattern 'social_platforms'
+07:52:12 [INFO] src.modules.google_dorks: DuckDuckGo search found 0 results for pattern 'simple_search'
+07:52:12 [INFO] src.modules.google_dorks: DuckDuckGo search found 0 results for pattern 'profile_pages'
+07:52:12 [WARNING] src.modules.google_dorks: Pattern 'social_platforms' failed: None
+07:52:12 [WARNING] src.modules.google_dorks: Pattern 'simple_search' failed: None
+07:52:12 [WARNING] src.modules.google_dorks: Pattern 'profile_pages' failed: None
+07:52:12 [INFO] src.modules.google_dorks: Google Dorks search discovered 0 artifacts
+07:52:12 [INFO] src.modules.google_dorks: Limiting patterns from 8 to 3 to avoid rate limiting
+07:52:12 [INFO] src.modules.google_dorks: Searching for username 'watch?v=XWCFDnr9nY8' with 3 dork patterns
+07:52:12 [INFO] src.modules.username_search: Found watch?v=XWCFDnr9nY8 on GitHub
+07:52:12 [INFO] src.modules.username_search: Found watch?v=XWCFDnr9nY8 on Instagram
+07:52:12 [INFO] src.modules.username_search: Found watch?v=XWCFDnr9nY8 on Steam
+07:52:12 [INFO] src.modules.username_search: Found watch?v=XWCFDnr9nY8 on Mastodon
+07:52:12 [INFO] src.modules.username_search: Found @Udhaystalin on Pinterest
+07:52:12 [INFO] src.modules.username_search: Username search complete: @Udhaystalin → found on 5/12 platforms
+07:52:12 [ERROR] src.modules.username_search: Exception checking Reddit: 'expected_status'
+07:52:12 [ERROR] src.modules.username_search: Exception checking GitLab: 'expected_status'
+07:52:12 [INFO] src.modules.username_search: Username search complete: watch?v=XWCFDnr9nY8 → found on 4/12 platforms
+07:52:13 [INFO] src.modules.google_dorks: Limiting patterns from 8 to 3 to avoid rate limiting
+07:52:13 [INFO] src.modules.google_dorks: Searching for username '@Udhaystalin' with 3 dork patterns
+07:52:13 [INFO] src.modules.google_dorks: DuckDuckGo search found 0 results for pattern 'simple_search'
+07:52:13 [INFO] src.modules.google_dorks: DuckDuckGo search found 0 results for pattern 'social_platforms'
+07:52:13 [WARNING] src.modules.google_dorks: Pattern 'simple_search' failed: None
+07:52:13 [INFO] src.modules.google_dorks: DuckDuckGo search found 0 results for pattern 'profile_pages'
+07:52:13 [WARNING] src.modules.google_dorks: Pattern 'social_platforms' failed: None
+07:52:13 [WARNING] src.modules.google_dorks: Pattern 'profile_pages' failed: None
+07:52:13 [INFO] src.modules.google_dorks: Google Dorks search discovered 0 artifacts
+07:52:13 [INFO] src.modules.google_dorks: Limiting patterns from 8 to 3 to avoid rate limiting
+07:52:13 [INFO] src.modules.google_dorks: Searching for username '@Udhaystalin' with 3 dork patterns
+07:52:13 [INFO] src.modules.username_search: Found @Udhaystalin on Instagram
+07:52:13 [INFO] src.modules.username_search: Found @Udhaystalin on Medium
+07:52:13 [INFO] src.modules.username_search: Found @Udhaystalin on Pinterest
+07:52:13 [INFO] src.modules.username_search: Found @Udhaystalin on Steam
+07:52:13 [INFO] src.modules.username_search: Found @Udhaystalin on Mastodon
+07:52:13 [ERROR] src.modules.username_search: Exception checking Reddit: 'expected_status'
+07:52:13 [ERROR] src.modules.username_search: Exception checking GitLab: 'expected_status'
+07:52:13 [INFO] src.modules.username_search: Username search complete: @Udhaystalin → found on 5/12 platforms
+07:52:14 [WARNING] src.modules.google_dorks: Google rate limited (429) for query: site:twitter.com "DTNSmPBDN7-" OR site:linkedin.com "DTNSmPBDN7-" OR site:github.com "DTNSmPBDN7-" OR site:instagram.com "DTNSmPBDN7-"
+07:52:14 [WARNING] src.modules.google_dorks: Pattern 'social_platforms' failed: Rate limited by Google (429)
+07:52:15 [WARNING] src.modules.google_dorks: Google rate limited (429) for query: intitle:"profile" "DTNSmPBDN7-" OR intitle:"user" "DTNSmPBDN7-"
+07:52:15 [WARNING] src.modules.google_dorks: Pattern 'profile_pages' failed: Rate limited by Google (429)
+07:52:15 [INFO] src.modules.google_dorks: Google Dorks search discovered 0 artifacts
+07:52:15 [INFO] src.orchestrator: Plugin system processed 2 plugins, discovered 0 artifacts
+07:52:16 [ERROR] src.modules.external_tools: Wayback Machine error: HTTPConnectionPool(host='web.archive.org', port=80): Read timed out. (read timeout=30)
+07:52:16 [ERROR] src.modules.username_search: Exception checking GitLab: 'expected_status'
+07:52:16 [INFO] src.modules.username_search: Found inbanithi-udhayanidhi on Instagram
+07:52:16 [INFO] src.modules.username_search: Found inbanithi-udhayanidhi on Steam
+07:52:16 [INFO] src.modules.username_search: Found inbanithi-udhayanidhi on Pinterest
+07:52:16 [ERROR] src.modules.username_search: Exception checking Reddit: 'expected_status'
+07:52:16 [INFO] src.orchestrator: Plugin system processed 3 plugins, discovered 10 artifacts
+07:52:16 [INFO] src.modules.external_tools: Running whois: whois newsinbollywood.com
+07:52:16 [INFO] src.modules.external_tools: Running dig: dig newsinbollywood.com A +short
+07:52:17 [INFO] src.modules.external_tools: Dig found 2 A records for newsinbollywood.com
+07:52:17 [INFO] src.orchestrator: Dig found 2 artifacts for newsinbollywood.com
+07:52:17 [INFO] src.modules.username_search: Found inbanithi-udhayanidhi on Medium
+07:52:17 [INFO] src.modules.username_search: Username search complete: inbanithi-udhayanidhi → found on 4/12 platforms
+07:52:17 [INFO] src.modules.google_dorks: Limiting patterns from 8 to 3 to avoid rate limiting
+07:52:17 [INFO] src.modules.google_dorks: Searching for username 'inbanithi-udhayanidhi' with 3 dork patterns
+07:52:18 [INFO] src.modules.google_dorks: DuckDuckGo search found 0 results for pattern 'simple_search'
+07:52:18 [WARNING] src.modules.google_dorks: Pattern 'simple_search' failed: None
+07:52:18 [INFO] src.modules.google_dorks: DuckDuckGo search found 0 results for pattern 'profile_pages'
+07:52:18 [INFO] src.modules.google_dorks: DuckDuckGo search found 0 results for pattern 'social_platforms'
+07:52:18 [WARNING] src.modules.google_dorks: Pattern 'profile_pages' failed: None
+07:52:18 [WARNING] src.modules.google_dorks: Pattern 'social_platforms' failed: None
+07:52:18 [INFO] src.modules.google_dorks: Google Dorks search discovered 0 artifacts
+07:52:18 [INFO] src.modules.google_dorks: Limiting patterns from 8 to 3 to avoid rate limiting
+07:52:18 [INFO] src.modules.google_dorks: Searching for username 'inbanithi-udhayanidhi' with 3 dork patterns
+07:52:18 [INFO] src.modules.username_search: Found inbanithi-udhayanidhi on Medium
+07:52:18 [INFO] src.modules.username_search: Found inbanithi-udhayanidhi on Instagram
+07:52:18 [INFO] src.modules.username_search: Found inbanithi-udhayanidhi on Pinterest
+07:52:18 [INFO] src.modules.username_search: Found inbanithi-udhayanidhi on Steam
+07:52:18 [WARNING] src.modules.google_dorks: Google rate limited (429) for query: intitle:"profile" "DQOo8Bxkeqm" OR intitle:"user" "DQOo8Bxkeqm"
+07:52:18 [WARNING] src.modules.google_dorks: Pattern 'profile_pages' failed: Rate limited by Google (429)
+07:52:18 [ERROR] src.modules.username_search: Exception checking Reddit: 'expected_status'
+07:52:18 [ERROR] src.modules.username_search: Exception checking GitLab: 'expected_status'
+07:52:18 [INFO] src.modules.username_search: Username search complete: inbanithi-udhayanidhi → found on 4/12 platforms
+07:52:19 [INFO] src.modules.external_tools: Whois lookup completed for newsinbollywood.com
+07:52:19 [INFO] src.orchestrator: Whois found 1 artifacts for newsinbollywood.com
+07:52:20 [WARNING] src.modules.google_dorks: Google rate limited (429) for query: site:twitter.com "DQOo8Bxkeqm" OR site:linkedin.com "DQOo8Bxkeqm" OR site:github.com "DQOo8Bxkeqm" OR site:instagram.com "DQOo8Bxkeqm"
+07:52:20 [WARNING] src.modules.google_dorks: Pattern 'social_platforms' failed: Rate limited by Google (429)
+07:52:20 [INFO] src.modules.external_tools: Wayback Machine found 15 historical URLs for padlet.com
+07:52:20 [INFO] src.orchestrator: Wayback Machine found 15 artifacts for padlet.com
+07:52:21 [INFO] src.modules.external_tools: Wayback Machine found 15 historical URLs for newsinbollywood.com
+07:52:21 [INFO] src.orchestrator: Wayback Machine found 15 artifacts for newsinbollywood.com
+07:52:22 [WARNING] src.modules.google_dorks: Google rate limited (429) for query: DQOo8Bxkeqm
+07:52:22 [WARNING] src.modules.google_dorks: Pattern 'simple_search' failed: Rate limited by Google (429)
+07:52:22 [INFO] src.modules.google_dorks: Google Dorks search discovered 0 artifacts
+07:52:22 [INFO] src.orchestrator: Plugin system processed 2 plugins, discovered 0 artifacts
+07:52:22 [ERROR] src.modules.external_tools: Wayback Machine error: HTTPConnectionPool(host='web.archive.org', port=80): Read timed out. (read timeout=30)
+07:52:22 [INFO] src.modules.username_search: Found biography.html on Steam
+07:52:22 [INFO] src.orchestrator: Plugin system processed 3 plugins, discovered 19 artifacts
+07:52:22 [INFO] src.modules.external_tools: Running whois: whois filmibeat.com
+07:52:22 [INFO] src.modules.external_tools: Running dig: dig filmibeat.com A +short
+07:52:22 [ERROR] src.modules.username_search: Exception checking GitLab: 'expected_status'
+07:52:22 [ERROR] src.modules.username_search: Exception checking Reddit: 'expected_status'
+07:52:22 [INFO] src.modules.external_tools: Dig found 2 A records for filmibeat.com
+07:52:22 [INFO] src.orchestrator: Dig found 2 artifacts for filmibeat.com
+07:52:22 [INFO] src.modules.username_search: Found biography.html on Mastodon
+07:52:22 [INFO] src.modules.username_search: Found biography.html on Instagram
+07:52:22 [INFO] src.orchestrator: Plugin system processed 3 plugins, discovered 6 artifacts
+07:52:22 [INFO] src.modules.username_search: Found biography.html on Pinterest
+07:52:22 [ERROR] src.modules.username_search: Exception checking Reddit: 'expected_status'
+07:52:22 [INFO] src.modules.username_search: Found candidate.php?candidate_id=266 on Steam
+07:52:23 [ERROR] src.modules.username_search: Exception checking GitLab: 'expected_status'
+07:52:23 [INFO] src.modules.username_search: Found candidate.php?candidate_id=266 on Instagram
+07:52:23 [INFO] src.modules.username_search: Found biography.html on Medium
+07:52:23 [INFO] src.modules.username_search: Username search complete: biography.html → found on 5/12 platforms
+07:52:23 [INFO] src.modules.username_search: Found candidate.php?candidate_id=266 on Pinterest
+07:52:23 [INFO] src.modules.external_tools: Whois lookup completed for filmibeat.com
+07:52:23 [INFO] src.orchestrator: Whois found 1 artifacts for filmibeat.com
+07:52:24 [INFO] src.modules.username_search: Username search complete: candidate.php?candidate_id=266 → found on 3/12 platforms
+07:52:24 [INFO] src.modules.google_dorks: Limiting patterns from 8 to 3 to avoid rate limiting
+07:52:24 [INFO] src.modules.google_dorks: Searching for username 'biography.html' with 3 dork patterns
+07:52:24 [INFO] src.modules.google_dorks: Pattern 'simple_search' found 8 results
+07:52:24 [WARNING] src.modules.google_dorks: Google rate limited (429) for query: udhayanidhi-stalin
+07:52:24 [WARNING] src.modules.google_dorks: Pattern 'simple_search' failed: Rate limited by Google (429)
+07:52:24 [INFO] src.modules.google_dorks: DuckDuckGo search found 0 results for pattern 'profile_pages'
+07:52:24 [INFO] src.modules.google_dorks: DuckDuckGo search found 0 results for pattern 'social_platforms'
+07:52:24 [WARNING] src.modules.google_dorks: Pattern 'profile_pages' failed: None
+07:52:24 [WARNING] src.modules.google_dorks: Pattern 'social_platforms' failed: None
+07:52:24 [INFO] src.modules.google_dorks: Google Dorks search discovered 16 artifacts
+07:52:24 [INFO] src.orchestrator: Google Dorks found 16 artifacts for biography.html
+07:52:24 [INFO] src.modules.google_dorks: Limiting patterns from 8 to 3 to avoid rate limiting
+07:52:24 [INFO] src.modules.google_dorks: Searching for username 'biography.html' with 3 dork patterns
+07:52:24 [INFO] src.modules.username_search: Found biography.html on Instagram
+07:52:24 [INFO] src.modules.username_search: Found biography.html on Medium
+07:52:24 [INFO] src.modules.username_search: Found biography.html on Pinterest
+07:52:24 [INFO] src.modules.username_search: Found biography.html on Steam
+07:52:24 [INFO] src.modules.username_search: Found biography.html on Mastodon
+07:52:24 [ERROR] src.modules.username_search: Exception checking GitLab: 'expected_status'
+07:52:24 [ERROR] src.modules.username_search: Exception checking Reddit: 'expected_status'
+07:52:24 [INFO] src.modules.username_search: Username search complete: biography.html → found on 5/12 platforms
+07:52:25 [INFO] src.modules.google_dorks: Limiting patterns from 8 to 3 to avoid rate limiting
+07:52:25 [INFO] src.modules.google_dorks: Searching for username 'candidate.php?candidate_id=266' with 3 dork patterns
+07:52:25 [INFO] src.modules.google_dorks: DuckDuckGo search found 0 results for pattern 'social_platforms'
+07:52:25 [INFO] src.modules.google_dorks: DuckDuckGo search found 0 results for pattern 'simple_search'
+07:52:25 [INFO] src.modules.google_dorks: DuckDuckGo search found 0 results for pattern 'profile_pages'
+07:52:25 [WARNING] src.modules.google_dorks: Pattern 'social_platforms' failed: None
+07:52:25 [WARNING] src.modules.google_dorks: Pattern 'simple_search' failed: None
+07:52:25 [WARNING] src.modules.google_dorks: Pattern 'profile_pages' failed: None
+07:52:25 [INFO] src.modules.google_dorks: Google Dorks search discovered 0 artifacts
+07:52:25 [INFO] src.modules.google_dorks: Limiting patterns from 8 to 3 to avoid rate limiting
+07:52:25 [INFO] src.modules.google_dorks: Searching for username 'candidate.php?candidate_id=266' with 3 dork patterns
+07:52:25 [INFO] src.modules.username_search: Found candidate.php?candidate_id=266 on Pinterest
+07:52:25 [INFO] src.modules.username_search: Found candidate.php?candidate_id=266 on Instagram
+07:52:25 [INFO] src.modules.username_search: Found candidate.php?candidate_id=266 on Steam
+07:52:25 [ERROR] src.modules.username_search: Exception checking Reddit: 'expected_status'
+07:52:25 [ERROR] src.modules.username_search: Exception checking GitLab: 'expected_status'
+07:52:25 [INFO] src.modules.username_search: Username search complete: candidate.php?candidate_id=266 → found on 3/12 platforms
+07:52:26 [WARNING] src.modules.google_dorks: Google rate limited (429) for query: site:twitter.com "udhayanidhi-stalin" OR site:linkedin.com "udhayanidhi-stalin" OR site:github.com "udhayanidhi-stalin" OR site:instagram.com "udhayanidhi-stalin"
+07:52:26 [WARNING] src.modules.google_dorks: Pattern 'social_platforms' failed: Rate limited by Google (429)
+07:52:27 [WARNING] src.modules.google_dorks: Google rate limited (429) for query: intitle:"profile" "udhayanidhi-stalin" OR intitle:"user" "udhayanidhi-stalin"
+07:52:27 [WARNING] src.modules.google_dorks: Pattern 'profile_pages' failed: Rate limited by Google (429)
+07:52:27 [INFO] src.modules.google_dorks: Google Dorks search discovered 0 artifacts
+07:52:27 [INFO] src.orchestrator: Plugin system processed 2 plugins, discovered 0 artifacts
+07:52:27 [INFO] src.modules.external_tools: Running whois: whois myneta.info
+07:52:27 [INFO] src.modules.external_tools: Running dig: dig myneta.info A +short
+07:52:28 [INFO] src.modules.external_tools: Dig found 1 A records for myneta.info
+07:52:28 [INFO] src.orchestrator: Dig found 1 artifacts for myneta.info
+07:52:28 [ERROR] src.modules.external_tools: Wayback Machine error: HTTPConnectionPool(host='web.archive.org', port=80): Max retries exceeded with url: /cdx/search/cdx?url=myneta.info/*&output=json&fl=timestamp,original,statuscode,mimetype&collapse=urlkey&limit=15 (Caused by NewConnectionError("HTTPConnection(host='web.archive.org', port=80): Failed to establish a new connection: [Errno 61] Connection refused"))
+07:52:28 [INFO] src.modules.external_tools: Whois lookup completed for myneta.info
+07:52:28 [INFO] src.orchestrator: Whois found 1 artifacts for myneta.info
+07:52:29 [ERROR] src.modules.external_tools: whois timeout: Tool execution timed out after 30s
+07:52:29 [INFO] src.orchestrator: Plugin system processed 3 plugins, discovered 24 artifacts
+07:52:29 [INFO] src.modules.username_search: Found rdhayanidhi.html on Steam
+07:52:29 [ERROR] src.modules.username_search: Exception checking Reddit: 'expected_status'
+07:52:29 [ERROR] src.modules.username_search: Exception checking GitLab: 'expected_status'
+07:52:29 [INFO] src.modules.username_search: Found rdhayanidhi.html on Instagram
+07:52:29 [INFO] src.modules.username_search: Found rdhayanidhi.html on Pinterest
+07:52:30 [INFO] src.modules.username_search: Found rdhayanidhi.html on Medium
+07:52:30 [INFO] src.modules.username_search: Username search complete: rdhayanidhi.html → found on 4/12 platforms
+07:52:30 [WARNING] src.modules.google_dorks: Google rate limited (429) for query: reels
+07:52:30 [WARNING] src.modules.google_dorks: Pattern 'simple_search' failed: Rate limited by Google (429)
+07:52:30 [INFO] src.orchestrator: Plugin system processed 3 plugins, discovered 4 artifacts
+07:52:30 [INFO] src.modules.username_search: Found udhay_stalin on Steam
+07:52:30 [ERROR] src.modules.username_search: Exception checking Reddit: 'expected_status'
+07:52:30 [ERROR] src.modules.username_search: Exception checking GitLab: 'expected_status'
+07:52:30 [INFO] src.modules.username_search: Found udhay_stalin on Instagram
+07:52:31 [INFO] src.modules.username_search: Found udhay_stalin on Pinterest
+07:52:31 [INFO] src.modules.google_dorks: Limiting patterns from 8 to 3 to avoid rate limiting
+07:52:31 [INFO] src.modules.google_dorks: Searching for username 'rdhayanidhi.html' with 3 dork patterns
+07:52:31 [INFO] src.modules.google_dorks: DuckDuckGo search found 0 results for pattern 'social_platforms'
+07:52:31 [INFO] src.modules.google_dorks: DuckDuckGo search found 0 results for pattern 'profile_pages'
+07:52:31 [INFO] src.modules.google_dorks: DuckDuckGo search found 0 results for pattern 'simple_search'
+07:52:31 [WARNING] src.modules.google_dorks: Pattern 'social_platforms' failed: None
+07:52:31 [WARNING] src.modules.google_dorks: Pattern 'profile_pages' failed: None
+07:52:31 [WARNING] src.modules.google_dorks: Pattern 'simple_search' failed: None
+07:52:31 [INFO] src.modules.google_dorks: Google Dorks search discovered 0 artifacts
+07:52:31 [INFO] src.modules.google_dorks: Limiting patterns from 8 to 3 to avoid rate limiting
+07:52:31 [INFO] src.modules.google_dorks: Searching for username 'rdhayanidhi.html' with 3 dork patterns
+07:52:31 [INFO] src.modules.username_search: Found rdhayanidhi.html on Steam
+07:52:31 [INFO] src.modules.username_search: Found rdhayanidhi.html on Pinterest
+07:52:31 [INFO] src.modules.username_search: Found rdhayanidhi.html on Medium
+07:52:31 [INFO] src.modules.username_search: Found rdhayanidhi.html on Instagram
+07:52:31 [ERROR] src.modules.username_search: Exception checking Reddit: 'expected_status'
+07:52:31 [ERROR] src.modules.username_search: Exception checking GitLab: 'expected_status'
+07:52:31 [INFO] src.modules.username_search: Username search complete: rdhayanidhi.html → found on 4/12 platforms
+07:52:31 [INFO] src.modules.username_search: Found udhay_stalin on Medium
+07:52:31 [INFO] src.modules.username_search: Username search complete: udhay_stalin → found on 4/12 platforms
+07:52:32 [INFO] src.modules.google_dorks: Limiting patterns from 8 to 3 to avoid rate limiting
+07:52:32 [INFO] src.modules.google_dorks: Searching for username 'udhay_stalin' with 3 dork patterns
+07:52:32 [INFO] src.modules.google_dorks: DuckDuckGo search found 0 results for pattern 'profile_pages'
+07:52:32 [INFO] src.modules.google_dorks: DuckDuckGo search found 0 results for pattern 'social_platforms'
+07:52:32 [INFO] src.modules.google_dorks: DuckDuckGo search found 0 results for pattern 'simple_search'
+07:52:32 [WARNING] src.modules.google_dorks: Pattern 'profile_pages' failed: None
+07:52:32 [WARNING] src.modules.google_dorks: Pattern 'social_platforms' failed: None
+07:52:32 [WARNING] src.modules.google_dorks: Pattern 'simple_search' failed: None
+07:52:32 [INFO] src.modules.google_dorks: Google Dorks search discovered 0 artifacts
+07:52:32 [INFO] src.modules.google_dorks: Limiting patterns from 8 to 3 to avoid rate limiting
+07:52:32 [INFO] src.modules.google_dorks: Searching for username 'udhay_stalin' with 3 dork patterns
+07:52:32 [INFO] src.modules.username_search: Found udhay_stalin on Medium
+07:52:32 [INFO] src.modules.username_search: Found udhay_stalin on Steam
+07:52:32 [INFO] src.modules.username_search: Found udhay_stalin on Instagram
+07:52:32 [INFO] src.modules.username_search: Found udhay_stalin on Pinterest
+07:52:32 [ERROR] src.modules.username_search: Exception checking Reddit: 'expected_status'
+07:52:32 [ERROR] src.modules.username_search: Exception checking GitLab: 'expected_status'
+07:52:32 [INFO] src.modules.username_search: Username search complete: udhay_stalin → found on 4/12 platforms
+07:52:33 [WARNING] src.modules.google_dorks: Google rate limited (429) for query: site:twitter.com "reels" OR site:linkedin.com "reels" OR site:github.com "reels" OR site:instagram.com "reels"
+07:52:33 [WARNING] src.modules.google_dorks: Pattern 'social_platforms' failed: Rate limited by Google (429)
+07:52:34 [WARNING] src.modules.google_dorks: Google rate limited (429) for query: intitle:"profile" "reels" OR intitle:"user" "reels"
+07:52:34 [WARNING] src.modules.google_dorks: Pattern 'profile_pages' failed: Rate limited by Google (429)
+07:52:34 [INFO] src.modules.google_dorks: Google Dorks search discovered 0 artifacts
+07:52:34 [INFO] src.orchestrator: Plugin system processed 2 plugins, discovered 0 artifacts
+07:52:34 [INFO] src.plugins.builtins.profile_image_plugin: Extracting profile image from: https://steamcommunity.com/id/dhayanidhi.rajasekaran
+07:52:34 [INFO] src.orchestrator: Plugin system processed 1 plugins, discovered 0 artifacts
+07:52:34 [INFO] src.plugins.builtins.profile_image_plugin: Extracting profile image from: https://www.instagram.com/dhayanidhi.rajasekaran/
+07:52:34 [INFO] src.orchestrator: Plugin system processed 1 plugins, discovered 0 artifacts
+07:52:34 [INFO] src.plugins.builtins.profile_image_plugin: Extracting profile image from: https://www.pinterest.com/dhayanidhi.rajasekaran/
+07:52:35 [INFO] src.orchestrator: Plugin system processed 1 plugins, discovered 0 artifacts
+07:52:36 [INFO] src.modules.username_search: Found in-0-India on Steam
+07:52:36 [ERROR] src.modules.username_search: Exception checking Reddit: 'expected_status'
+07:52:36 [ERROR] src.modules.username_search: Exception checking GitLab: 'expected_status'
+07:52:36 [INFO] src.modules.username_search: Found in-0-India on Instagram
+07:52:36 [WARNING] src.modules.google_dorks: Google rate limited (429) for query: site:twitter.com "drajasekaran9" OR site:linkedin.com "drajasekaran9" OR site:github.com "drajasekaran9" OR site:instagram.com "drajasekaran9"
+07:52:36 [WARNING] src.modules.google_dorks: Pattern 'social_platforms' failed: Rate limited by Google (429)
+07:52:36 [INFO] src.modules.username_search: Found in-0-India on Medium
+07:52:37 [INFO] src.modules.username_search: Found in-0-India on Pinterest
+07:52:37 [INFO] src.modules.username_search: Username search complete: in-0-India → found on 4/12 platforms
+07:52:38 [INFO] src.modules.google_dorks: Limiting patterns from 8 to 3 to avoid rate limiting
+07:52:38 [INFO] src.modules.google_dorks: Searching for username 'in-0-India' with 3 dork patterns
+07:52:38 [INFO] src.modules.google_dorks: DuckDuckGo search found 0 results for pattern 'social_platforms'
+07:52:38 [INFO] src.modules.google_dorks: DuckDuckGo search found 0 results for pattern 'simple_search'
+07:52:38 [INFO] src.modules.google_dorks: DuckDuckGo search found 0 results for pattern 'profile_pages'
+07:52:38 [WARNING] src.modules.google_dorks: Pattern 'social_platforms' failed: None
+07:52:38 [WARNING] src.modules.google_dorks: Pattern 'simple_search' failed: None
+07:52:38 [WARNING] src.modules.google_dorks: Pattern 'profile_pages' failed: None
+07:52:38 [INFO] src.modules.google_dorks: Google Dorks search discovered 0 artifacts
+07:52:38 [INFO] src.modules.google_dorks: Limiting patterns from 8 to 3 to avoid rate limiting
+07:52:38 [INFO] src.modules.google_dorks: Searching for username 'in-0-India' with 3 dork patterns
+07:52:38 [INFO] src.modules.username_search: Found in-0-India on Medium
+07:52:38 [INFO] src.modules.username_search: Found in-0-India on Instagram
+07:52:38 [INFO] src.modules.username_search: Found in-0-India on Pinterest
+07:52:38 [INFO] src.modules.username_search: Found in-0-India on Steam
+07:52:38 [WARNING] src.modules.google_dorks: Google rate limited (429) for query: drajasekaran9
+07:52:38 [WARNING] src.modules.google_dorks: Pattern 'simple_search' failed: Rate limited by Google (429)
+07:52:38 [ERROR] src.modules.username_search: Exception checking Reddit: 'expected_status'
+07:52:38 [ERROR] src.modules.username_search: Exception checking GitLab: 'expected_status'
+07:52:38 [INFO] src.modules.username_search: Username search complete: in-0-India → found on 4/12 platforms
+07:52:40 [WARNING] src.modules.google_dorks: Google rate limited (429) for query: intitle:"profile" "drajasekaran9" OR intitle:"user" "drajasekaran9"
+07:52:40 [WARNING] src.modules.google_dorks: Pattern 'profile_pages' failed: Rate limited by Google (429)
+07:52:40 [INFO] src.modules.google_dorks: Google Dorks search discovered 0 artifacts
+07:52:40 [INFO] src.orchestrator: Plugin system processed 2 plugins, discovered 0 artifacts
+07:52:40 [INFO] src.modules.username_search: Found iam_dhayanidhi on Steam
+07:52:40 [ERROR] src.modules.username_search: Exception checking Reddit: 'expected_status'
+07:52:40 [ERROR] src.modules.username_search: Exception checking GitLab: 'expected_status'
+07:52:40 [INFO] src.modules.username_search: Found iam_dhayanidhi on Instagram
+07:52:41 [INFO] src.modules.username_search: Found iam_dhayanidhi on Pinterest
+07:52:41 [INFO] src.modules.username_search: Found iam_dhayanidhi on Medium
+07:52:41 [INFO] src.modules.username_search: Username search complete: iam_dhayanidhi → found on 4/12 platforms
+07:52:42 [WARNING] src.modules.google_dorks: Google rate limited (429) for query: drajasekaran.rajasekaran
+07:52:42 [WARNING] src.modules.google_dorks: Pattern 'simple_search' failed: Rate limited by Google (429)
+07:52:42 [INFO] src.modules.google_dorks: Limiting patterns from 8 to 3 to avoid rate limiting
+07:52:42 [INFO] src.modules.google_dorks: Searching for username 'iam_dhayanidhi' with 3 dork patterns
+07:52:42 [INFO] src.modules.google_dorks: DuckDuckGo search found 0 results for pattern 'social_platforms'
+07:52:42 [WARNING] src.modules.google_dorks: Pattern 'social_platforms' failed: None
+07:52:43 [INFO] src.modules.google_dorks: DuckDuckGo search found 10 results for pattern 'simple_search'
+07:52:43 [INFO] src.modules.google_dorks: Pattern 'simple_search' found 10 results
+07:52:43 [INFO] src.modules.google_dorks: DuckDuckGo search found 0 results for pattern 'profile_pages'
+07:52:43 [WARNING] src.modules.google_dorks: Pattern 'profile_pages' failed: None
+07:52:43 [INFO] src.modules.google_dorks: Google Dorks search discovered 19 artifacts
+07:52:43 [INFO] src.orchestrator: Google Dorks found 19 artifacts for iam_dhayanidhi
+07:52:43 [INFO] src.modules.google_dorks: Limiting patterns from 8 to 3 to avoid rate limiting
+07:52:43 [INFO] src.modules.google_dorks: Searching for username 'iam_dhayanidhi' with 3 dork patterns
+07:52:43 [INFO] src.modules.username_search: Found iam_dhayanidhi on Instagram
+07:52:43 [INFO] src.modules.username_search: Found iam_dhayanidhi on Medium
+07:52:43 [INFO] src.modules.username_search: Found iam_dhayanidhi on Pinterest
+07:52:43 [INFO] src.modules.username_search: Found iam_dhayanidhi on Steam
+07:52:43 [ERROR] src.modules.username_search: Exception checking Reddit: 'expected_status'
+07:52:43 [ERROR] src.modules.username_search: Exception checking GitLab: 'expected_status'
+07:52:43 [INFO] src.modules.username_search: Username search complete: iam_dhayanidhi → found on 4/12 platforms
+07:52:43 [INFO] src.modules.external_tools: Wayback Machine found 15 historical URLs for filmibeat.com
+07:52:43 [INFO] src.orchestrator: Wayback Machine found 15 artifacts for filmibeat.com
+07:52:44 [INFO] src.orchestrator: Plugin system processed 3 plugins, discovered 20 artifacts
+07:52:44 [INFO] src.plugins.builtins.profile_image_plugin: Extracting profile image from: https://steamcommunity.com/id/dhayanidhi-rajasekar-0b6084293
+07:52:44 [INFO] src.orchestrator: Plugin system processed 1 plugins, discovered 0 artifacts
+07:52:44 [INFO] src.plugins.builtins.profile_image_plugin: Extracting profile image from: https://www.instagram.com/dhayanidhi-rajasekar-0b6084293/
+07:52:44 [WARNING] src.modules.google_dorks: Google rate limited (429) for query: site:twitter.com "drajasekaran.rajasekaran" OR site:linkedin.com "drajasekaran.rajasekaran" OR site:github.com "drajasekaran.rajasekaran" OR site:instagram.com "drajasekaran.rajasekaran"
+07:52:44 [WARNING] src.modules.google_dorks: Pattern 'social_platforms' failed: Rate limited by Google (429)
+07:52:44 [INFO] src.orchestrator: Plugin system processed 1 plugins, discovered 0 artifacts
+07:52:44 [INFO] src.plugins.builtins.profile_image_plugin: Extracting profile image from: https://www.pinterest.com/dhayanidhi-rajasekar-0b6084293/
+07:52:45 [INFO] src.orchestrator: Plugin system processed 1 plugins, discovered 0 artifacts
+07:52:45 [INFO] src.plugins.builtins.profile_image_plugin: Extracting profile image from: https://medium.com/@dhayanidhi-rajasekar-0b6084293
+07:52:45 [WARNING] src.modules.google_dorks: Google rate limited (429) for query: intitle:"profile" "drajasekaran.rajasekaran" OR intitle:"user" "drajasekaran.rajasekaran"
+07:52:45 [WARNING] src.modules.google_dorks: Pattern 'profile_pages' failed: Rate limited by Google (429)
+07:52:45 [INFO] src.modules.google_dorks: Google Dorks search discovered 0 artifacts
+07:52:45 [INFO] src.orchestrator: Plugin system processed 2 plugins, discovered 0 artifacts
+07:52:46 [INFO] src.orchestrator: Plugin system processed 1 plugins, discovered 0 artifacts
+07:52:47 [WARNING] src.modules.google_dorks: Google rate limited (429) for query: drajasekaran.rajasekaran.3
+07:52:47 [WARNING] src.modules.google_dorks: Pattern 'simple_search' failed: Rate limited by Google (429)
+07:52:49 [WARNING] src.modules.google_dorks: Google rate limited (429) for query: site:twitter.com "drajasekaran.rajasekaran.3" OR site:linkedin.com "drajasekaran.rajasekaran.3" OR site:github.com "drajasekaran.rajasekaran.3" OR site:instagram.com "drajasekaran.rajasekaran.3"
+07:52:49 [WARNING] src.modules.google_dorks: Pattern 'social_platforms' failed: Rate limited by Google (429)
+07:52:52 [WARNING] src.modules.google_dorks: Google rate limited (429) for query: intitle:"profile" "drajasekaran.rajasekaran.3" OR intitle:"user" "drajasekaran.rajasekaran.3"
+07:52:52 [WARNING] src.modules.google_dorks: Pattern 'profile_pages' failed: Rate limited by Google (429)
+07:52:52 [INFO] src.modules.google_dorks: Google Dorks search discovered 0 artifacts
+07:52:52 [INFO] src.orchestrator: Plugin system processed 2 plugins, discovered 0 artifacts
+07:52:54 [WARNING] src.modules.google_dorks: Google rate limited (429) for query: site:twitter.com "DRajasekaran" OR site:linkedin.com "DRajasekaran" OR site:github.com "DRajasekaran" OR site:instagram.com "DRajasekaran"
+07:52:54 [WARNING] src.modules.google_dorks: Pattern 'social_platforms' failed: Rate limited by Google (429)
+07:52:56 [WARNING] src.modules.google_dorks: Google rate limited (429) for query: DRajasekaran
+07:52:56 [WARNING] src.modules.google_dorks: Pattern 'simple_search' failed: Rate limited by Google (429)
+07:52:58 [WARNING] src.modules.google_dorks: Google rate limited (429) for query: intitle:"profile" "DRajasekaran" OR intitle:"user" "DRajasekaran"
+07:52:58 [WARNING] src.modules.google_dorks: Pattern 'profile_pages' failed: Rate limited by Google (429)
+07:52:58 [INFO] src.modules.google_dorks: Google Dorks search discovered 0 artifacts
+07:52:58 [INFO] src.orchestrator: Plugin system processed 2 plugins, discovered 0 artifacts
+07:52:59 [WARNING] src.modules.google_dorks: Google rate limited (429) for query: testsys-drajasekaran
+07:52:59 [WARNING] src.modules.google_dorks: Pattern 'simple_search' failed: Rate limited by Google (429)
+07:53:01 [WARNING] src.modules.google_dorks: Google rate limited (429) for query: site:twitter.com "testsys-drajasekaran" OR site:linkedin.com "testsys-drajasekaran" OR site:github.com "testsys-drajasekaran" OR site:instagram.com "testsys-drajasekaran"
+07:53:01 [WARNING] src.modules.google_dorks: Pattern 'social_platforms' failed: Rate limited by Google (429)
+07:53:03 [WARNING] src.modules.google_dorks: Google rate limited (429) for query: intitle:"profile" "testsys-drajasekaran" OR intitle:"user" "testsys-drajasekaran"
+07:53:03 [WARNING] src.modules.google_dorks: Pattern 'profile_pages' failed: Rate limited by Google (429)
+07:53:03 [INFO] src.modules.google_dorks: Google Dorks search discovered 0 artifacts
+07:53:03 [INFO] src.orchestrator: Plugin system processed 2 plugins, discovered 0 artifacts
+07:53:05 [WARNING] src.modules.google_dorks: Google rate limited (429) for query: sri-drajasekaran-and-rpradeep-chandran
+07:53:05 [WARNING] src.modules.google_dorks: Pattern 'simple_search' failed: Rate limited by Google (429)
+07:53:08 [WARNING] src.modules.google_dorks: Google rate limited (429) for query: site:twitter.com "sri-drajasekaran-and-rpradeep-chandran" OR site:linkedin.com "sri-drajasekaran-and-rpradeep-chandran" OR site:github.com "sri-drajasekaran-and-rpradeep-chandran" OR site:instagram.com "sri-drajasekaran-and-rpradeep-chandran"
+07:53:08 [WARNING] src.modules.google_dorks: Pattern 'social_platforms' failed: Rate limited by Google (429)
+07:53:10 [WARNING] src.modules.google_dorks: Google rate limited (429) for query: intitle:"profile" "sri-drajasekaran-and-rpradeep-chandran" OR intitle:"user" "sri-drajasekaran-and-rpradeep-chandran"
+07:53:10 [WARNING] src.modules.google_dorks: Pattern 'profile_pages' failed: Rate limited by Google (429)
+07:53:10 [INFO] src.modules.google_dorks: Google Dorks search discovered 0 artifacts
+07:53:10 [INFO] src.orchestrator: Plugin system processed 2 plugins, discovered 0 artifacts
+07:53:12 [WARNING] src.modules.google_dorks: Google rate limited (429) for query: watch?v=XWCFDnr9nY8
+07:53:12 [WARNING] src.modules.google_dorks: Pattern 'simple_search' failed: Rate limited by Google (429)
+07:53:13 [WARNING] src.modules.google_dorks: Google rate limited (429) for query: site:twitter.com "watch?v=XWCFDnr9nY8" OR site:linkedin.com "watch?v=XWCFDnr9nY8" OR site:github.com "watch?v=XWCFDnr9nY8" OR site:instagram.com "watch?v=XWCFDnr9nY8"
+07:53:13 [WARNING] src.modules.google_dorks: Pattern 'social_platforms' failed: Rate limited by Google (429)
+07:53:15 [WARNING] src.modules.google_dorks: Google rate limited (429) for query: intitle:"profile" "watch?v=XWCFDnr9nY8" OR intitle:"user" "watch?v=XWCFDnr9nY8"
+07:53:15 [WARNING] src.modules.google_dorks: Pattern 'profile_pages' failed: Rate limited by Google (429)
+07:53:15 [INFO] src.modules.google_dorks: Google Dorks search discovered 0 artifacts
+07:53:15 [INFO] src.orchestrator: Plugin system processed 2 plugins, discovered 0 artifacts
+07:53:17 [WARNING] src.modules.google_dorks: Google rate limited (429) for query: @Udhaystalin
+07:53:17 [WARNING] src.modules.google_dorks: Pattern 'simple_search' failed: Rate limited by Google (429)
+07:53:19 [WARNING] src.modules.google_dorks: Google rate limited (429) for query: site:twitter.com "@Udhaystalin" OR site:linkedin.com "@Udhaystalin" OR site:github.com "@Udhaystalin" OR site:instagram.com "@Udhaystalin"
+07:53:19 [WARNING] src.modules.google_dorks: Pattern 'social_platforms' failed: Rate limited by Google (429)
+07:53:22 [WARNING] src.modules.google_dorks: Google rate limited (429) for query: intitle:"profile" "@Udhaystalin" OR intitle:"user" "@Udhaystalin"
+07:53:22 [WARNING] src.modules.google_dorks: Pattern 'profile_pages' failed: Rate limited by Google (429)
+07:53:22 [INFO] src.modules.google_dorks: Google Dorks search discovered 0 artifacts
+07:53:22 [INFO] src.orchestrator: Plugin system processed 2 plugins, discovered 0 artifacts
+07:53:24 [WARNING] src.modules.google_dorks: Google rate limited (429) for query: inbanithi-udhayanidhi
+07:53:24 [WARNING] src.modules.google_dorks: Pattern 'simple_search' failed: Rate limited by Google (429)
+07:53:26 [WARNING] src.modules.google_dorks: Google rate limited (429) for query: site:twitter.com "inbanithi-udhayanidhi" OR site:linkedin.com "inbanithi-udhayanidhi" OR site:github.com "inbanithi-udhayanidhi" OR site:instagram.com "inbanithi-udhayanidhi"
+07:53:26 [WARNING] src.modules.google_dorks: Pattern 'social_platforms' failed: Rate limited by Google (429)
+07:53:28 [WARNING] src.modules.google_dorks: Google rate limited (429) for query: intitle:"profile" "inbanithi-udhayanidhi" OR intitle:"user" "inbanithi-udhayanidhi"
+07:53:28 [WARNING] src.modules.google_dorks: Pattern 'profile_pages' failed: Rate limited by Google (429)
+07:53:28 [INFO] src.modules.google_dorks: Google Dorks search discovered 0 artifacts
+07:53:28 [INFO] src.orchestrator: Plugin system processed 2 plugins, discovered 0 artifacts
+07:53:30 [WARNING] src.modules.google_dorks: Google rate limited (429) for query: biography.html
+07:53:30 [WARNING] src.modules.google_dorks: Pattern 'simple_search' failed: Rate limited by Google (429)
+07:53:31 [WARNING] src.modules.google_dorks: Google rate limited (429) for query: site:twitter.com "biography.html" OR site:linkedin.com "biography.html" OR site:github.com "biography.html" OR site:instagram.com "biography.html"
+07:53:31 [WARNING] src.modules.google_dorks: Pattern 'social_platforms' failed: Rate limited by Google (429)
+07:53:33 [WARNING] src.modules.google_dorks: Google rate limited (429) for query: intitle:"profile" "biography.html" OR intitle:"user" "biography.html"
+07:53:33 [WARNING] src.modules.google_dorks: Pattern 'profile_pages' failed: Rate limited by Google (429)
+07:53:33 [INFO] src.modules.google_dorks: Google Dorks search discovered 0 artifacts
+07:53:33 [INFO] src.orchestrator: Plugin system processed 2 plugins, discovered 0 artifacts
+07:53:36 [WARNING] src.modules.google_dorks: Google rate limited (429) for query: candidate.php?candidate_id=266
+07:53:36 [WARNING] src.modules.google_dorks: Pattern 'simple_search' failed: Rate limited by Google (429)
+07:53:38 [WARNING] src.modules.google_dorks: Google rate limited (429) for query: site:twitter.com "candidate.php?candidate_id=266" OR site:linkedin.com "candidate.php?candidate_id=266" OR site:github.com "candidate.php?candidate_id=266" OR site:instagram.com "candidate.php?candidate_id=266"
+07:53:38 [WARNING] src.modules.google_dorks: Pattern 'social_platforms' failed: Rate limited by Google (429)
+07:53:39 [WARNING] src.modules.google_dorks: Google rate limited (429) for query: intitle:"profile" "candidate.php?candidate_id=266" OR intitle:"user" "candidate.php?candidate_id=266"
+07:53:39 [WARNING] src.modules.google_dorks: Pattern 'profile_pages' failed: Rate limited by Google (429)
+07:53:39 [INFO] src.modules.google_dorks: Google Dorks search discovered 0 artifacts
+07:53:39 [INFO] src.orchestrator: Plugin system processed 2 plugins, discovered 0 artifacts
+07:53:41 [WARNING] src.modules.google_dorks: Google rate limited (429) for query: rdhayanidhi.html
+07:53:41 [WARNING] src.modules.google_dorks: Pattern 'simple_search' failed: Rate limited by Google (429)
+07:53:43 [WARNING] src.modules.google_dorks: Google rate limited (429) for query: site:twitter.com "rdhayanidhi.html" OR site:linkedin.com "rdhayanidhi.html" OR site:github.com "rdhayanidhi.html" OR site:instagram.com "rdhayanidhi.html"
+07:53:43 [WARNING] src.modules.google_dorks: Pattern 'social_platforms' failed: Rate limited by Google (429)
+07:53:45 [WARNING] src.modules.google_dorks: Google rate limited (429) for query: intitle:"profile" "rdhayanidhi.html" OR intitle:"user" "rdhayanidhi.html"
+07:53:45 [WARNING] src.modules.google_dorks: Pattern 'profile_pages' failed: Rate limited by Google (429)
+07:53:45 [INFO] src.modules.google_dorks: Google Dorks search discovered 0 artifacts
+07:53:45 [INFO] src.orchestrator: Plugin system processed 2 plugins, discovered 0 artifacts
+07:53:47 [WARNING] src.modules.google_dorks: Google rate limited (429) for query: udhay_stalin
+07:53:47 [WARNING] src.modules.google_dorks: Pattern 'simple_search' failed: Rate limited by Google (429)
+07:53:49 [WARNING] src.modules.google_dorks: Google rate limited (429) for query: site:twitter.com "udhay_stalin" OR site:linkedin.com "udhay_stalin" OR site:github.com "udhay_stalin" OR site:instagram.com "udhay_stalin"
+07:53:49 [WARNING] src.modules.google_dorks: Pattern 'social_platforms' failed: Rate limited by Google (429)
+07:53:51 [WARNING] src.modules.google_dorks: Google rate limited (429) for query: intitle:"profile" "udhay_stalin" OR intitle:"user" "udhay_stalin"
+07:53:51 [WARNING] src.modules.google_dorks: Pattern 'profile_pages' failed: Rate limited by Google (429)
+07:53:51 [INFO] src.modules.google_dorks: Google Dorks search discovered 0 artifacts
+07:53:51 [INFO] src.orchestrator: Plugin system processed 2 plugins, discovered 0 artifacts
+07:53:53 [WARNING] src.modules.google_dorks: Google rate limited (429) for query: in-0-India
+07:53:53 [WARNING] src.modules.google_dorks: Pattern 'simple_search' failed: Rate limited by Google (429)
+07:53:55 [WARNING] src.modules.google_dorks: Google rate limited (429) for query: site:twitter.com "in-0-India" OR site:linkedin.com "in-0-India" OR site:github.com "in-0-India" OR site:instagram.com "in-0-India"
+07:53:55 [WARNING] src.modules.google_dorks: Pattern 'social_platforms' failed: Rate limited by Google (429)
+07:53:58 [WARNING] src.modules.google_dorks: Google rate limited (429) for query: intitle:"profile" "in-0-India" OR intitle:"user" "in-0-India"
+07:53:58 [WARNING] src.modules.google_dorks: Pattern 'profile_pages' failed: Rate limited by Google (429)
+07:53:58 [INFO] src.modules.google_dorks: Google Dorks search discovered 0 artifacts
+07:53:58 [INFO] src.orchestrator: Plugin system processed 2 plugins, discovered 0 artifacts
+07:53:59 [WARNING] src.modules.google_dorks: Google rate limited (429) for query: iam_dhayanidhi
+07:53:59 [WARNING] src.modules.google_dorks: Pattern 'simple_search' failed: Rate limited by Google (429)
+07:54:01 [WARNING] src.modules.google_dorks: Google rate limited (429) for query: site:twitter.com "iam_dhayanidhi" OR site:linkedin.com "iam_dhayanidhi" OR site:github.com "iam_dhayanidhi" OR site:instagram.com "iam_dhayanidhi"
+07:54:01 [WARNING] src.modules.google_dorks: Pattern 'social_platforms' failed: Rate limited by Google (429)
+07:54:03 [WARNING] src.modules.google_dorks: Google rate limited (429) for query: intitle:"profile" "iam_dhayanidhi" OR intitle:"user" "iam_dhayanidhi"
+07:54:03 [WARNING] src.modules.google_dorks: Pattern 'profile_pages' failed: Rate limited by Google (429)
+07:54:03 [INFO] src.modules.google_dorks: Google Dorks search discovered 0 artifacts
+07:54:03 [INFO] src.orchestrator: Plugin system processed 2 plugins, discovered 0 artifacts
+07:54:03 [INFO] src.orchestrator: BFS level 3 done in 187.4s (parallel=187.4s, db=0.0s); processed=122, seen=179, next_level=0
+07:54:03 [INFO] src.orchestrator: BFS processing complete: 122 artifact(s) processed across 3 level(s) in 258.8s
+07:54:03 [INFO] src.orchestrator: Summary: 179 artifacts, 218 links, 176 platform presences
+07:54:03 [INFO] src.modules.correlation: Correlation analysis: 179 artifacts, 218 links, 1 components
+07:54:03 [INFO] src.orchestrator: Correlation analysis: 1 connected components, largest component size: 179
+07:54:03 [INFO] src.orchestrator: Found 1 unique risk indicators: file_not_found
+07:54:03 [INFO] src.orchestrator: Investigation INV-4cfc2ad5 complete: 179 artifacts, 218 links, 176 platforms, 1 risk indicators (finalize/correlation=0.0s, total=258.8s)
+07:54:03 [INFO] src.correlation.linker: Correlation complete: 32 nodes, 32 edges, 3 identities
+07:54:03 [INFO] src.graph.visualizer: Graph saved to /var/folders/73/s7vzm9_d65n7bx0pjs4gmsmm0000gn/T/tmp5zgup1b0.html (32 nodes, 32 edges)
+07:54:03 [INFO] src.reporting.html_report: ============================================================
+07:54:03 [INFO] src.reporting.html_report: INVESTIGATION RECOMMENDATIONS
+07:54:03 [INFO] src.reporting.html_report: ============================================================
+07:54:03 [INFO] src.reporting.html_report: [MEDIUM Priority - Platform Expansion]
+07:54:03 [INFO] src.reporting.html_report:   Action: Expand platform search coverage
+07:54:03 [INFO] src.reporting.html_report:   Details: Currently found on 7 platforms. Consider additional platform searches for broader coverage
+07:54:03 [INFO] src.reporting.html_report: ------------------------------------------------------------
+07:54:03 [INFO] src.reporting.html_report: [MEDIUM Priority - Identity Correlation]
+07:54:03 [INFO] src.reporting.html_report:   Action: Deep dive into identity relationships
+07:54:03 [INFO] src.reporting.html_report:   Details: 3 identity profiles detected. Investigate potential connections between profiles
+07:54:03 [INFO] src.reporting.html_report: ------------------------------------------------------------
+07:54:04 [INFO] src.reporting.html_report: HTML report saved to reports/INV-4cfc2ad5_report.html
