@@ -133,9 +133,5 @@ dmypy.json
 *.sqlite
 *.sqlite3
 investigations/
-reports/
-INV-*_report.html
-INV-*_report.json
 .DS_Store
-logs/
 
