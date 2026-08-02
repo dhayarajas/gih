@@ -2,6 +2,9 @@ click>=8.1.0
 networkx>=3.0
 phonenumbers>=8.13.0
 requests>=2.31.0
+# Search engines serve brotli-encoded HTML; without a decoder responses arrive
+# as undecodable bytes and every scraper silently returns nothing.
+Brotli>=1.1.0
 beautifulsoup4>=4.12.0
 python-whois>=0.9.0
 Pillow>=10.0.0

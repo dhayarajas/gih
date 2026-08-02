@@ -46,12 +46,26 @@ from typing import Optional
 
 import requests
 from requests.adapters import HTTPAdapter
+from urllib3.response import HTTPResponse
 from urllib3.util.retry import Retry
 
 from src.config.loader import get_config
 from src.utils.concurrency import io_slot
 
 logger = logging.getLogger(__name__)
+
+
+def _supported_encodings() -> str:
+    """Advertise only the content encodings urllib3 can actually decode.
+
+    Asking for br/zstd that urllib3 cannot decode (missing decoder package, or a
+    version predating support for the format) yields responses whose ``.text``
+    is undecoded binary, silently breaking every HTML parser downstream. The
+    decoder registry it consults at response time is the authority.
+    """
+    decoders = set(getattr(HTTPResponse, "CONTENT_DECODERS", None) or ())
+    encodings = [e for e in ("gzip", "deflate", "br", "zstd") if e in decoders]
+    return ", ".join(encodings or ["gzip", "deflate"])
 
 
 class _BoundedSession(requests.Session):
@@ -171,7 +185,7 @@ def _create_optimized_session() -> requests.Session:
     user_agents = config["user_agents"]
     session.headers.update({
         "Accept": "application/json, text/html, */*",
-        "Accept-Encoding": "gzip, deflate, br",
+        "Accept-Encoding": _supported_encodings(),
         "User-Agent": random.choice(user_agents),
         "Connection": "keep-alive",
     })

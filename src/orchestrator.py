@@ -64,6 +64,7 @@ VERSION:
 
 import json
 import logging
+import re
 import sqlite3
 import time
 from concurrent.futures import (
@@ -169,6 +170,53 @@ def _artifact_metadata(artifact: dict) -> Optional[str]:
     merged = {**extras, **metadata}
 
     return json.dumps(merged, default=str) if merged else None
+
+
+# Number of username candidates derived from a full name. Each one costs a
+# full username toolchain run, so the list stays short and highest-signal.
+MAX_NAME_USERNAME_CANDIDATES = 5
+
+
+def _username_candidates(full_name: str) -> list[dict]:
+    """Derive plausible username artifacts from a person's full name.
+
+    External tools take handles, not names, so a `fullname` seed would otherwise
+    reach none of them.
+    """
+    parts = [re.sub(r"[^a-z0-9]", "", part.lower()) for part in full_name.split()]
+    parts = [part for part in parts if part]
+    if not parts:
+        return []
+
+    first, last = parts[0], parts[-1]
+    candidates = ["".join(parts)]
+    if len(parts) > 1:
+        candidates += [
+            f"{first}.{last}",
+            f"{first}_{last}",
+            f"{first[0]}{last}",
+            f"{first}{last[0]}",
+        ]
+
+    artifacts = []
+    seen = set()
+    for candidate in candidates:
+        if len(candidate) < 3 or candidate in seen:
+            continue
+        seen.add(candidate)
+        artifacts.append({
+            "type": "username",
+            "value": candidate,
+            "source": "name_username_candidate",
+            # Unverified guesses: the username toolchain confirms them by finding
+            # (or not finding) accounts.
+            "confidence": 0.4,
+            "link_type": "possible_username_of",
+        })
+        if len(artifacts) >= MAX_NAME_USERNAME_CANDIDATES:
+            break
+
+    return artifacts
 
 
 def _account_presences(discovered: list[dict]) -> list[dict]:
@@ -956,10 +1004,17 @@ def _process_fullname(
     try:
         logger.debug("Processing full name with image matching: %s", value)
         
+        # No tool takes a person's name directly, so the name is turned into
+        # username candidates; the BFS then runs the username modules and tools
+        # (username_search, sherlock, maigret, Google Dorks) on each of them.
+        result.discovered.extend(_username_candidates(value))
+
         # Search and match identity
         match_result = image_match.search_and_match_identity(
             full_name=value,
-            max_results=20
+            max_results=20,
+            api_key=config.google_api_key,
+            cx=config.google_cx,
         )
         
         # Defer metadata write to the main thread.
@@ -1042,6 +1097,23 @@ def _process_external_tools(
             return []
         return _run
 
+    def _google_dorks_task(target: str):
+        def _run() -> list[dict]:
+            logger.debug("Running Google Dorks search for: %s", target)
+            res = run_google_dorks_search(
+                username=target,
+                api_key=config.google_api_key,
+                cx=config.google_cx,
+                use_api=config.use_google_api,
+                search_engine=config.search_engine,
+            )
+            if res:
+                logger.info("Google Dorks found %d artifacts for %s", len(res), target)
+                return res
+            logger.debug("Google Dorks found no results for %s", target)
+            return []
+        return _run
+
     try:
         if artifact_type == "username":
             if check_tool_availability("sherlock"):
@@ -1050,22 +1122,11 @@ def _process_external_tools(
                 tasks.append(("maigret", _tool_task("maigret", "username_search", "Maigret")))
 
             if check_google_dorks_availability(config.google_api_key):
-                def _google_dorks() -> list[dict]:
-                    logger.debug("Running Google Dorks search for: %s", value)
-                    res = run_google_dorks_search(
-                        username=value,
-                        api_key=config.google_api_key,
-                        cx=config.google_cx,
-                        use_api=config.use_google_api,
-                        search_engine=config.search_engine,
-                    )
-                    if res:
-                        logger.info("Google Dorks found %d artifacts for username %s",
-                                    len(res), value)
-                        return res
-                    logger.debug("Google Dorks found no results for %s", value)
-                    return []
-                tasks.append(("google_dorks", _google_dorks))
+                tasks.append(("google_dorks", _google_dorks_task(value)))
+
+        elif artifact_type == "fullname":
+            if check_google_dorks_availability(config.google_api_key):
+                tasks.append(("google_dorks", _google_dorks_task(value)))
 
         elif artifact_type in ("domain", "subdomain"):
             if check_tool_availability("whois"):
