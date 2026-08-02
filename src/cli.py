@@ -174,9 +174,12 @@ def _print_tool_coverage() -> None:
 @click.option("--depth", default=2, help="Max investigation depth (default: 2)")
 @click.option("--no-breach", is_flag=True, help="Skip breach checks")
 @click.option("--no-username-search", is_flag=True, help="Skip username platform searches")
-@click.option("--auto-report", is_flag=True, default=True, help="Auto-generate report after investigation (default: enabled)")
-@click.option("--report-format", type=click.Choice(["html", "json", "both"]), default="html", help="Report format for auto-generation")
+@click.option("--auto-report/--no-auto-report", default=None, help="Auto-generate report after investigation (default from config)")
+@click.option("--report-format", type=click.Choice(["html", "json", "both", "pdf", "csv"]), default=None, help="Report format for auto-generation")
 @click.option("--report-output", default=None, help="Custom output path for auto-generated report")
+@click.option("--report-template", type=click.Choice(["standard", "executive", "technical", "legal"]), default=None, help="HTML report template (default: standard / config)")
+@click.option("--report-sections", default=None, help="Comma-separated standard-template sections to include")
+@click.option("--redact-report", is_flag=True, help="Mask sensitive values in auto-generated reports")
 @click.option("--use-external-tools", is_flag=True, default=True, help="Use external OSINT tools if available (default: enabled)")
 @click.option("--no-external-tools", is_flag=True, help="Skip external OSINT tools")
 @click.option("--check-tools", is_flag=True, help="Check available external tools")
@@ -204,9 +207,12 @@ def investigate(
     depth: int,
     no_breach: bool,
     no_username_search: bool,
-    auto_report: bool,
-    report_format: str,
+    auto_report: Optional[bool],
+    report_format: Optional[str],
     report_output: Optional[str],
+    report_template: Optional[str],
+    report_sections: Optional[str],
+    redact_report: bool,
     use_external_tools: bool,
     no_external_tools: bool,
     check_tools: bool,
@@ -294,6 +300,16 @@ def investigate(
         search_engine=search_engine,
     )
 
+    # Resolve reporting defaults from config.yaml
+    from src.reporting.report_data import load_reporting_config
+    reporting_cfg = load_reporting_config()
+    if auto_report is None:
+        auto_report = reporting_cfg.get("auto_generate", True)
+    if report_format is None:
+        report_format = reporting_cfg.get("default_format") or "html"
+    if report_template is None:
+        report_template = reporting_cfg.get("template") or "standard"
+
     click.echo(f"Starting investigation with {len(seeds)} seed artifact(s)...")
     click.echo(f"  Depth limit: {depth}")
     click.echo(f"  Breach checks: {'disabled' if no_breach else 'enabled'}")
@@ -306,6 +322,7 @@ def investigate(
     click.echo(f"  Auto-report: {'disabled' if not auto_report else 'enabled'}")
     if auto_report:
         click.echo(f"  Report format: {report_format}")
+        click.echo(f"  Report template: {report_template}")
     click.echo()
 
     # Run investigation
@@ -332,21 +349,62 @@ def investigate(
             click.echo(f"{'=' * 60}")
             
             try:
-                # Import report generation functions
                 from src.reporting.html_report import generate_html_report, generate_json_report
-                
-                # Generate reports based on format
-                if report_format in ["html", "both"]:
-                    html_path = generate_html_report(conn, result.investigation_id, output_path=report_output)
+                from src.reporting.exports import (
+                    export_artifacts_csv,
+                    export_presences_csv,
+                    generate_pdf_from_html,
+                )
+                from src.reporting.report_data import default_output_path
+                from src.storage import database as dbmod
+
+                out_dir = reporting_cfg.get("output_dir") or "./reports"
+                html_path = None
+
+                if report_format in ("html", "both", "pdf"):
+                    html_out = report_output
+                    if report_format == "pdf" and report_output and str(report_output).endswith(".pdf"):
+                        html_out = str(Path(report_output).with_suffix(".html"))
+                    html_path = generate_html_report(
+                        conn,
+                        result.investigation_id,
+                        output_path=html_out,
+                        template_type=report_template,
+                        sections=report_sections,
+                        redact=redact_report,
+                    )
                     click.echo(f"✓ HTML report saved: {html_path}")
-                
-                if report_format in ["json", "both"]:
+
+                if report_format in ("json", "both"):
                     json_path = generate_json_report(
                         conn,
                         result.investigation_id,
                         output_path=_json_output_path(report_output, report_format),
+                        redact=redact_report,
                     )
                     click.echo(f"✓ JSON report saved: {json_path}")
+
+                if report_format == "pdf":
+                    pdf_out = report_output if report_output and str(report_output).endswith(".pdf") else None
+                    if not pdf_out:
+                        pdf_out = default_output_path(result.investigation_id, ".pdf", out_dir)
+                    pdf_path = generate_pdf_from_html(html_path, pdf_out)
+                    click.echo(f"✓ PDF report saved: {pdf_path}")
+
+                if report_format == "csv":
+                    arts = dbmod.get_artifacts(conn, result.investigation_id)
+                    pres = dbmod.get_platform_presences(conn, result.investigation_id)
+                    csv_base = Path(report_output) if report_output else Path(
+                        default_output_path(result.investigation_id, "", out_dir)
+                    )
+                    if csv_base.suffix:
+                        arts_csv = csv_base.with_name(csv_base.stem + "_artifacts.csv")
+                        pres_csv = csv_base.with_name(csv_base.stem + "_presences.csv")
+                    else:
+                        arts_csv = Path(str(csv_base) + "_artifacts.csv")
+                        pres_csv = Path(str(csv_base) + "_presences.csv")
+                    click.echo(f"✓ Artifacts CSV: {export_artifacts_csv(arts, str(arts_csv))}")
+                    click.echo(f"✓ Presences CSV: {export_presences_csv(pres, str(pres_csv))}")
                 
                 click.echo(f"\nReport generation complete!")
                 
@@ -365,16 +423,23 @@ def investigate(
 
 @cli.command()
 @click.option("--id", "investigation_id", required=True, help="Investigation ID")
-@click.option("--format", "fmt", type=click.Choice(["html", "json", "both"]), default="html")
+@click.option("--format", "fmt", type=click.Choice(["html", "json", "both", "pdf", "csv"]), default="html")
 @click.option("--output", "-o", default=None, help="Output file path")
+@click.option("--template", "template_type", type=click.Choice(["standard", "executive", "technical", "legal"]), default="standard", help="HTML template (default: standard)")
+@click.option("--sections", default=None, help="Comma-separated sections for the standard template")
+@click.option("--redact", is_flag=True, help="Mask phones, emails, images, and profile URLs")
+@click.option("--compare", "compare_id", default=None, help="Prior investigation ID for delta section")
 @click.pass_context
-def report(ctx: click.Context, investigation_id: str, fmt: str, output: Optional[str]) -> None:
+def report(ctx: click.Context, investigation_id: str, fmt: str, output: Optional[str],
+           template_type: str, sections: Optional[str], redact: bool, compare_id: Optional[str]) -> None:
     """Generate a report for a completed investigation.
 
     Examples:
         ghost-hunter report --id INV-abc123
         ghost-hunter report --id INV-abc123 --format json
         ghost-hunter report --id INV-abc123 --format both -o ./reports/
+        ghost-hunter report --id INV-abc123 --template standard --redact
+        ghost-hunter report --id INV-abc123 --compare INV-old --format pdf
     """
     conn = get_connection(ctx.obj.get("db_path"))
     try:
@@ -383,22 +448,68 @@ def report(ctx: click.Context, investigation_id: str, fmt: str, output: Optional
             click.echo(f"Error: Investigation '{investigation_id}' not found")
             sys.exit(1)
 
-        if fmt in ("html", "both"):
-            html_path = output if output and fmt == "html" else None
+        from src.reporting.html_report import generate_html_report, generate_json_report
+        from src.reporting.exports import (
+            export_artifacts_csv,
+            export_presences_csv,
+            generate_pdf_from_html,
+        )
+        from src.reporting.report_data import default_output_path, load_reporting_config
+        from src.storage import database as dbmod
+
+        out_dir = load_reporting_config().get("output_dir") or "./reports"
+        html_path = None
+
+        if fmt in ("html", "both", "pdf"):
+            html_path_arg = output if output and fmt == "html" else None
             if output and fmt == "both":
-                html_path = str(Path(output) / f"{investigation_id}_report.html")
-            path = generate_html_report(conn, investigation_id, html_path)
-            click.echo(f"HTML report: {path}")
+                html_path_arg = str(Path(output) / f"{investigation_id}_report.html")
+            if output and fmt == "pdf" and str(output).endswith(".pdf"):
+                html_path_arg = str(Path(output).with_suffix(".html"))
+            html_path = generate_html_report(
+                conn,
+                investigation_id,
+                html_path_arg,
+                template_type=template_type,
+                sections=sections,
+                redact=redact,
+                compare_id=compare_id,
+            )
+            click.echo(f"HTML report: {html_path}")
 
         if fmt in ("json", "both"):
             json_path = output if output and fmt == "json" else None
             if output and fmt == "both":
                 json_path = str(Path(output) / f"{investigation_id}_report.json")
-            path = generate_json_report(conn, investigation_id, json_path)
+            path = generate_json_report(
+                conn, investigation_id, json_path, redact=redact, compare_id=compare_id
+            )
             click.echo(f"JSON report: {path}")
+
+        if fmt == "pdf":
+            pdf_out = output if output and str(output).endswith(".pdf") else default_output_path(
+                investigation_id, ".pdf", out_dir
+            )
+            path = generate_pdf_from_html(html_path, pdf_out)
+            click.echo(f"PDF report: {path}")
+
+        if fmt == "csv":
+            arts = dbmod.get_artifacts(conn, investigation_id)
+            pres = dbmod.get_platform_presences(conn, investigation_id)
+            base = Path(output) if output else Path(default_output_path(investigation_id, "", out_dir))
+            if base.suffix:
+                arts_csv = base.with_name(base.stem + "_artifacts.csv")
+                pres_csv = base.with_name(base.stem + "_presences.csv")
+            else:
+                arts_csv = Path(str(base) + "_artifacts.csv")
+                pres_csv = Path(str(base) + "_presences.csv")
+            click.echo(f"Artifacts CSV: {export_artifacts_csv(arts, str(arts_csv))}")
+            click.echo(f"Presences CSV: {export_presences_csv(pres, str(pres_csv))}")
 
     finally:
         conn.close()
+
+
 
 
 @cli.command()

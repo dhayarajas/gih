@@ -253,7 +253,7 @@ reporting:
   auto_generate: true
   default_format: "html"  # Report Settings
   output_dir: "./reports"
-  template: "default"  # default, executive, technical, legal
+  template: "standard"  # standard, executive, technical, legal
   include_execution_stats: true
   branding:
     enabled: true

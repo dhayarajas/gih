@@ -396,6 +396,11 @@ def run_investigation(
     result = InvestigationResult(investigation_id=inv_id, seed_artifacts=seeds)
     
     logger.info("Created investigation: %s", inv_id)
+    db.add_audit_log(
+        conn, inv_id, action="investigation_started",
+        entity_type="investigation", entity_id=inv_id,
+        details=json.dumps({"seed_count": len(seeds), "title": title}),
+    )
 
     # Initialize BFS queue with seed artifacts
     queue: deque[dict] = deque()
@@ -612,6 +617,15 @@ def run_investigation(
     finalize_start = time.monotonic()
     logger.debug("Finalizing investigation %s", inv_id)
     db.complete_investigation(conn, inv_id)
+    db.add_audit_log(
+        conn, inv_id, action="investigation_completed",
+        entity_type="investigation", entity_id=inv_id,
+        details=json.dumps({
+            "total_artifacts": result.total_artifacts,
+            "total_links": result.total_links,
+            "total_platforms": result.total_platforms,
+        }),
+    )
 
     # Compute summary
     logger.debug("Computing investigation summary statistics")
@@ -654,11 +668,13 @@ def run_investigation(
                correlation_analysis.connected_components, correlation_analysis.largest_component_size)
     
     # Store correlation analysis metadata
-    from datetime import datetime, timezone
+    from datetime import timezone
     now = datetime.now(timezone.utc).isoformat()
+    meta_id = f"META-{db.generate_id()}"
     conn.execute(
-        "INSERT INTO investigation_metadata (investigation_id, key, value, created_at) VALUES (?, ?, ?, ?)",
-        (inv_id, "correlation_analysis", correlation_analysis.to_json(), now)
+        "INSERT INTO investigation_metadata (metadata_id, investigation_id, key, value, created_at) "
+        "VALUES (?, ?, ?, ?, ?)",
+        (meta_id, inv_id, "correlation_analysis", correlation_analysis.to_json(), now)
     )
     conn.commit()
     logger.debug("Stored correlation analysis metadata")

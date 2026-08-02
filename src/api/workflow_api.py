@@ -44,11 +44,13 @@ VERSION:
 1.0 - Initial implementation
 """
 
+import json
 import logging
 from datetime import datetime
+from pathlib import Path
 from typing import Dict, List, Optional
 
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, send_file
 from flask_cors import CORS
 
 from src.orchestrator import run_investigation, InvestigationConfig
@@ -104,7 +106,10 @@ class WorkflowAPI:
                 check_breaches=config_data.get('check_breaches', True),
                 search_usernames=config_data.get('search_usernames', True),
                 check_images=config_data.get('check_images', True),
-                use_external_tools=config_data.get('use_external_tools', True),
+                check_external_tools=config_data.get(
+                    'check_external_tools',
+                    config_data.get('use_external_tools', True),
+                ),
                 use_google_dorks=config_data.get('use_google_dorks', False),
                 search_engine=config_data.get('search_engine', 'auto')
             )
@@ -168,137 +173,150 @@ class WorkflowAPI:
         
         @self.app.route('/api/v1/investigations/<investigation_id>/report', methods=['GET'])
         def get_report(investigation_id: str):
-            """Generate investigation report."""
+            """Generate investigation report.
+
+            Query params:
+              format=html|json|pdf|csv (default json)
+              template=standard|executive|technical|legal
+              sections=comma list
+              redact=true|false
+              compare=<investigation_id>
+            """
             if not self._authenticate():
                 return jsonify({"error": "Unauthorized"}), 401
-            
-            format_type = request.args.get('format', 'json')
-            
+
+            format_type = (request.args.get('format') or 'json').lower()
+            template_type = request.args.get('template') or 'standard'
+            sections = request.args.get('sections')
+            redact = (request.args.get('redact') or '').lower() in ('1', 'true', 'yes')
+            compare_id = request.args.get('compare')
+
             try:
                 conn = get_connection()
-                inv = get_investigation(conn, investigation_id)
-                conn.close()
-                
-                if not inv:
-                    return jsonify({"error": "Investigation not found"}), 404
-                
-                if format_type == 'json':
-                    report = generate_json_report(conn, investigation_id)
-                    return jsonify(report)
-                else:
-                    html_report = generate_html_report(conn, investigation_id)
-                    return html_report, 200, {'Content-Type': 'text/html'}
-                    
+                try:
+                    inv = get_investigation(conn, investigation_id)
+                    if not inv:
+                        return jsonify({"error": "Investigation not found"}), 404
+
+                    if format_type == 'json':
+                        path = generate_json_report(
+                            conn, investigation_id, redact=redact, compare_id=compare_id
+                        )
+                        with open(path, encoding='utf-8') as fh:
+                            return jsonify(json.loads(fh.read()))
+
+                    if format_type in ('html', 'pdf'):
+                        path = generate_html_report(
+                            conn,
+                            investigation_id,
+                            template_type=template_type,
+                            sections=sections,
+                            redact=redact,
+                            compare_id=compare_id,
+                        )
+                        if format_type == 'html':
+                            html = Path(path).read_text(encoding='utf-8')
+                            return html, 200, {'Content-Type': 'text/html; charset=utf-8'}
+                        from src.reporting.exports import generate_pdf_from_html
+                        pdf_path = generate_pdf_from_html(path)
+                        return send_file(pdf_path, mimetype='application/pdf', as_attachment=True)
+
+                    if format_type == 'csv':
+                        from src.reporting.exports import export_artifacts_csv
+                        from src.storage import database as dbmod
+                        arts = dbmod.get_artifacts(conn, investigation_id)
+                        csv_path = f"/tmp/{investigation_id}_artifacts.csv"
+                        export_artifacts_csv(arts, csv_path)
+                        return send_file(csv_path, mimetype='text/csv', as_attachment=True)
+
+                    return jsonify({"error": f"Unsupported format: {format_type}"}), 400
+                finally:
+                    conn.close()
+
             except Exception as e:
                 logger.error(f"Error generating report: {e}")
                 return jsonify({"error": str(e)}), 500
-        
+
         @self.app.route('/api/v1/investigations/<investigation_id>/artifacts', methods=['GET'])
         def get_artifacts(investigation_id: str):
             """Get artifacts for an investigation."""
             if not self._authenticate():
                 return jsonify({"error": "Unauthorized"}), 401
-            
+
             try:
+                from src.storage.database import get_artifacts as db_get_artifacts
                 conn = get_connection()
-                cursor = conn.execute("""
-                    SELECT artifact_id, artifact_type, value, source, depth, metadata
-                    FROM artifacts
-                    WHERE investigation_id = ?
-                    ORDER BY depth, artifact_id
-                """, (investigation_id,))
-                
-                artifacts = []
-                for row in cursor.fetchall():
-                    artifacts.append({
-                        "artifact_id": row[0],
-                        "type": row[1],
-                        "value": row[2],
-                        "source": row[3],
-                        "depth": row[4],
-                        "metadata": row[5]
+                try:
+                    artifacts = db_get_artifacts(conn, investigation_id)
+                    return jsonify({
+                        "investigation_id": investigation_id,
+                        "artifacts": artifacts,
+                        "count": len(artifacts),
                     })
-                
-                conn.close()
-                
-                return jsonify({
-                    "investigation_id": investigation_id,
-                    "artifacts": artifacts,
-                    "count": len(artifacts)
-                })
-                
+                finally:
+                    conn.close()
             except Exception as e:
                 logger.error(f"Error getting artifacts: {e}")
                 return jsonify({"error": str(e)}), 500
-        
+
         @self.app.route('/api/v1/investigations/<investigation_id>/links', methods=['GET'])
         def get_links(investigation_id: str):
             """Get artifact links for an investigation."""
             if not self._authenticate():
                 return jsonify({"error": "Unauthorized"}), 401
-            
+
             try:
+                from src.storage.database import get_links as db_get_links
                 conn = get_connection()
-                cursor = conn.execute("""
-                    SELECT source_artifact_id, target_artifact_id, link_type, confidence, metadata
-                    FROM artifact_links
-                    WHERE investigation_id = ?
-                """, (investigation_id,))
-                
-                links = []
-                for row in cursor.fetchall():
-                    links.append({
-                        "source_artifact_id": row[0],
-                        "target_artifact_id": row[1],
-                        "link_type": row[2],
-                        "confidence": row[3],
-                        "metadata": row[4]
+                try:
+                    links = db_get_links(conn, investigation_id)
+                    return jsonify({
+                        "investigation_id": investigation_id,
+                        "links": links,
+                        "count": len(links),
                     })
-                
-                conn.close()
-                
-                return jsonify({
-                    "investigation_id": investigation_id,
-                    "links": links,
-                    "count": len(links)
-                })
-                
+                finally:
+                    conn.close()
             except Exception as e:
                 logger.error(f"Error getting links: {e}")
                 return jsonify({"error": str(e)}), 500
-        
+
         @self.app.route('/api/v1/investigations/<investigation_id>/risk', methods=['GET'])
         def get_risk_indicators(investigation_id: str):
-            """Get risk indicators for an investigation."""
+            """Get risk indicators derived from artifact metadata."""
             if not self._authenticate():
                 return jsonify({"error": "Unauthorized"}), 401
-            
+
             try:
+                from src.storage.database import get_artifacts as db_get_artifacts
                 conn = get_connection()
-                cursor = conn.execute("""
-                    SELECT risk_indicator, severity, source, metadata
-                    FROM risk_indicators
-                    WHERE investigation_id = ?
-                    ORDER BY severity DESC
-                """, (investigation_id,))
-                
-                risks = []
-                for row in cursor.fetchall():
-                    risks.append({
-                        "risk_indicator": row[0],
-                        "severity": row[1],
-                        "source": row[2],
-                        "metadata": row[3]
+                try:
+                    artifacts = db_get_artifacts(conn, investigation_id)
+                    risks = []
+                    for art in artifacts:
+                        meta_raw = art.get("metadata")
+                        if not meta_raw:
+                            continue
+                        try:
+                            meta = json.loads(meta_raw) if isinstance(meta_raw, str) else meta_raw
+                        except (ValueError, TypeError):
+                            continue
+                        if isinstance(meta, dict):
+                            for indicator in meta.get("risk_indicators") or []:
+                                risks.append({
+                                    "risk_indicator": indicator,
+                                    "severity": "unknown",
+                                    "source": art.get("source"),
+                                    "artifact_id": art.get("artifact_id"),
+                                    "metadata": meta,
+                                })
+                    return jsonify({
+                        "investigation_id": investigation_id,
+                        "risk_indicators": risks,
+                        "count": len(risks),
                     })
-                
-                conn.close()
-                
-                return jsonify({
-                    "investigation_id": investigation_id,
-                    "risk_indicators": risks,
-                    "count": len(risks)
-                })
-                
+                finally:
+                    conn.close()
             except Exception as e:
                 logger.error(f"Error getting risk indicators: {e}")
                 return jsonify({"error": str(e)}), 500

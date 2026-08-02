@@ -87,6 +87,7 @@ from src.storage import database as db
 
 logger = logging.getLogger(__name__)
 
+<<<<<<< HEAD
 HTML_TEMPLATE = """<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -293,130 +294,21 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             border: 1px solid #e2e8f0;
         }
         .stat-label { font-size: 0.8rem; color: #718096; text-transform: uppercase; letter-spacing: 0.5px; }
+=======
+def _templates_dir() -> Path:
+    return Path(__file__).resolve().parent / "templates"
+>>>>>>> 7d95d40 (Updates)
 
-        /* Tool metrics infographic. Bars are plain divs sized with an inline
-           width percentage so the report stays a single self-contained file
-           with no chart library and prints correctly. */
-        .tool-chart { display: grid; grid-template-columns: 11rem 1fr 4rem; gap: 0.5rem 0.75rem; align-items: center; }
-        .tool-chart-name { font-size: 0.85rem; font-weight: 600; color: #2d3748; word-break: break-all; }
-        .tool-chart-track { background: #edf2f7; border-radius: 3px; height: 1.4rem; overflow: hidden; }
-        .tool-chart-bar { background: #3182ce; height: 100%; border-radius: 3px; min-width: 2px; }
-        .tool-chart-count { font-size: 0.85rem; color: #4a5568; text-align: right; font-variant-numeric: tabular-nums; }
-        .type-bar { display: flex; width: 100%; height: 1.6rem; border-radius: 3px; overflow: hidden; border: 1px solid #e2e8f0; margin-bottom: 0.75rem; }
-        .type-bar-slice { height: 100%; }
-        .type-legend { display: flex; flex-wrap: wrap; gap: 0.5rem 1rem; font-size: 0.8rem; color: #4a5568; }
-        .type-legend-swatch { display: inline-block; width: 0.7rem; height: 0.7rem; border-radius: 2px; margin-right: 0.35rem; }
-        .silent-tools { font-size: 0.85rem; color: #718096; }
 
-        /* Evidence Chain */
-        .evidence-chain { 
-            font-family: 'Courier New', monospace; 
-            font-size: 0.85rem; 
-            color: #4a5568; 
-            background: #f7fafc;
-            padding: 1rem;
-            border-radius: 4px;
-            border-left: 3px solid #3182ce;
-        }
-        
-        /* Collapsible Sections */
-        .collapsible {
-            background: white;
-            border: 1px solid #e2e8f0;
-            border-radius: 6px;
-            margin-bottom: 1rem;
-            overflow: hidden;
-            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
-        }
-        .collapsible-header {
-            background: #f7fafc;
-            padding: 1rem 1.5rem;
-            cursor: pointer;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            user-select: none;
-            border-bottom: 1px solid #e2e8f0;
-        }
-        .collapsible-header:hover { background: #edf2f7; }
-        .collapsible-header h4 { margin: 0; color: #2d3748; font-size: 0.95rem; font-weight: 600; }
-        .collapsible-content { padding: 1.5rem; display: none; }
-        .collapsible.active .collapsible-content { display: block; }
-        .collapsible-icon { color: #718096; font-size: 1.2rem; transition: transform 0.2s; }
-        .collapsible.active .collapsible-icon { transform: rotate(180deg); }
+def _load_standard_template() -> str:
+    """Load the standard report template from disk (editable without code changes)."""
+    path = _templates_dir() / "standard.html"
+    return path.read_text(encoding="utf-8")
 
-        /* Drill-down (native details/summary) */
-        details.drilldown {
-            border: 1px solid #e2e8f0;
-            border-radius: 6px;
-            background: white;
-            margin-bottom: 0.5rem;
-        }
-        details.drilldown > summary {
-            list-style: none;
-            cursor: pointer;
-            padding: 0.65rem 1rem;
-            display: flex;
-            flex-wrap: wrap;
-            gap: 0.75rem;
-            align-items: center;
-            background: #fbfdff;
-            border-radius: 6px;
-        }
-        details.drilldown > summary::-webkit-details-marker { display: none; }
-        details.drilldown > summary::before {
-            content: '\\25B8';
-            color: #718096;
-            font-size: 0.8rem;
-            width: 0.8rem;
-        }
-        details.drilldown[open] > summary::before { content: '\\25BE'; }
-        details.drilldown > summary:hover { background: #edf2f7; }
-        details.drilldown[open] > summary { border-bottom: 1px solid #e2e8f0; }
-        .drilldown-body { padding: 1rem 1.5rem; }
-        .drilldown-body h5 {
-            margin: 1rem 0 0.4rem 0;
-            color: #2d3748;
-            font-size: 0.8rem;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-        .drilldown-body h5:first-child { margin-top: 0; }
-        .summary-value { font-weight: 600; color: #1e3a5f; }
-        .summary-meta { color: #718096; font-size: 0.85rem; }
-        .kv-table td:first-child {
-            width: 30%;
-            color: #4a5568;
-            font-weight: 600;
-            vertical-align: top;
-            word-break: break-word;
-        }
-        .kv-table td { font-size: 0.85rem; word-break: break-word; }
-        .empty-note { color: #718096; font-size: 0.85rem; font-style: italic; }
-        .thumb {
-            width: 72px;
-            height: 72px;
-            object-fit: cover;
-            border-radius: 6px;
-            border: 1px solid #e2e8f0;
-        }
 
-        /* Report metadata banner */
-        .report-banner {
-            background: white;
-            border: 1px solid #e2e8f0;
-            border-left: 4px solid #1e3a5f;
-            border-radius: 6px;
-            padding: 1rem 1.5rem;
-            margin-bottom: 1.5rem;
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 0.5rem 1.5rem;
-            font-size: 0.85rem;
-            color: #4a5568;
-        }
-        .report-banner strong { color: #2d3748; }
+HTML_TEMPLATE = _load_standard_template()
 
+<<<<<<< HEAD
         /* Expand / collapse controls */
         .drilldown-controls { margin: 0.5rem 0 1rem 0; }
         .drilldown-controls button {
@@ -1013,6 +905,8 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 </body>
 </html>
 """
+=======
+>>>>>>> 7d95d40 (Updates)
 
 # Summary Template - High-level overview for management
 EXECUTIVE_TEMPLATE = """<!DOCTYPE html>
@@ -1398,15 +1292,25 @@ LEGAL_TEMPLATE = """<!DOCTYPE html>
 
 
 def _select_template(template_type: str) -> str:
-    """Select the appropriate HTML template based on report type."""
+    """Select the appropriate HTML template based on report type.
+
+    The standard template is always reloaded from disk so edits to
+    ``templates/standard.html`` take effect without restarting the process.
+    """
+    normalized = (template_type or "standard").strip().lower()
+    if normalized in ("default", "html", ""):
+        normalized = "standard"
+    if normalized == "standard":
+        try:
+            return _load_standard_template()
+        except OSError:
+            return HTML_TEMPLATE
     templates = {
-        'standard': HTML_TEMPLATE,
-        'html': HTML_TEMPLATE,
-        'executive': EXECUTIVE_TEMPLATE,
-        'technical': TECHNICAL_TEMPLATE,
-        'legal': LEGAL_TEMPLATE,
+        "executive": EXECUTIVE_TEMPLATE,
+        "technical": TECHNICAL_TEMPLATE,
+        "legal": LEGAL_TEMPLATE,
     }
-    return templates.get(template_type, HTML_TEMPLATE)
+    return templates.get(normalized, HTML_TEMPLATE)
 
 
 def _parse_metadata(raw) -> dict:
@@ -1507,16 +1411,45 @@ def generate_html_report(
     investigation_id: str,
     output_path: Optional[str] = None,
     template_type: str = "standard",
+    *,
+    sections: Optional[str] = None,
+    redact: bool = False,
+    compare_id: Optional[str] = None,
 ) -> str:
     """
-    Generate a comprehensive HTML report with optional template type.
-    
+    Generate a comprehensive HTML report.
+
     Args:
         conn: Database connection
         investigation_id: Investigation ID
         output_path: Optional output file path
-        template_type: Type of report template (standard, executive, technical, legal)
-    """ 
+        template_type: standard | executive | technical | legal
+        sections: Optional comma-separated section filter (standard template)
+        redact: Mask phones/emails/images for shareable exports
+        compare_id: Optional prior investigation ID for a delta section
+    """
+    from html import escape as html_escape
+
+    from src.reporting.report_data import (
+        branding_css,
+        build_actionable_recommendations,
+        build_cross_investigation,
+        build_delta_report,
+        build_evidence_chains,
+        build_orphan_findings,
+        default_output_path,
+        enrich_tool_status,
+        load_comments,
+        load_custom_css,
+        load_reporting_config,
+        parse_sections,
+        redact_payload,
+    )
+
+    reporting_cfg = load_reporting_config()
+    if not template_type or template_type in ("default", "html"):
+        template_type = reporting_cfg.get("template") or "standard"
+
     investigation = db.get_investigation(conn, investigation_id)
     if not investigation:
         raise ValueError(f"Investigation {investigation_id} not found")
@@ -1526,67 +1459,55 @@ def generate_html_report(
     presences = db.get_platform_presences(conn, investigation_id)
     correlation = correlate_identities(conn, investigation_id)
 
-    # Compute risk levels for each identity
+    artifacts, links, presences, correlation = redact_payload(
+        artifacts, links, presences, correlation, redact
+    )
+
     risk_levels = []
     for identity in correlation.identities:
         risk_score = compute_identity_risk_score(identity.risk_indicators)
         risk_levels.append(classify_risk_level(risk_score))
 
-    # Generate investigation timeline
     timeline = _generate_timeline(artifacts)
-    
-    # Generate key findings summary
     key_findings = _generate_key_findings(artifacts, links, presences, correlation)
-    
-    # Generate confidence metrics breakdown
     confidence_metrics = _generate_confidence_metrics(artifacts, links)
-    
-    # Generate risk assessment matrix
     risk_matrix = _generate_risk_matrix(correlation, risk_levels)
-
-    # Generate interactive graph HTML
-    graph_html = _generate_embedded_graph(conn, investigation_id)
-
-    # Generate recommendations
-    recommendations = _generate_recommendations(artifacts, links, presences, correlation, risk_levels)
-    
-    # Log recommendations
-    if recommendations:
-        logger.info("=" * 60)
-        logger.info("INVESTIGATION RECOMMENDATIONS")
-        logger.info("=" * 60)
-        for rec in recommendations:
-            logger.info("[%s Priority - %s]", rec['priority'].upper(), rec['category'])
-            logger.info("  Action: %s", rec['action'])
-            logger.info("  Details: %s", rec['details'])
-            logger.info("-" * 60)
+    if redact:
+        # Graph HTML is built from the live DB and would re-expose masked values.
+        graph_html = ""
+        graph_srcdoc = ""
     else:
-        logger.info("No recommendations generated for this investigation")
+        graph_html = _generate_embedded_graph(conn, investigation_id)
+        # Escape for iframe srcdoc attribute (autoescape would break nested HTML)
+        graph_srcdoc = html_escape(graph_html, quote=True) if graph_html else ""
 
-    # Generate priority queue for artifact ranking
+    tool_metrics = enrich_tool_status(_generate_tool_metrics(artifacts, correlation))
+    orphan_findings = build_orphan_findings(artifacts, correlation)
+    recommendations = build_actionable_recommendations(
+        artifacts, links, presences, correlation, risk_levels, tool_metrics, orphan_findings
+    )
+    if not recommendations:
+        recommendations = _generate_recommendations(
+            artifacts, links, presences, correlation, risk_levels
+        )
+
+    if recommendations:
+        logger.info("Generated %d investigation recommendations", len(recommendations))
+
     priority_queue = _generate_priority_queue(artifacts, links, correlation)
-
-    # Generate geographic data
     geographic_data = _generate_geographic_data(artifacts, presences)
-
-    # Generate platform heat map data
     platform_heatmap = _generate_platform_heatmap(presences)
-
-    # Generate correlation strength indicators
     correlation_strength = _generate_correlation_strength(links)
-
-    # Generate verification status tracking
     verification_status = _generate_verification_status(artifacts)
-
-    # Generate anomaly detection
     anomaly_detection = _generate_anomaly_detection(artifacts, links)
-
-    # Generate auto-escalation alerts
     auto_escalation = _generate_auto_escalation(artifacts, links, risk_levels, correlation)
-
-    # Generate audit trail
     audit_trail = db.get_audit_trail(conn, investigation_id)
+    comments = load_comments(conn, investigation_id)
+    evidence_chains = build_evidence_chains(artifacts, links)
+    cross_hits = build_cross_investigation(conn, investigation_id, artifacts)
+    delta = build_delta_report(conn, investigation_id, compare_id)
 
+<<<<<<< HEAD
     # Per-tool contribution metrics for the infographic
     tool_metrics = _generate_tool_metrics(artifacts, correlation)
 
@@ -1594,13 +1515,17 @@ def generate_html_report(
     identity_images = _generate_identity_images(correlation, presences, artifacts)
 
     # Build drill-down views (parsed metadata, connected links, identity attribution)
+=======
+>>>>>>> 7d95d40 (Updates)
     artifact_views = _build_artifact_views(artifacts, links, correlation)
     identity_artifacts = _build_identity_artifacts(artifact_views, correlation)
 
-    # Select template based on type
-    template_content = _select_template(template_type)
+    branding = dict(reporting_cfg["branding"])
+    branding["custom_css_content"] = load_custom_css(branding.get("custom_css"))
+    watermark = reporting_cfg["watermark"]
+    section_set = parse_sections(sections)
 
-    # Render template
+    template_content = _select_template(template_type)
     env = Environment(loader=BaseLoader(), autoescape=True)
     template = env.from_string(template_content)
     html = template.render(
@@ -1617,6 +1542,7 @@ def generate_html_report(
         confidence_metrics=confidence_metrics,
         risk_matrix=risk_matrix,
         graph_html=graph_html,
+        graph_srcdoc=graph_srcdoc,
         recommendations=recommendations,
         priority_queue=priority_queue,
         geographic_data=geographic_data,
@@ -1627,17 +1553,48 @@ def generate_html_report(
         auto_escalation=auto_escalation,
         audit_trail=audit_trail,
         tool_metrics=tool_metrics,
+<<<<<<< HEAD
         identity_images=identity_images,
+=======
+        evidence_chains=evidence_chains,
+        orphan_findings=orphan_findings,
+        comments=comments,
+        cross_hits=cross_hits,
+        delta=delta,
+        sections=section_set,
+        branding=branding,
+        branding_css=branding_css(branding, watermark) if branding.get("enabled") else "",
+        watermark=watermark,
+        redacted=redact,
+>>>>>>> 7d95d40 (Updates)
         generated_at=datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC"),
     )
 
-    # Save
     if output_path is None:
-        output_path = f"reports/{investigation_id}_report.html"
+        output_path = default_output_path(
+            investigation_id, ".html", reporting_cfg.get("output_dir")
+        )
 
     output_file = Path(output_path)
     output_file.parent.mkdir(parents=True, exist_ok=True)
-    output_file.write_text(html)
+    output_file.write_text(html, encoding="utf-8")
+
+    try:
+        db.add_audit_log(
+            conn,
+            investigation_id,
+            action="report_generated",
+            entity_type="report",
+            entity_id=str(output_file),
+            details=json.dumps({
+                "template": template_type,
+                "redacted": redact,
+                "sections": sorted(section_set),
+                "compare_id": compare_id,
+            }),
+        )
+    except Exception as exc:
+        logger.debug("Could not write report audit log: %s", exc)
 
     logger.info("HTML report saved to %s", output_file)
     return str(output_file)
@@ -1898,33 +1855,61 @@ def _generate_priority_queue(artifacts: list, links: list, correlation) -> list:
 def _generate_geographic_data(artifacts: list, presences: list) -> dict:
     """Generate geographic data from artifacts and platform presences."""
     locations = []
-    
-    # Extract location data from artifacts
+
     for artifact in artifacts:
-        if artifact.get('artifact_type') == 'location':
+        atype = artifact.get("artifact_type")
+        if atype in ("location", "gps_coordinates", "geolocation"):
             locations.append({
-                'type': 'artifact',
-                'value': artifact.get('value', ''),
-                'source': artifact.get('source', 'unknown'),
-                'confidence': artifact.get('confidence', 0)
+                "type": atype,
+                "value": artifact.get("value", ""),
+                "source": artifact.get("source", "unknown"),
+                "confidence": artifact.get("confidence", 0),
             })
-    
-    # Extract location data from platform presences (if available)
+        # Phone OSINT often stores country in metadata
+        meta_raw = artifact.get("metadata")
+        if meta_raw and atype == "phone":
+            try:
+                meta = json.loads(meta_raw) if isinstance(meta_raw, str) else meta_raw
+            except (ValueError, TypeError):
+                meta = {}
+            if isinstance(meta, dict):
+                country = meta.get("country") or meta.get("region")
+                if country:
+                    locations.append({
+                        "type": "phone_region",
+                        "value": str(country),
+                        "source": artifact.get("source", "phone_osint"),
+                        "confidence": artifact.get("confidence", 0),
+                    })
+
     for presence in presences:
-        # Check for location in bio or other fields
-        bio = (presence.get('bio') or '').lower()
-        if any(loc in bio for loc in ['usa', 'us', 'uk', 'india', 'germany', 'france', 'canada', 'australia']):
+        bio = (presence.get("bio") or "").lower()
+        if any(loc in bio for loc in ["usa", "us", "uk", "india", "germany", "france", "canada", "australia"]):
             locations.append({
-                'type': 'platform',
-                'value': presence.get('platform_name', ''),
-                'source': 'platform_bio',
-                'confidence': 0.5
+                "type": "platform",
+                "value": presence.get("platform_name", ""),
+                "source": "platform_bio",
+                "confidence": 0.5,
             })
-    
+
+    map_url = None
+    for loc in locations:
+        value = str(loc.get("value") or "")
+        # Prefer explicit lat,lon pairs
+        if "," in value and any(ch.isdigit() for ch in value):
+            parts = [p.strip() for p in value.split(",")]
+            if len(parts) >= 2:
+                map_url = f"https://www.openstreetmap.org/search?query={parts[0]}%2C{parts[1]}"
+                break
+    if not map_url and locations:
+        from urllib.parse import quote
+        map_url = f"https://www.openstreetmap.org/search?query={quote(str(locations[0]['value']))}"
+
     return {
-        'has_location_data': len(locations) > 0,
-        'location_count': len(locations),
-        'locations': locations[:10]  # Limit to top 10
+        "has_location_data": len(locations) > 0,
+        "location_count": len(locations),
+        "locations": locations[:20],
+        "map_url": map_url,
     }
 
 
@@ -2393,8 +2378,24 @@ def generate_json_report(
     conn: sqlite3.Connection,
     investigation_id: str,
     output_path: Optional[str] = None,
+    *,
+    redact: bool = False,
+    compare_id: Optional[str] = None,
 ) -> str:
-    """Generate a machine-readable JSON report."""
+    """Generate a machine-readable JSON report (SIEM/CTI-friendly)."""
+    from src.reporting.report_data import (
+        build_cross_investigation,
+        build_delta_report,
+        build_evidence_chains,
+        build_orphan_findings,
+        default_output_path,
+        enrich_tool_status,
+        load_comments,
+        load_reporting_config,
+        redact_payload,
+    )
+
+    reporting_cfg = load_reporting_config()
     investigation = db.get_investigation(conn, investigation_id)
     if not investigation:
         raise ValueError(f"Investigation {investigation_id} not found")
@@ -2403,12 +2404,19 @@ def generate_json_report(
     links = db.get_links(conn, investigation_id)
     presences = db.get_platform_presences(conn, investigation_id)
     correlation = correlate_identities(conn, investigation_id)
+    artifacts, links, presences, correlation = redact_payload(
+        artifacts, links, presences, correlation, redact
+    )
+
+    tool_metrics = enrich_tool_status(_generate_tool_metrics(artifacts, correlation))
+    orphans = build_orphan_findings(artifacts, correlation)
 
     report = {
         "meta": {
             "tool": "Ghost Identity Hunter",
             "version": "0.1.0",
             "generated_at": datetime.utcnow().isoformat(),
+            "redacted": redact,
         },
         "investigation": investigation,
         "summary": {
@@ -2416,12 +2424,19 @@ def generate_json_report(
             "total_links": len(links),
             "total_platforms": len(presences),
             "identity_count": len(correlation.identities),
+            "orphan_count": len(orphans),
         },
-        "tool_metrics": _generate_tool_metrics(artifacts, correlation),
+        "tool_metrics": tool_metrics,
         "identities": [i.to_dict() for i in correlation.identities],
         "artifacts": artifacts,
         "links": links,
         "platform_presences": presences,
+        "evidence_chains": build_evidence_chains(artifacts, links),
+        "orphan_findings": orphans,
+        "cross_investigation": build_cross_investigation(conn, investigation_id, artifacts),
+        "delta": build_delta_report(conn, investigation_id, compare_id),
+        "comments": load_comments(conn, investigation_id),
+        "audit_trail": db.get_audit_trail(conn, investigation_id),
         "graph": {
             "nodes": correlation.graph_nodes,
             "edges": correlation.graph_edges,
@@ -2430,11 +2445,13 @@ def generate_json_report(
     }
 
     if output_path is None:
-        output_path = f"reports/{investigation_id}_report.json"
+        output_path = default_output_path(
+            investigation_id, ".json", reporting_cfg.get("output_dir")
+        )
 
     output_file = Path(output_path)
     output_file.parent.mkdir(parents=True, exist_ok=True)
-    output_file.write_text(json.dumps(report, indent=2, default=str))
+    output_file.write_text(json.dumps(report, indent=2, default=str), encoding="utf-8")
 
     logger.info("JSON report saved to %s", output_file)
     return str(output_file)

@@ -62,8 +62,8 @@ def render(conn, investigation_id, tmp_path, template_type="standard") -> str:
 
 class TestTemplateSelection:
     def test_standard_and_html_map_to_default_template(self):
-        assert _select_template("standard") is HTML_TEMPLATE
-        assert _select_template("html") is HTML_TEMPLATE
+        assert _select_template("standard") == HTML_TEMPLATE or "Identity Profiles" in _select_template("standard")
+        assert "Identity Profiles" in _select_template("html")
 
     def test_named_templates(self):
         assert _select_template("executive") is EXECUTIVE_TEMPLATE
@@ -71,7 +71,8 @@ class TestTemplateSelection:
         assert _select_template("legal") is LEGAL_TEMPLATE
 
     def test_unknown_falls_back_to_default(self):
-        assert _select_template("nonexistent") is HTML_TEMPLATE
+        assert "Identity Profiles" in _select_template("nonexistent")
+        assert "Ghost Identity Hunter" in _select_template("default")
 
 
 class TestDrillDowns:
@@ -366,3 +367,55 @@ class TestJsonReport:
         metadata = [a["metadata"] for a in data["artifacts"]]
         assert metadata == [json.dumps(SEED_METADATA), "{not valid json", None, ""]
         assert all("metadata_parsed" not in a for a in data["artifacts"])
+
+
+class TestEnhancedStandardReport:
+    def test_new_sections_and_filters_render(self, conn, investigation, tmp_path):
+        html = render(conn, investigation, tmp_path)
+        assert "Recommendations" in html
+        assert "Evidence Chains" in html
+        assert "Unattributed Findings" in html
+        assert "Tool Run Status" in html
+        assert 'id="report-filters"' in html
+        assert "graph-frame" in html
+
+    def test_sections_filter_hides_artifacts(self, conn, investigation, tmp_path):
+        path = generate_html_report(
+            conn, investigation, str(tmp_path / "slim.html"),
+            template_type="standard", sections="summary,tools",
+        )
+        html = Path(path).read_text()
+        assert "Summary" in html
+        assert "Tool Metrics" in html
+        assert "Discovered Artifacts" not in html
+
+    def test_redaction_masks_email(self, conn, investigation, tmp_path):
+        path = generate_html_report(
+            conn, investigation, str(tmp_path / "redacted.html"), redact=True
+        )
+        html = Path(path).read_text()
+        assert "Redacted shareable report" in html
+        assert "ghostuser@example.com" not in html
+
+    def test_delta_section(self, conn, investigation, tmp_path):
+        other = db.create_investigation(conn, title="Prior")
+        db.add_artifact(conn, other, "username", "ghostuser", source="seed")
+        db.add_artifact(conn, other, "email", "old@example.com", source="seed")
+        path = generate_html_report(
+            conn, investigation, str(tmp_path / "delta.html"), compare_id=other
+        )
+        html = Path(path).read_text()
+        assert f"Delta vs {other}" in html
+        assert "Added" in html
+
+    def test_csv_and_json_exports(self, conn, investigation, tmp_path):
+        from src.reporting.exports import export_artifacts_csv
+        arts = db.get_artifacts(conn, investigation)
+        csv_path = export_artifacts_csv(arts, str(tmp_path / "a.csv"))
+        assert Path(csv_path).exists()
+        path = generate_json_report(conn, investigation, str(tmp_path / "r.json"))
+        data = json.loads(Path(path).read_text())
+        assert "evidence_chains" in data
+        assert "orphan_findings" in data
+        assert "tool_metrics" in data
+

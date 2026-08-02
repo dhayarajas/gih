@@ -1,0 +1,1179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OSINT Investigation Report - {{ investigation.investigation_id }}</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, sans-serif;
+            background: #f5f7fa;
+            color: #2c3e50;
+            padding: 0;
+            line-height: 1.6;
+        }
+        .container { max-width: 1400px; margin: 0 auto; padding: 2rem; }
+        
+        /* Professional Header */
+        .header {
+            background: linear-gradient(135deg, #1e3a5f 0%, #2c5282 100%);
+            color: white;
+            padding: 2rem;
+            margin: -2rem -2rem 2rem -2rem;
+            border-bottom: 4px solid #c53030;
+        }
+        .header h1 { color: white; margin: 0; font-size: 1.8rem; font-weight: 600; }
+        .header .meta { color: #cbd5e0; font-size: 0.9rem; margin-top: 0.5rem; }
+        .classification {
+            display: inline-block;
+            background: #c53030;
+            color: white;
+            padding: 0.25rem 0.75rem;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-top: 1rem;
+        }
+        
+        /* Content Styling */
+        h2 { 
+            color: #1e3a5f; 
+            border-bottom: 2px solid #3182ce; 
+            padding-bottom: 0.5rem; 
+            margin-top: 2rem; 
+            margin-bottom: 1rem;
+        }
+        
+        .section-blurb {
+            color: #4a5568;
+            font-size: 0.9rem;
+            margin-bottom: 1rem;
+            padding: 0.75rem;
+            background: #f7fafc;
+            border-left: 4px solid #3182ce;
+            border-radius: 4px;
+            line-height: 1.5;
+        }
+        
+        .subsection-blurb {
+            color: #718096;
+            font-size: 0.85rem;
+            margin-bottom: 0.75rem;
+            font-style: italic;
+        }
+        
+        h3 { 
+            color: #2d3748; 
+            margin-top: 1.5rem; 
+            margin-bottom: 0.75rem;
+        }
+        
+        .meta { color: #718096; font-size: 0.85rem; margin-bottom: 1rem; }
+        
+        /* Professional Cards */
+        .card {
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        
+        /* Professional Badges.
+           Qualified with the element name so the Bootstrap bundled inside the
+           embedded pyvis graph (".badge { color: #fff }") cannot win and render
+           these white on white. */
+        span.badge {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            margin: 0.1rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            background: #e2e8f0;
+            color: #2d3748;
+            border: 1px solid #cbd5e0;
+        }
+        span.badge-phone { background: #fed7d7; color: #c53030; border: 1px solid #feb2b2; }
+        span.badge-email { background: #bee3f8; color: #2b6cb0; border: 1px solid #90cdf4; }
+        span.badge-username { background: #c6f6d5; color: #276749; border: 1px solid #9ae6b4; }
+        span.badge-domain { background: #feebc8; color: #9c4221; border: 1px solid #fbd38d; }
+        /* Class names come from the artifact type verbatim (badge-{{ type }}). */
+        span.badge-ip_address { background: #e9d8fd; color: #553c9a; border: 1px solid #d6bcfa; }
+        span.badge-platform_presence { background: #e2e8f0; color: #4a5568; border: 1px solid #cbd5e0; }
+        span.badge-risk { background: #c53030; color: white; border: 1px solid #9b2c2c; }
+        span.badge-validated { background: #c6f6d5; color: #22543d; border: 1px solid #9ae6b4; }
+        span.badge-unvalidated { background: #fefcbf; color: #744210; border: 1px solid #f6e05e; }
+        
+        /* Risk Levels */
+        .risk-critical { color: #c53030; font-weight: bold; background: #fed7d7; padding: 0.2rem 0.5rem; border-radius: 4px; }
+        .risk-high { color: #dd6b20; font-weight: bold; background: #feebc8; padding: 0.2rem 0.5rem; border-radius: 4px; }
+        .risk-medium { color: #d69e2e; background: #faf089; padding: 0.2rem 0.5rem; border-radius: 4px; }
+        .risk-low { color: #38a169; background: #c6f6d5; padding: 0.2rem 0.5rem; border-radius: 4px; }
+        .risk-minimal { color: #3182ce; background: #bee3f8; padding: 0.2rem 0.5rem; border-radius: 4px; }
+        
+        /* Professional Tables */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1rem 0;
+            background: white;
+        }
+        th, td {
+            padding: 0.75rem 1rem;
+            text-align: left;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        th { 
+            background: #f7fafc; 
+            color: #2d3748; 
+            font-weight: 600;
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            border-bottom: 2px solid #cbd5e0;
+            position: sticky;
+            top: 0;
+            z-index: 1;
+        }
+        tr:hover { background: #f7fafc; }
+        
+        /* Links */
+        a { color: #3182ce; text-decoration: none; font-weight: 500; }
+        a:hover { text-decoration: underline; color: #2c5282; }
+        
+        /* Stats Grid */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin: 1rem 0;
+        }
+        .stat-card {
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            padding: 1.25rem;
+            text-align: center;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+        }
+        .stat-value { font-size: 2rem; font-weight: 700; color: #1e3a5f; overflow-wrap: anywhere; }
+        .stat-label { font-size: 0.8rem; color: #718096; text-transform: uppercase; letter-spacing: 0.5px; }
+
+        /* Tool metrics infographic. Bars are plain divs sized with an inline
+           width percentage so the report stays a single self-contained file
+           with no chart library and prints correctly. */
+        .tool-chart { display: grid; grid-template-columns: 11rem 1fr 4rem; gap: 0.5rem 0.75rem; align-items: center; }
+        .tool-chart-name { font-size: 0.85rem; font-weight: 600; color: #2d3748; word-break: break-all; }
+        .tool-chart-track { background: #edf2f7; border-radius: 3px; height: 1.4rem; overflow: hidden; }
+        .tool-chart-bar { background: #3182ce; height: 100%; border-radius: 3px; min-width: 2px; }
+        .tool-chart-count { font-size: 0.85rem; color: #4a5568; text-align: right; font-variant-numeric: tabular-nums; }
+        .type-bar { display: flex; width: 100%; height: 1.6rem; border-radius: 3px; overflow: hidden; border: 1px solid #e2e8f0; margin-bottom: 0.75rem; }
+        .type-bar-slice { height: 100%; }
+        .type-legend { display: flex; flex-wrap: wrap; gap: 0.5rem 1rem; font-size: 0.8rem; color: #4a5568; }
+        .type-legend-swatch { display: inline-block; width: 0.7rem; height: 0.7rem; border-radius: 2px; margin-right: 0.35rem; }
+        .silent-tools { font-size: 0.85rem; color: #718096; }
+
+        /* Evidence Chain */
+        .evidence-chain { 
+            font-family: 'Courier New', monospace; 
+            font-size: 0.85rem; 
+            color: #4a5568; 
+            background: #f7fafc;
+            padding: 1rem;
+            border-radius: 4px;
+            border-left: 3px solid #3182ce;
+        }
+        
+        /* Collapsible Sections */
+        .collapsible {
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            margin-bottom: 1rem;
+            overflow: hidden;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+        }
+        .collapsible-header {
+            background: #f7fafc;
+            padding: 1rem 1.5rem;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            user-select: none;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        .collapsible-header:hover { background: #edf2f7; }
+        .collapsible-header h4 { margin: 0; color: #2d3748; font-size: 0.95rem; font-weight: 600; }
+        .collapsible-content { padding: 1.5rem; display: none; }
+        .collapsible.active .collapsible-content { display: block; }
+        .collapsible-icon { color: #718096; font-size: 1.2rem; transition: transform 0.2s; }
+        .collapsible.active .collapsible-icon { transform: rotate(180deg); }
+
+        /* Drill-down (native details/summary) */
+        details.drilldown {
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            background: white;
+            margin-bottom: 0.5rem;
+        }
+        details.drilldown > summary {
+            list-style: none;
+            cursor: pointer;
+            padding: 0.65rem 1rem;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.75rem;
+            align-items: center;
+            background: #fbfdff;
+            border-radius: 6px;
+        }
+        details.drilldown > summary::-webkit-details-marker { display: none; }
+        details.drilldown > summary::before {
+            content: '\\25B8';
+            color: #718096;
+            font-size: 0.8rem;
+            width: 0.8rem;
+        }
+        details.drilldown[open] > summary::before { content: '\\25BE'; }
+        details.drilldown > summary:hover { background: #edf2f7; }
+        details.drilldown[open] > summary { border-bottom: 1px solid #e2e8f0; }
+        .drilldown-body { padding: 1rem 1.5rem; }
+        .drilldown-body h5 {
+            margin: 1rem 0 0.4rem 0;
+            color: #2d3748;
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .drilldown-body h5:first-child { margin-top: 0; }
+        .summary-value { font-weight: 600; color: #1e3a5f; }
+        .summary-meta { color: #718096; font-size: 0.85rem; }
+        .kv-table td:first-child {
+            width: 30%;
+            color: #4a5568;
+            font-weight: 600;
+            vertical-align: top;
+            word-break: break-word;
+        }
+        .kv-table td { font-size: 0.85rem; word-break: break-word; }
+        .empty-note { color: #718096; font-size: 0.85rem; font-style: italic; }
+        .thumb {
+            width: 72px;
+            height: 72px;
+            object-fit: cover;
+            border-radius: 6px;
+            border: 1px solid #e2e8f0;
+        }
+
+        /* Report metadata banner */
+        .report-banner {
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-left: 4px solid #1e3a5f;
+            border-radius: 6px;
+            padding: 1rem 1.5rem;
+            margin-bottom: 1.5rem;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 0.5rem 1.5rem;
+            font-size: 0.85rem;
+            color: #4a5568;
+        }
+        .report-banner strong { color: #2d3748; }
+
+        /* Expand / collapse controls */
+        .drilldown-controls { margin: 0.5rem 0 1rem 0; }
+        .drilldown-controls button {
+            font: inherit;
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: #2c5282;
+            background: white;
+            border: 1px solid #cbd5e0;
+            border-radius: 4px;
+            padding: 0.35rem 0.9rem;
+            margin-right: 0.5rem;
+            cursor: pointer;
+        }
+        .drilldown-controls button:hover { background: #edf2f7; }
+
+        /* Print */
+        @media print {
+            body { background: white; }
+            .drilldown-controls { display: none; }
+            details.drilldown > summary { background: white; }
+            details.drilldown, .card { break-inside: avoid; }
+            th { position: static; }
+            /* Chrome drops background fills unless "Background graphics" is
+               ticked, which would print the tool metrics charts as empty
+               outlines with their captions still in place. */
+            .tool-chart-track, .tool-chart-bar, .type-bar, .type-bar-slice, .type-legend-swatch {
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+            }
+        }
+        
+        /* Footer */
+        .footer {
+            background: #2d3748;
+            color: #cbd5e0;
+            padding: 1.5rem;
+            margin: 2rem -2rem -2rem -2rem;
+            text-align: center;
+            font-size: 0.85rem;
+        }
+        .footer a { color: #90cdf4; }
+        
+        /* Graph Container */
+        .graph-container {
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            padding: 1rem;
+            margin: 1rem 0;
+            min-height: 400px;
+        }
+        
+
+        /* Branding / watermark injected via branding_css */
+        {{ branding_css | safe }}
+        {% if branding.custom_css_content %}{{ branding.custom_css_content | safe }}{% endif %}
+
+        .filter-bar {
+            display: flex; flex-wrap: wrap; gap: 0.5rem 1rem; align-items: center;
+            background: white; border: 1px solid #e2e8f0; border-radius: 6px;
+            padding: 0.75rem 1rem; margin-bottom: 1rem;
+        }
+        .filter-bar input, .filter-bar select {
+            font: inherit; font-size: 0.85rem; padding: 0.35rem 0.6rem;
+            border: 1px solid #cbd5e0; border-radius: 4px;
+        }
+        .filter-bar label { font-size: 0.8rem; color: #4a5568; font-weight: 600; }
+        .artifact-row.hidden, .presence-row.hidden { display: none !important; }
+        .graph-frame {
+            width: 100%; min-height: 480px; border: 0; border-radius: 6px;
+            background: #fff;
+        }
+        .org-logo { max-height: 48px; margin-bottom: 0.75rem; }
+        .map-list { columns: 2; column-gap: 1.5rem; }
+        .map-list li { break-inside: avoid; margin-bottom: 0.35rem; font-size: 0.9rem; }
+        .chain-step { display: inline-block; padding: 0.2rem 0.5rem; background: #edf2f7; border-radius: 4px; margin: 0.15rem; font-size: 0.8rem; }
+        .chain-arrow { color: #718096; margin: 0 0.15rem; }
+        .status-not_installed { color: #c53030; }
+        .status-silent_or_not_dispatched { color: #d69e2e; }
+        .status-produced_output { color: #276749; }
+        .redacted-banner {
+            background: #fefcbf; border: 1px solid #f6e05e; color: #744210;
+            padding: 0.75rem 1rem; border-radius: 6px; margin-bottom: 1rem; font-weight: 600;
+        }
+
+        /* Priority Queue */
+        .priority-critical { border-left: 4px solid #c53030; }
+        .priority-high { border-left: 4px solid #dd6b20; }
+        .priority-medium { border-left: 4px solid #d69e2e; }
+        .priority-low { border-left: 4px solid #38a169; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Professional Header -->
+        <div class="header">
+            {% if branding.enabled and branding.logo_path %}
+            <img class="org-logo" src="{{ branding.logo_path }}" alt="{{ branding.organization_name }} logo" onerror="this.style.display='none';">
+            {% endif %}
+            <h1>{{ branding.organization_name if branding.enabled else 'Ghost Identity Hunter' }} - OSINT Investigation Report</h1>
+            <div class="meta">
+                <strong>Investigation ID:</strong> {{ investigation.investigation_id }} | 
+                <strong>Title:</strong> {{ investigation.title or 'Untitled Investigation' }} | 
+                <strong>Status:</strong> {{ (investigation.status or 'Unknown') | title }} | 
+                <strong>Generated:</strong> {{ generated_at }}
+            </div>
+            <div class="classification">{{ watermark.text if watermark.enabled else "Confidential" }} &mdash; Investigative Use Only</div>
+        </div>
+
+    <!-- Report Metadata -->
+    <div class="report-banner">
+        <div><strong>Case reference:</strong> {{ investigation.investigation_id }}</div>
+        <div><strong>Opened:</strong> {{ (investigation.created_at or '-')[:19] }}</div>
+        <div><strong>Report generated:</strong> {{ generated_at }}</div>
+        <div><strong>Artifacts / links:</strong> {{ artifacts | length }} / {{ links | length }}</div>
+        <div><strong>Identity profiles:</strong> {{ correlation.identities | length }}</div>
+        <div><strong>Handling:</strong> Automated analysis &mdash; requires analyst review</div>
+    </div>
+
+    {% if redacted %}
+    <div class="redacted-banner">Redacted shareable report — sensitive values are masked.</div>
+    {% endif %}
+
+    {% if 'filters' in sections %}
+    <div class="filter-bar" id="report-filters">
+        <label>Filter type
+            <select id="filter-type">
+                <option value="">All types</option>
+            </select>
+        </label>
+        <label>Min confidence
+            <select id="filter-confidence">
+                <option value="0">Any</option>
+                <option value="0.5">≥ 50%</option>
+                <option value="0.7">≥ 70%</option>
+                <option value="0.9">≥ 90%</option>
+            </select>
+        </label>
+        <label>Source contains
+            <input type="search" id="filter-source" placeholder="e.g. sherlock">
+        </label>
+        <label>Search value
+            <input type="search" id="filter-value" placeholder="artifact value">
+        </label>
+        <span class="summary-meta" id="filter-count"></span>
+    </div>
+    {% endif %}
+
+    <div class="drilldown-controls">
+        <button type="button" id="expand-all">Expand all details</button>
+        <button type="button" id="collapse-all">Collapse all details</button>
+    </div>
+
+    {% if 'identities' in sections %}
+    <!-- Identity Profiles -->
+    <h2>1. Identity Profiles</h2>
+    <p class="section-blurb">Correlated personas that link multiple artifacts to single identities, showing confidence scores, associated risk indicators, and profile images for understanding the target's digital footprint. Expand a profile to review its complete evidence basis.</p>
+    {% for identity in correlation.identities %}
+    <div class="card">
+        <h3>Identity Profile #{{ loop.index }}</h3>
+        <div style="display: flex; gap: 1.5rem; align-items: flex-start;">
+            {% if identity.images and identity.images | length > 0 %}
+            <div style="flex-shrink: 0;">
+                <div style="width: 120px; height: 120px; border-radius: 8px; overflow: hidden; border: 2px solid #e2e8f0; background: #f7fafc;">
+                    <img src="{{ identity.images[0] }}" alt="Profile Image" style="width: 100%; height: 100%; object-fit: cover;" onerror="this.style.display='none'; this.parentElement.style.display='none';">
+                </div>
+            </div>
+            {% endif %}
+            <div style="flex: 1;">
+                <p><strong>Profile ID:</strong> {{ identity.profile_id }}</p>
+                <p><strong>Confidence:</strong> {{ "%.1f%%" | format(identity.confidence * 100) }}</p>
+                <p><strong>Artifacts:</strong> {{ identity.artifacts | length }}</p>
+                <p><strong>Risk Indicators:</strong> {{ identity.risk_indicators | join(', ') if identity.risk_indicators else 'None' }}</p>
+                {% if identity.phones %}
+                <p><strong>Phone Numbers:</strong> {{ identity.phones | join(', ') }}</p>
+                {% endif %}
+                {% if identity.emails %}
+                <p><strong>Emails:</strong> {{ identity.emails | join(', ') }}</p>
+                {% endif %}
+                {% if identity.usernames %}
+                <p><strong>Usernames:</strong> {{ identity.usernames | join(', ') }}</p>
+                {% endif %}
+                {% if identity.platforms %}
+                <p><strong>Accounts Found:</strong> {{ identity.platforms | length }}
+                   ({{ identity.platforms | map(attribute='platform') | join(', ') }})</p>
+                {% endif %}
+                {% if identity.domains %}
+                <p><strong>Domains:</strong> {{ identity.domains | join(', ') }}</p>
+                {% endif %}
+                {% if identity.subdomains %}
+                <p><strong>Subdomains:</strong> {{ identity.subdomains | join(', ') }}</p>
+                {% endif %}
+                {% if identity.ip_addresses %}
+                <p><strong>IP Addresses:</strong> {{ identity.ip_addresses | join(', ') }}</p>
+                {% endif %}
+                {% if identity.open_ports %}
+                <p><strong>Open Ports:</strong> {{ identity.open_ports | join(', ') }}</p>
+                {% endif %}
+                {% if identity.hosts %}
+                <p><strong>Hosts:</strong> {{ identity.hosts | join(', ') }}</p>
+                {% endif %}
+                {% if identity.dns_records %}
+                <p><strong>DNS Records:</strong> {{ identity.dns_records | join(', ') }}</p>
+                {% endif %}
+                {% if identity.web_technologies %}
+                <p><strong>Web Technologies:</strong> {{ identity.web_technologies | join(', ') }}</p>
+                {% endif %}
+                {% if identity.geolocations %}
+                <p><strong>Geolocation:</strong> {{ identity.geolocations | join(', ') }}</p>
+                {% endif %}
+                {% if identity.device_info %}
+                <p><strong>Device / Capture Metadata:</strong> {{ identity.device_info | join(', ') }}</p>
+                {% endif %}
+                {% if identity.historical_urls %}
+                <p><strong>Historical URLs:</strong> {{ identity.historical_urls | length }} archived
+                   (e.g. {{ identity.historical_urls[:3] | join(', ') }})</p>
+                {% endif %}
+            </div>
+        </div>
+        {% set profile_artifacts = identity_artifacts.get(identity.profile_id) or [] %}
+        <details class="drilldown" style="margin-top: 1rem;">
+            <summary><strong>Complete Evidence Basis ({{ profile_artifacts | length }} artifacts)</strong></summary>
+            <div class="drilldown-body">
+                {% if profile_artifacts %}
+                <table>
+                    <thead>
+                        <tr><th>Type</th><th>Value</th><th>Source</th><th>Confidence</th><th>Depth</th><th>Discovered</th></tr>
+                    </thead>
+                    <tbody>
+                        {% for a in profile_artifacts %}
+                        <tr>
+                            <td><span class="badge badge-{{ a.artifact_type }}">{{ a.artifact_type }}</span></td>
+                            <td>{{ a.value }}</td>
+                            <td>{{ a.source or '-' }}</td>
+                            <td>{{ "%.0f%%" | format((a.confidence or 0) * 100) }}</td>
+                            <td>{{ a.depth }}</td>
+                            <td>{{ a.discovered_at[:19] if a.discovered_at else '-' }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                {% else %}
+                <p class="empty-note">No artifacts attributed to this profile.</p>
+                {% endif %}
+            </div>
+        </details>
+        {% if identity.tool_findings %}
+        <details class="drilldown">
+            <summary><strong>External Tool Findings ({{ identity.tool_findings | length }})</strong>
+                     &mdash; tools: {{ identity.tools_used | join(', ') }}</summary>
+            <div class="drilldown-body">
+            <table>
+                <thead>
+                    <tr><th>Tool</th><th>Artifact Type</th><th>Value</th><th>Confidence</th></tr>
+                </thead>
+                <tbody>
+                    {% for finding in identity.tool_findings %}
+                    <tr>
+                        <td>{{ finding.source }}</td>
+                        <td><span class="badge">{{ finding.type }}</span></td>
+                        <td>{{ finding.value[:80] }}{% if finding.value | length > 80 %}...{% endif %}</td>
+                        <td>{{ "%.0f%%" | format((finding.confidence or 0) * 100) }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            </div>
+        </details>
+        {% endif %}
+    </div>
+    {% endfor %}
+
+    {% endif %}
+
+    {% if 'summary' in sections %}
+    <!-- Summary -->
+    <h2>2. Summary</h2>
+    <p class="section-blurb">Investigation overview including timeline of discoveries, key findings, statistical metrics, confidence scores, and risk assessment matrix.</p>
+    <div class="card">
+        <h3>Investigation Timeline</h3>
+        <p class="subsection-blurb">Chronological sequence showing when each artifact was discovered during the investigation process.</p>
+        <table>
+            <thead>
+                <tr><th>Time</th><th>Type</th><th>Value</th><th>Source</th><th>Depth</th></tr>
+            </thead>
+            <tbody>
+                {% for event in timeline[:10] %}
+                <tr>
+                    <td>{{ event.time[:19] if event.time else '-' }}</td>
+                    <td><span class="badge badge-{{ event.type }}">{{ event.type }}</span></td>
+                    <td>{{ event.value[:40] }}{% if event.value | length > 40 %}...{% endif %}</td>
+                    <td>{{ event.source or '-' }}</td>
+                    <td>{{ event.depth }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <div class="card">
+        <h3>Key Findings</h3>
+        <p class="subsection-blurb">Most significant discoveries from the investigation including high-value targets, security risks, and important connections.</p>
+        <ul>
+            {% for finding in key_findings %}
+            <li>{{ finding }}</li>
+            {% endfor %}
+        </ul>
+    </div>
+
+    <div class="card">
+        <h3>Summary Statistics</h3>
+        <p class="subsection-blurb">Aggregate metrics showing total artifacts, connections, identities, and platforms discovered during the investigation.</p>
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-value">{{ artifacts | length }}</div>
+                <div class="stat-label">Artifacts Found</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value">{{ links | length }}</div>
+                <div class="stat-label">Connections</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value">{{ correlation.identities | length }}</div>
+                <div class="stat-label">Identities</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value">{{ presences | length }}</div>
+                <div class="stat-label">Platforms</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Confidence Metrics</h3>
+        <p class="subsection-blurb">Overall reliability score of findings broken down by data type, indicating how trustworthy the discovered information is based on source reliability and verification.</p>
+        <table>
+            <thead>
+                <tr><th>Metric</th><th>Value</th></tr>
+            </thead>
+            <tbody>
+                <tr><td>Overall Confidence</td><td>{{ "%.1f%%" | format(confidence_metrics.overall * 100) }}</td></tr>
+                {% for type, conf in confidence_metrics.by_type.items() %}
+                <tr><td>{{ type | title }}</td><td>{{ "%.1f%%" | format(conf * 100) }}</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <div class="card">
+        <h3>Risk Assessment Matrix</h3>
+        <p class="subsection-blurb">Categorizes findings by risk level (Critical, High, Medium, Low) with counts and percentages, providing immediate visual representation of threat exposure.</p>
+        <table>
+            <thead>
+                <tr><th>Risk Level</th><th>Count</th><th>Percentage</th></tr>
+            </thead>
+            <tbody>
+                {% for level, count in risk_matrix.counts.items() %}
+                <tr>
+                    <td><span class="risk-{{ level }}">{{ level | title }}</span></td>
+                    <td>{{ count }}</td>
+                    <td>{{ risk_matrix.distribution[level] }}%</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    {% endif %}
+
+    {% if 'tools' in sections %}
+    <!-- Tool Metrics -->
+    <h2>3. Tool Metrics</h2>
+    <p class="section-blurb">What each OSINT tool actually contributed to this investigation: how many artifacts it produced, of which types, at what average confidence, and how many identity profiles its output reached. Seeded artifacts are excluded, so the totals here count only discovered evidence. Rows marked <em>derived</em> are pipeline steps rather than tools &mdash; the orchestrator pivoting one artifact into another &mdash; and are excluded from the tool count.</p>
+    <div class="card">
+        {% if tool_metrics.tools %}
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-value">{{ tool_metrics.tool_count }}</div>
+                <div class="stat-label">Tools Producing Output</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value">{{ tool_metrics.attributed }}</div>
+                <div class="stat-label">Tool-Derived Artifacts</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value">{{ tool_metrics.top_tool }}</div>
+                <div class="stat-label">Highest Yield</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value">{{ tool_metrics.types | length }}</div>
+                <div class="stat-label">Artifact Types Covered</div>
+            </div>
+        </div>
+
+        <h3>Artifacts per Tool</h3>
+        <p class="subsection-blurb">Bar length is relative to the highest-yielding tool. Volume is not quality &mdash; a single domain_info record can outweigh fifty profile hits.</p>
+        <div class="tool-chart">
+            {% for tool in tool_metrics.tools %}
+            <div class="tool-chart-name">{{ tool.tool }}</div>
+            <div class="tool-chart-track">
+                <div class="tool-chart-bar" style="width: {{ (tool.count * 100 // tool_metrics.max_count) if tool_metrics.max_count else 0 }}%;"></div>
+            </div>
+            <div class="tool-chart-count">{{ tool.count }}</div>
+            {% endfor %}
+        </div>
+
+        <h3>Artifact Type Mix</h3>
+        <p class="subsection-blurb">Share of tool-derived artifacts by type across the whole investigation.</p>
+        <div class="type-bar">
+            {% for type in tool_metrics.types %}
+            <div class="type-bar-slice" style="width: {{ type.share }}%; background: {{ type.color }};"
+                 title="{{ type.type }}: {{ type.count }}"></div>
+            {% endfor %}
+        </div>
+        <div class="type-legend">
+            {% for type in tool_metrics.types %}
+            <span>
+                <span class="type-legend-swatch" style="background: {{ type.color }};"></span>
+                {{ type.type }} &mdash; {{ type.count }} ({{ type.share }}%)
+            </span>
+            {% endfor %}
+        </div>
+
+        <h3>Per-Tool Breakdown</h3>
+        <table>
+            <thead>
+                <tr><th>Tool</th><th>Artifacts</th><th>Share</th><th>Avg. confidence</th><th>Identities reached</th><th>Artifact types</th></tr>
+            </thead>
+            <tbody>
+                {% for tool in tool_metrics.tools %}
+                <tr>
+                    <td>{{ tool.tool }}</td>
+                    <td>{{ tool.count }}</td>
+                    <td>{{ tool.share }}%</td>
+                    <td>{{ "%.2f" | format(tool.avg_confidence) }}</td>
+                    <td>{{ tool.identities }}</td>
+                    <td>
+                        {% if tool.kind == 'derivation' %}<span class="badge">derived</span>{% endif %}
+                        {% for type in tool.types %}
+                        <span class="badge badge-{{ type.type }}">{{ type.type }} {{ type.count }}</span>
+                        {% endfor %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+        {% if tool_metrics.silent_tools %}
+        <p class="silent-tools">Integrated but silent in this run ({{ tool_metrics.silent_tools | length }} of {{ tool_metrics.integrated_count }}):
+           {{ tool_metrics.silent_tools | join(', ') }}. A tool is silent when it is not installed, was never dispatched for the artifact types seen here, or ran and found nothing.</p>
+        {% endif %}
+        {% else %}
+        <p class="empty-note">No tool-derived artifacts in this investigation &mdash; every artifact came from the seeds.</p>
+        {% endif %}
+    </div>
+
+    {% endif %}
+
+    {% if 'platforms' in sections %}
+    <!-- Platform Presence -->
+    <h2>4. Platform Presence</h2>
+    <p class="section-blurb">All discovered social media and online platform accounts with direct profile links for verification and understanding the target's online behavior and communication channels. Expand a platform to review the captured profile details.
+    <strong>Content-validated</strong> entries were confirmed by inspecting the profile page or API response; <strong>unvalidated (status only)</strong> entries rest on an HTTP 200 alone and may be soft 404s, login walls or app shells &mdash; treat them as leads, not findings.</p>
+    <div class="card">
+        {% if presences %}
+        <p class="section-blurb">{{ presences | selectattr('is_verified') | list | length }} of {{ presences | length }} platform presences are content-validated.</p>
+        {% for presence in presences %}
+        <details class="drilldown presence-row" data-type="platform_presence" data-confidence="1" data-source="{{ presence.platform_name or '' }}" data-value="{{ presence.username or '' }}">
+            <summary>
+                <span class="summary-value">{{ presence.platform_name or 'Unknown platform' }}</span>
+                <span class="summary-meta">{{ presence.username or 'no username' }}</span>
+                {% if presence.is_verified %}<span class="badge badge-validated">Content-validated</span>
+                {% else %}<span class="badge badge-unvalidated">Unvalidated (status only)</span>{% endif %}
+                {% if presence.profile_url %}
+                <span class="summary-meta">{{ presence.profile_url }}</span>
+                {% endif %}
+            </summary>
+            <div class="drilldown-body">
+                <div style="display: flex; gap: 1.5rem; align-items: flex-start;">
+                    {% if presence.profile_image_url %}
+                    <img class="thumb" src="{{ presence.profile_image_url }}" alt="{{ presence.platform_name }} profile image"
+                         onerror="this.style.display='none';">
+                    {% endif %}
+                    <table class="kv-table">
+                        <tbody>
+                            <tr><td>Platform</td><td>{{ presence.platform_name or '-' }}</td></tr>
+                            <tr><td>Username</td><td>{{ presence.username or '-' }}</td></tr>
+                            <tr><td>Display name</td><td>{{ presence.display_name or '-' }}</td></tr>
+                            <tr>
+                                <td>Profile URL</td>
+                                <td>
+                                    {% if presence.profile_url %}
+                                    <a href="{{ presence.profile_url }}" target="_blank" rel="noopener">{{ presence.profile_url }}</a>
+                                    {% else %}-{% endif %}
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>Validation</td>
+                                <td>{{ 'Content-validated (profile page or API confirmed the account)'
+                                       if presence.is_verified else
+                                       'Unvalidated - HTTP status only, existence not confirmed' }}</td>
+                            </tr>
+                            <tr><td>Followers</td><td>{{ presence.follower_count if presence.follower_count is not none else '-' }}</td></tr>
+                            <tr><td>Account created</td><td>{{ presence.account_created or '-' }}</td></tr>
+                            <tr><td>Last active</td><td>{{ presence.last_active or '-' }}</td></tr>
+                            <tr><td>Bio</td><td>{{ presence.bio or '-' }}</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </details>
+        {% endfor %}
+        {% else %}
+        <p class="empty-note">No platform presence recorded for this investigation.</p>
+        {% endif %}
+    </div>
+
+    {% endif %}
+
+    {% if 'graph' in sections %}
+    <!-- Relationship Graph -->
+    <h2>5. Relationship Graph</h2>
+    <p class="section-blurb">Visual network diagram showing connections between artifacts and identities, helping identify clusters, central nodes, and relationship patterns for understanding social connections and potential attack vectors.</p>
+    <div class="card">
+        <div class="graph-container">
+            {% if graph_srcdoc %}
+            <iframe class="graph-frame" title="Identity relationship graph" sandbox="allow-scripts allow-same-origin" srcdoc="{{ graph_srcdoc }}"></iframe>
+            {% else %}
+            <p class="empty-note">No relationship graph available for this investigation.</p>
+            {% endif %}
+        </div>
+    </div>
+
+    {% endif %}
+
+    {% if 'artifacts' in sections %}
+    <!-- Artifacts -->
+    <h2>6. Discovered Artifacts</h2>
+    <p class="section-blurb">Complete inventory of all data points found (emails, usernames, phone numbers, domains, etc.) with source attribution, confidence scores, and discovery depth. Expand an artifact to review its full metadata and the links that connect it to the rest of the investigation.</p>
+    <div class="card">
+        {% if artifact_views %}
+        {% for a in artifact_views %}
+        <details class="drilldown artifact-row" data-type="{{ a.artifact_type }}" data-confidence="{{ a.confidence or 0 }}" data-source="{{ a.source or '' }}" data-value="{{ a.value }}">
+            <summary>
+                <span class="badge badge-{{ a.artifact_type }}">{{ a.artifact_type }}</span>
+                <span class="summary-value">{{ a.value }}</span>
+                <span class="summary-meta">Source: {{ a.source or '-' }}</span>
+                <span class="summary-meta">Confidence: {{ "%.0f%%" | format((a.confidence or 0) * 100) }}</span>
+                <span class="summary-meta">Depth: {{ a.depth }}</span>
+                <span class="summary-meta">{{ a.connections | length }} link(s)</span>
+            </summary>
+            <div class="drilldown-body">
+                <h5>Artifact Detail</h5>
+                <table class="kv-table">
+                    <tbody>
+                        <tr><td>Artifact ID</td><td>{{ a.artifact_id }}</td></tr>
+                        <tr><td>Type</td><td>{{ a.artifact_type }}</td></tr>
+                        <tr><td>Value</td><td>{{ a.value }}</td></tr>
+                        <tr><td>Source</td><td>{{ a.source or '-' }}</td></tr>
+                        <tr><td>Confidence</td><td>{{ "%.0f%%" | format((a.confidence or 0) * 100) }}</td></tr>
+                        <tr><td>Discovery depth</td><td>{{ a.depth }}</td></tr>
+                        <tr><td>Discovered at</td><td>{{ a.discovered_at[:19] if a.discovered_at else '-' }}</td></tr>
+                        <tr><td>Attributed identity</td><td>{{ a.identity_label or 'Not attributed' }}</td></tr>
+                    </tbody>
+                </table>
+
+                <h5>Metadata</h5>
+                {% if a.metadata_items %}
+                <table class="kv-table">
+                    <tbody>
+                        {% for item in a.metadata_items %}
+                        <tr><td>{{ item.key }}</td><td>{{ item.value }}</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                {% else %}
+                <p class="empty-note">No metadata recorded for this artifact.</p>
+                {% endif %}
+
+                <h5>Connected Artifacts</h5>
+                {% if a.connections %}
+                <table>
+                    <thead>
+                        <tr><th>Direction</th><th>Link Type</th><th>Connected Artifact</th><th>Confidence</th><th>Evidence</th></tr>
+                    </thead>
+                    <tbody>
+                        {% for c in a.connections %}
+                        <tr>
+                            <td>{{ c.direction }}</td>
+                            <td>{{ c.link_type }}</td>
+                            <td><span class="badge badge-{{ c.other_type }}">{{ c.other_type }}</span> {{ c.other_value }}</td>
+                            <td>{{ "%.0f%%" | format(c.confidence * 100) }}</td>
+                            <td>{{ c.evidence or '-' }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                {% else %}
+                <p class="empty-note">No links connect this artifact to other findings.</p>
+                {% endif %}
+            </div>
+        </details>
+        {% endfor %}
+        {% else %}
+        <p class="empty-note">No artifacts were discovered in this investigation.</p>
+        {% endif %}
+    </div>
+
+
+    {% endif %}
+
+    {% if 'recommendations' in sections %}
+    <h2>7. Recommendations</h2>
+    <p class="section-blurb">Actionable next steps tied to specific findings — not generic advice.</p>
+    <div class="card">
+        {% if recommendations %}
+        <table>
+            <thead><tr><th>Priority</th><th>Category</th><th>Action</th><th>Details</th><th>Ref</th></tr></thead>
+            <tbody>
+            {% for rec in recommendations %}
+            <tr class="priority-{{ rec.priority }}">
+                <td><span class="risk-{{ rec.priority if rec.priority in ['critical','high','medium','low'] else 'medium' }}">{{ rec.priority | upper }}</span></td>
+                <td>{{ rec.category }}</td>
+                <td>{{ rec.action }}</td>
+                <td>{{ rec.details }}</td>
+                <td>{{ rec.artifact_ref or '-' }}</td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p class="empty-note">No recommendations generated.</p>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    {% if 'evidence' in sections %}
+    <h2>8. Evidence Chains</h2>
+    <p class="section-blurb">Provenance paths from seed artifacts through discovery links (type, confidence, evidence text).</p>
+    <div class="card">
+        {% if evidence_chains %}
+        {% for chain in evidence_chains %}
+        <div class="evidence-chain" style="margin-bottom: 0.75rem;">
+            {% for step in chain.steps %}
+            <span class="chain-step"><span class="badge badge-{{ step.type }}">{{ step.type }}</span> {{ step.value }}
+            {% if step.via %} <span class="summary-meta">(via {{ step.via.link_type }}{% if step.via.evidence %}: {{ step.via.evidence }}{% endif %})</span>{% endif %}
+            </span>{% if not loop.last %}<span class="chain-arrow">→</span>{% endif %}
+            {% endfor %}
+        </div>
+        {% endfor %}
+        {% else %}
+        <p class="empty-note">No multi-hop evidence chains were derived.</p>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    {% if 'orphans' in sections %}
+    <h2>9. Unattributed Findings</h2>
+    <p class="section-blurb">Artifacts that are not attached to an identity profile (common for IP/domain-only seeds).</p>
+    <div class="card">
+        {% if orphan_findings %}
+        <table>
+            <thead><tr><th>Type</th><th>Value</th><th>Source</th><th>Confidence</th><th>Depth</th></tr></thead>
+            <tbody>
+            {% for o in orphan_findings %}
+            <tr>
+                <td><span class="badge badge-{{ o.type }}">{{ o.type }}</span></td>
+                <td>{{ o.value }}</td>
+                <td>{{ o.source or '-' }}</td>
+                <td>{{ "%.0f%%" | format((o.confidence or 0) * 100) }}</td>
+                <td>{{ o.depth }}</td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p class="empty-note">All findings are attributed to an identity profile.</p>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    {% if 'tools' in sections and tool_metrics.tool_status %}
+    <h2>10. Tool Run Status</h2>
+    <p class="section-blurb">Distinguishes not-installed tools from installed tools that were silent or not dispatched.</p>
+    <div class="card">
+        <table>
+            <thead><tr><th>Tool</th><th>Available</th><th>State</th></tr></thead>
+            <tbody>
+            {% for row in tool_metrics.tool_status %}
+            <tr>
+                <td>{{ row.tool }}</td>
+                <td>{{ 'yes' if row.available else ('no' if row.available is sameas false else '?') }}</td>
+                <td class="status-{{ row.state }}">{{ row.state }}</td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+        {% if tool_metrics.not_installed %}
+        <p class="silent-tools">Not installed: {{ tool_metrics.not_installed | join(', ') }}</p>
+        {% endif %}
+        {% if tool_metrics.silent_installed %}
+        <p class="silent-tools">Installed but silent/not dispatched: {{ tool_metrics.silent_installed | join(', ') }}</p>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    {% if 'geo' in sections %}
+    <h2>11. Geographic / Location Signals</h2>
+    <p class="section-blurb">GPS and location-related artifacts (EXIF, phone region, etc.).</p>
+    <div class="card">
+        {% if geographic_data and geographic_data.locations %}
+        <ul class="map-list">
+        {% for loc in geographic_data.locations %}
+            <li><strong>{{ loc.value }}</strong> <span class="summary-meta">({{ loc.source }})</span></li>
+        {% endfor %}
+        </ul>
+        {% if geographic_data.map_url %}
+        <p><a href="{{ geographic_data.map_url }}" target="_blank" rel="noopener">Open approximate map view</a></p>
+        {% endif %}
+        {% else %}
+        <p class="empty-note">No geographic signals recorded.</p>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    {% if 'audit' in sections %}
+    <h2>12. Audit Trail</h2>
+    <p class="section-blurb">Investigation lifecycle events recorded during collection and reporting.</p>
+    <div class="card">
+        {% if audit_trail %}
+        <table>
+            <thead><tr><th>When</th><th>Action</th><th>Entity</th><th>Details</th></tr></thead>
+            <tbody>
+            {% for a in audit_trail %}
+            <tr>
+                <td>{{ (a.performed_at or '')[:19] }}</td>
+                <td>{{ a.action }}</td>
+                <td>{{ a.entity_type or '-' }} {{ a.entity_id or '' }}</td>
+                <td>{{ a.details or '-' }}</td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p class="empty-note">No audit events recorded for this investigation.</p>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    {% if 'comments' in sections %}
+    <h2>13. Investigator Notes</h2>
+    <p class="section-blurb">Threaded comments and annotations attached to the investigation.</p>
+    <div class="card">
+        {% if comments %}
+        {% for c in comments %}
+        <div class="collapsible" style="padding: 0.75rem 1rem;">
+            <strong>{{ c.author or 'analyst' }}</strong>
+            <span class="summary-meta">{{ (c.created_at or '')[:19] }}{% if c.artifact_id %} · artifact {{ c.artifact_id }}{% endif %}</span>
+            <p>{{ c.content }}</p>
+        </div>
+        {% endfor %}
+        {% else %}
+        <p class="empty-note">No investigator notes yet.</p>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    {% if 'cross' in sections %}
+    <h2>14. Cross-Investigation Matches</h2>
+    <p class="section-blurb">Same artifact values seen in other investigations in this database.</p>
+    <div class="card">
+        {% if cross_hits %}
+        <table>
+            <thead><tr><th>Other INV</th><th>Type</th><th>Value</th><th>Source</th></tr></thead>
+            <tbody>
+            {% for h in cross_hits %}
+            <tr>
+                <td>{{ h.investigation_id }}</td>
+                <td>{{ h.artifact_type }}</td>
+                <td>{{ h.value }}</td>
+                <td>{{ h.source or '-' }}</td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p class="empty-note">No overlapping artifacts found in other investigations.</p>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    {% if 'delta' in sections and delta.enabled %}
+    <h2>15. Delta vs {{ delta.compare_id }}</h2>
+    <p class="section-blurb">Artifacts added or removed relative to a prior investigation.</p>
+    <div class="card">
+        <div class="stats-grid">
+            <div class="stat-card"><div class="stat-value">{{ delta.added_count }}</div><div class="stat-label">Added</div></div>
+            <div class="stat-card"><div class="stat-value">{{ delta.removed_count }}</div><div class="stat-label">Removed</div></div>
+            <div class="stat-card"><div class="stat-value">{{ delta.shared_count }}</div><div class="stat-label">Shared</div></div>
+        </div>
+        <h3>Added</h3>
+        {% if delta.added %}
+        <ul>{% for a in delta.added %}<li><span class="badge badge-{{ a.type }}">{{ a.type }}</span> {{ a.value }} ({{ a.source }})</li>{% endfor %}</ul>
+        {% else %}<p class="empty-note">None</p>{% endif %}
+        <h3>Removed</h3>
+        {% if delta.removed %}
+        <ul>{% for a in delta.removed %}<li><span class="badge badge-{{ a.type }}">{{ a.type }}</span> {{ a.value }} ({{ a.source }})</li>{% endfor %}</ul>
+        {% else %}<p class="empty-note">None</p>{% endif %}
+    </div>
+    {% endif %}
+
+    <!-- Footer -->
+    <div class="footer">
+        <p>{{ branding.organization_name if branding.enabled else 'Ghost Identity Hunter' }} - OSINT Investigation Report | Generated {{ generated_at }}</p>
+    </div>
+</div>
+
+<script>
+    function toggleCollapsible(element) {
+        element.classList.toggle('active');
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+        document.querySelectorAll('.collapsible-header').forEach(function (header) {
+            header.addEventListener('click', function () {
+                toggleCollapsible(header.parentElement);
+            });
+        });
+
+        function setAllDetails(open) {
+            document.querySelectorAll('details.drilldown').forEach(function (item) {
+                item.open = open;
+            });
+        }
+
+        var expandAll = document.getElementById('expand-all');
+        var collapseAll = document.getElementById('collapse-all');
+        if (expandAll) { expandAll.addEventListener('click', function () { setAllDetails(true); }); }
+        if (collapseAll) { collapseAll.addEventListener('click', function () { setAllDetails(false); }); }
+
+        // Interactive filters for artifacts / platforms
+        var typeSelect = document.getElementById('filter-type');
+        if (typeSelect) {
+            var types = {};
+            document.querySelectorAll('.artifact-row').forEach(function (el) {
+                var t = el.getAttribute('data-type');
+                if (t) types[t] = true;
+            });
+            Object.keys(types).sort().forEach(function (t) {
+                var opt = document.createElement('option');
+                opt.value = t; opt.textContent = t;
+                typeSelect.appendChild(opt);
+            });
+            function applyFilters() {
+                var type = (document.getElementById('filter-type').value || '').toLowerCase();
+                var minC = parseFloat(document.getElementById('filter-confidence').value || '0');
+                var source = (document.getElementById('filter-source').value || '').toLowerCase();
+                var value = (document.getElementById('filter-value').value || '').toLowerCase();
+                var shown = 0, total = 0;
+                document.querySelectorAll('.artifact-row, .presence-row').forEach(function (el) {
+                    total += 1;
+                    var ok = true;
+                    var dt = (el.getAttribute('data-type') || '').toLowerCase();
+                    var dc = parseFloat(el.getAttribute('data-confidence') || '0');
+                    var ds = (el.getAttribute('data-source') || '').toLowerCase();
+                    var dv = (el.getAttribute('data-value') || '').toLowerCase();
+                    if (type && dt !== type) ok = false;
+                    if (dc < minC) ok = false;
+                    if (source && ds.indexOf(source) === -1) ok = false;
+                    if (value && dv.indexOf(value) === -1) ok = false;
+                    el.classList.toggle('hidden', !ok);
+                    if (ok) shown += 1;
+                });
+                var count = document.getElementById('filter-count');
+                if (count) count.textContent = 'Showing ' + shown + ' of ' + total;
+            }
+            ['filter-type','filter-confidence','filter-source','filter-value'].forEach(function (id) {
+                var el = document.getElementById(id);
+                if (el) el.addEventListener('input', applyFilters);
+                if (el) el.addEventListener('change', applyFilters);
+            });
+            applyFilters();
+        }
+    });
+</script>
+</body>
+</html>
