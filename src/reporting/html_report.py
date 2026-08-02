@@ -190,8 +190,9 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         span.badge-email { background: #bee3f8; color: #2b6cb0; border: 1px solid #90cdf4; }
         span.badge-username { background: #c6f6d5; color: #276749; border: 1px solid #9ae6b4; }
         span.badge-domain { background: #feebc8; color: #9c4221; border: 1px solid #fbd38d; }
-        span.badge-ip { background: #e9d8fd; color: #553c9a; border: 1px solid #d6bcfa; }
-        span.badge-platform { background: #e2e8f0; color: #4a5568; border: 1px solid #cbd5e0; }
+        /* Class names come from the artifact type verbatim (badge-{{ type }}). */
+        span.badge-ip_address { background: #e9d8fd; color: #553c9a; border: 1px solid #d6bcfa; }
+        span.badge-platform_presence { background: #e2e8f0; color: #4a5568; border: 1px solid #cbd5e0; }
         span.badge-risk { background: #c53030; color: white; border: 1px solid #9b2c2c; }
         
         /* Risk Levels */
