@@ -322,6 +322,16 @@ username_search:
   # single parallel batch. With fewer workers the checks run in multiple waves,
   # so each username search waits ~2x the slowest platform's timeout.
   max_parallel_workers: 15
+  # Web platforms use check_type "web_content": an HTTP 200 alone is not proof of
+  # an account because these sites serve soft 404s, login/consent walls and JS app
+  # shells with status 200. Optional per-platform fields:
+  #   failure_markers        - substrings proving the account does NOT exist
+  #   success_markers        - substrings proving a real profile page was served
+  #                            (at least one must match when the list is set)
+  #   require_username_in_body - username must appear in the body (default true
+  #                            for web checks, used when no success_markers are set)
+  #   redirect_means         - how to read a 3xx: not_found (default) | found | uncertain
+  # Markers may contain {username}; matching is case-insensitive.
   platforms:
     - name: "GitHub"
       url_template: "https://api.github.com/users/{username}"
@@ -335,42 +345,120 @@ username_search:
       url_template: "https://www.reddit.com/user/{username}/about.json"
       check_type: "api_json"
       expected_field: "name"
+    # X serves a JS shell behind a consent/login wall; only real profiles embed
+    # the handle. Redirects go to the login or home page, never to a profile.
     - name: "Twitter/X"
       url_template: "https://twitter.com/{username}"
-      check_type: "web_status"
+      check_type: "web_content"
       expected_status: 200
+      redirect_means: "not_found"
+      failure_markers:
+        - "this account doesn’t exist"
+        - "this account doesn't exist"
+        - "page doesn’t exist"
+        - "page doesn't exist"
+      success_markers:
+        - "@{username}"
+        - "/{username}"
+    # Instagram soft-404s with a "page isn't available" shell and bounces
+    # logged-out visitors to /accounts/login.
     - name: "Instagram"
       url_template: "https://www.instagram.com/{username}/"
-      check_type: "web_status"
+      check_type: "web_content"
       expected_status: 200
+      redirect_means: "not_found"
+      failure_markers:
+        - "sorry, this page isn't available"
+        - "page not found"
+        - "the link you followed may be broken"
+      success_markers:
+        - "\"username\":\"{username}\""
+        - "@{username}"
+    # LinkedIn answers 200 with an authwall for real and fake profiles alike, so
+    # only the canonical /in/{username} link proves existence. A 302 is the
+    # authwall/home bounce.
     - name: "LinkedIn"
       url_template: "https://www.linkedin.com/in/{username}/"
-      check_type: "web_status"
+      check_type: "web_content"
       expected_status: 200
+      redirect_means: "not_found"
+      failure_markers:
+        - "page not found"
+        - "this page doesn’t exist"
+        - "this page doesn't exist"
+      success_markers:
+        - "linkedin.com/in/{username}"
+        - "/in/{username}"
     - name: "Keybase"
       url_template: "https://keybase.io/{username}"
-      check_type: "web_status"
+      check_type: "web_content"
       expected_status: 200
+      redirect_means: "not_found"
+      failure_markers:
+        - "user not found"
+        - "sorry, we couldn"
+      success_markers:
+        - "keybase.io/{username}"
+        - "@{username}"
+    # Hacker News returns 200 with "No such user." for unknown ids.
     - name: "HackerNews"
       url_template: "https://news.ycombinator.com/user?id={username}"
-      check_type: "web_status"
+      check_type: "web_content"
       expected_status: 200
+      redirect_means: "not_found"
+      failure_markers:
+        - "no such user"
+      success_markers:
+        - "user:"
+        - "karma:"
     - name: "Medium"
       url_template: "https://medium.com/@{username}"
-      check_type: "web_status"
+      check_type: "web_content"
       expected_status: 200
+      redirect_means: "not_found"
+      failure_markers:
+        - "out of nothing, something"
+        - "page not found"
+        - "404"
+      success_markers:
+        - "medium.com/@{username}"
+        - "@{username}"
     - name: "Pinterest"
       url_template: "https://www.pinterest.com/{username}/"
-      check_type: "web_status"
+      check_type: "web_content"
       expected_status: 200
+      redirect_means: "not_found"
+      failure_markers:
+        - "user not found"
+        - "page not found"
+        - "sorry! we couldn"
+      success_markers:
+        - "pinterest.com/{username}"
+        - "\"username\":\"{username}\""
+    # Steam renders "The specified profile could not be found." with status 200,
+    # and redirects unknown vanity ids to the community home page.
     - name: "Steam"
       url_template: "https://steamcommunity.com/id/{username}"
-      check_type: "web_status"
+      check_type: "web_content"
       expected_status: 200
+      redirect_means: "not_found"
+      failure_markers:
+        - "the specified profile could not be found"
+        - "no user could be found"
+      success_markers:
+        - "steamcommunity.com/id/{username}"
+        - "{username}"
     - name: "Mastodon"
       url_template: "https://mastodon.social/@{username}"
-      check_type: "web_status"
+      check_type: "web_content"
       expected_status: 200
+      redirect_means: "not_found"
+      failure_markers:
+        - "the page you are looking for isn't here"
+        - "not found"
+      success_markers:
+        - "@{username}"
+        - "/users/{username}"
 
 # Email OSINT Settings
 email_osint:

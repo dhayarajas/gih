@@ -32,6 +32,27 @@ DETECTION METHODS:
 - web_status: HTTP status check for web profiles
 - web_content: HTML content validation for profile pages
 
+WEB CONTENT VALIDATION:
+-----------------------
+Many sites answer 200 for non-existent usernames (soft 404s, login/consent walls,
+JavaScript app shells), so a bare status check produces false positives. Both
+``web_status`` and ``web_content`` platforms therefore validate the response body
+before reporting a hit. Per-platform config fields:
+
+- failure_markers: substrings that prove the account does NOT exist (soft 404).
+- success_markers: substrings that prove a real profile page was served. When set,
+  at least one must be present.
+- require_username_in_body: when true (default for web checks), the username must
+  appear somewhere in the body.
+- redirect_means: how to read a 3xx response -- "not_found" (default; e.g. a bounce
+  to a login or home page), "found", or "uncertain".
+
+Markers may contain a ``{username}`` placeholder, which is substituted before
+matching. Matching is case-insensitive. A hit backed by content validation is
+reported with a high confidence; a bare status-200 hit (platform defines no
+content rules) is reported as unvalidated with a low confidence so the report can
+flag it.
+
 RISK ASSESSMENT:
 ---------------
 - Account presence across multiple platforms increases identity confidence
@@ -88,6 +109,102 @@ _platform_check_cache = {}
 _cache_max_size = 1000  # Maximum number of cached results
 
 
+# Validation strengths reported alongside a platform hit.
+VALIDATION_CONTENT = "content"  # response body confirmed a real profile
+VALIDATION_API = "api"  # structured API response confirmed the account
+VALIDATION_STATUS = "status"  # bare HTTP 200, no content evidence
+
+# Confidence attached to a discovered platform presence per validation strength.
+VALIDATION_CONFIDENCE = {
+    VALIDATION_CONTENT: 0.9,
+    VALIDATION_API: 0.9,
+    VALIDATION_STATUS: 0.4,
+}
+
+# Content rules for the web platforms, applied on top of a 200 response. Every
+# one of these sites can answer 200 for a username that does not exist.
+WEB_PLATFORM_CONTENT_RULES = {
+    # X serves a JS shell with a consent/login wall; the handle is present in the
+    # server-rendered metadata only for real profiles. Redirects go to the login
+    # or home page, never to a profile.
+    "Twitter/X": {
+        "failure_markers": [
+            "this account doesn’t exist",
+            "this account doesn't exist",
+            "page doesn’t exist",
+            "page doesn't exist",
+        ],
+        "success_markers": ["@{username}", "/{username}"],
+    },
+    # Instagram soft-404s with a "page isn't available" shell and bounces
+    # logged-out visitors to /accounts/login.
+    "Instagram": {
+        "failure_markers": [
+            "sorry, this page isn't available",
+            "page not found",
+            "the link you followed may be broken",
+        ],
+        "success_markers": ["\"username\":\"{username}\"", "@{username}"],
+    },
+    # LinkedIn answers 200 with an authwall for both real and fake profiles, so
+    # only the canonical /in/{username} link proves the profile exists.
+    "LinkedIn": {
+        "failure_markers": [
+            "page not found",
+            "this page doesn’t exist",
+            "this page doesn't exist",
+        ],
+        "success_markers": ["linkedin.com/in/{username}", "/in/{username}"],
+    },
+    "Keybase": {
+        "failure_markers": ["user not found", "sorry, we couldn"],
+        "success_markers": ["keybase.io/{username}", "@{username}"],
+    },
+    # Hacker News returns 200 with "No such user." for unknown ids.
+    "HackerNews": {
+        "failure_markers": ["no such user"],
+        "success_markers": ["user:", "karma:"],
+    },
+    "Medium": {
+        "failure_markers": ["out of nothing, something", "page not found", "404"],
+        "success_markers": ["medium.com/@{username}", "@{username}"],
+    },
+    "Pinterest": {
+        "failure_markers": ["user not found", "page not found", "sorry! we couldn"],
+        "success_markers": ["pinterest.com/{username}", "\"username\":\"{username}\""],
+    },
+    # Steam renders "The specified profile could not be found." with status 200.
+    "Steam": {
+        "failure_markers": [
+            "the specified profile could not be found",
+            "no user could be found",
+        ],
+        "success_markers": ["steamcommunity.com/id/{username}", "{username}"],
+    },
+    "Mastodon": {
+        "failure_markers": [
+            "the page you are looking for isn't here",
+            "not found",
+        ],
+        "success_markers": ["@{username}", "/users/{username}"],
+    },
+}
+
+
+def _web_platform(name: str, url_template: str) -> dict:
+    """Build a content-validated web platform entry for the fallback config."""
+    platform = {
+        "name": name,
+        "url_template": url_template,
+        "check_type": "web_content",
+        "expected_status": 200,
+        "require_username_in_body": True,
+        "redirect_means": "not_found",
+    }
+    platform.update(WEB_PLATFORM_CONTENT_RULES.get(name, {}))
+    return platform
+
+
 def _get_username_search_config() -> dict:
     """Get username search configuration from config.yaml."""
     config = get_config()
@@ -112,60 +229,15 @@ def _get_username_search_config() -> dict:
                 "check_type": "api_json",
                 "expected_field": "name",
             },
-            {
-                "name": "Twitter/X",
-                "url_template": "https://twitter.com/{username}",
-                "check_type": "web_status",
-                "expected_status": 200,
-            },
-            {
-                "name": "Instagram",
-                "url_template": "https://www.instagram.com/{username}/",
-                "check_type": "web_status",
-                "expected_status": 200,
-            },
-            {
-                "name": "LinkedIn",
-                "url_template": "https://www.linkedin.com/in/{username}/",
-                "check_type": "web_status",
-                "expected_status": 200,
-            },
-            {
-                "name": "Keybase",
-                "url_template": "https://keybase.io/{username}",
-                "check_type": "web_status",
-                "expected_status": 200,
-            },
-            {
-                "name": "HackerNews",
-                "url_template": "https://news.ycombinator.com/user?id={username}",
-                "check_type": "web_status",
-                "expected_status": 200,
-            },
-            {
-                "name": "Medium",
-                "url_template": "https://medium.com/@{username}",
-                "check_type": "web_status",
-                "expected_status": 200,
-            },
-            {
-                "name": "Pinterest",
-                "url_template": "https://www.pinterest.com/{username}/",
-                "check_type": "web_status",
-                "expected_status": 200,
-            },
-            {
-                "name": "Steam",
-                "url_template": "https://steamcommunity.com/id/{username}",
-                "check_type": "web_status",
-                "expected_status": 200,
-            },
-            {
-                "name": "Mastodon",
-                "url_template": "https://mastodon.social/@{username}",
-                "check_type": "web_status",
-                "expected_status": 200,
-            },
+            _web_platform("Twitter/X", "https://twitter.com/{username}"),
+            _web_platform("Instagram", "https://www.instagram.com/{username}/"),
+            _web_platform("LinkedIn", "https://www.linkedin.com/in/{username}/"),
+            _web_platform("Keybase", "https://keybase.io/{username}"),
+            _web_platform("HackerNews", "https://news.ycombinator.com/user?id={username}"),
+            _web_platform("Medium", "https://medium.com/@{username}"),
+            _web_platform("Pinterest", "https://www.pinterest.com/{username}/"),
+            _web_platform("Steam", "https://steamcommunity.com/id/{username}"),
+            _web_platform("Mastodon", "https://mastodon.social/@{username}"),
         ],
     })
 
@@ -187,6 +259,20 @@ class PlatformResult:
     avatar_url: Optional[str] = None
     follower_count: Optional[int] = None
     error: Optional[str] = None
+    # How the hit was established: "content", "api" or "status" (see module docstring).
+    validation_method: Optional[str] = None
+    # Human-readable justification for the verdict, kept for the evidence chain.
+    validation_evidence: Optional[str] = None
+
+    @property
+    def is_validated(self) -> bool:
+        """True when the hit is backed by content/API evidence, not a bare 200."""
+        return self.found and self.validation_method in (VALIDATION_CONTENT, VALIDATION_API)
+
+    @property
+    def confidence(self) -> float:
+        """Confidence reflecting how strongly the account existence was proven."""
+        return VALIDATION_CONFIDENCE.get(self.validation_method, VALIDATION_CONFIDENCE[VALIDATION_STATUS])
 
     def to_dict(self) -> dict:
         return {
@@ -199,6 +285,10 @@ class PlatformResult:
             "avatar_url": self.avatar_url,
             "follower_count": self.follower_count,
             "error": self.error,
+            "validation_method": self.validation_method,
+            "validation_evidence": self.validation_evidence,
+            "is_validated": self.is_validated,
+            "confidence": self.confidence,
         }
 
 
@@ -226,6 +316,61 @@ class UsernameSearchResult:
         return json.dumps(self.to_dict())
 
 
+def _expand_markers(markers, username: str) -> list[str]:
+    """Lowercase markers with the {username} placeholder substituted."""
+    expanded = []
+    for marker in markers or []:
+        text = str(marker)
+        if "{username}" in text:
+            text = text.replace("{username}", username)
+        expanded.append(text.lower())
+    return expanded
+
+
+def _validate_web_content(username: str, platform: dict, body: str) -> tuple[bool, str, str]:
+    """Decide whether a 200 response body really is the user's profile page.
+
+    Returns ``(found, validation_method, evidence)``. A platform that defines no
+    content rules at all falls back to the legacy status-only verdict, which is
+    reported as unvalidated so downstream consumers can flag it.
+    """
+    failure_markers = _expand_markers(platform.get("failure_markers"), username)
+    success_markers = _expand_markers(platform.get("success_markers"), username)
+    require_username = platform.get(
+        "require_username_in_body",
+        platform["check_type"] in ("web_status", "web_content"),
+    )
+    expected_field = platform.get("expected_field")
+    if expected_field and not success_markers:
+        success_markers = _expand_markers([expected_field], username)
+
+    has_rules = bool(failure_markers or success_markers or require_username)
+    if not has_rules:
+        return True, VALIDATION_STATUS, "HTTP 200, no content rules configured"
+
+    if not body:
+        return False, VALIDATION_CONTENT, "HTTP 200 with empty body"
+
+    haystack = body.lower()
+
+    for marker in failure_markers:
+        if marker in haystack:
+            return False, VALIDATION_CONTENT, f"not-found marker present: {marker!r}"
+
+    if success_markers:
+        matched = next((m for m in success_markers if m in haystack), None)
+        if matched is None:
+            return False, VALIDATION_CONTENT, "no profile marker in body (login wall or app shell)"
+        return True, VALIDATION_CONTENT, f"profile marker present: {matched!r}"
+
+    if require_username:
+        if username.lower() in haystack:
+            return True, VALIDATION_CONTENT, "username present in page body"
+        return False, VALIDATION_CONTENT, "username absent from page body"
+
+    return True, VALIDATION_STATUS, "HTTP 200, no content rules configured"
+
+
 def _check_platform(username: str, platform: dict) -> PlatformResult:
     """Check if username exists on a specific platform."""
     global _platform_check_cache
@@ -247,9 +392,13 @@ def _check_platform(username: str, platform: dict) -> PlatformResult:
         session = get_http_session()
         resp = session.get(url, timeout=10, allow_redirects=False)
 
+        expected_status = platform.get("expected_status", 200)
+
         if platform["check_type"] == "api_status":
-            if resp.status_code == platform["expected_status"]:
+            if resp.status_code == expected_status:
                 result.found = True
+                result.validation_method = VALIDATION_API
+                result.validation_evidence = f"API returned {resp.status_code}"
                 result.profile_url = url.replace("/api/", "/").replace("api.", "")
                 # Try to extract profile data from API response
                 try:
@@ -264,11 +413,13 @@ def _check_platform(username: str, platform: dict) -> PlatformResult:
                     pass
 
         elif platform["check_type"] == "api_json":
-            if resp.status_code == platform["expected_status"]:
+            if resp.status_code == expected_status:
                 try:
                     data = resp.json()
                     if data and data is not None:
                         result.found = True
+                        result.validation_method = VALIDATION_API
+                        result.validation_evidence = "API returned a user object"
                         result.profile_url = url
                         if isinstance(data, dict):
                             result.display_name = data.get("name") or data.get("id")
@@ -276,11 +427,13 @@ def _check_platform(username: str, platform: dict) -> PlatformResult:
                     pass
 
         elif platform["check_type"] == "api_json_array":
-            if resp.status_code == platform["expected_status"]:
+            if resp.status_code == expected_status:
                 try:
                     data = resp.json()
                     if data and len(data) > 0:
                         result.found = True
+                        result.validation_method = VALIDATION_API
+                        result.validation_evidence = "API returned a non-empty user array"
                         user = data[0]
                         result.profile_url = user.get("web_url", url)
                         result.display_name = user.get("name")
@@ -288,14 +441,41 @@ def _check_platform(username: str, platform: dict) -> PlatformResult:
                 except (ValueError, KeyError):
                     pass
 
-        elif platform["check_type"] == "web_status":
-            # For web checks, 200 = found, 404 = not found, redirect = uncertain
-            if resp.status_code == 200:
-                result.found = True
-                result.profile_url = url
-            elif resp.status_code in (301, 302):
-                # Could be redirect to login or different page
-                pass
+        elif platform["check_type"] in ("web_status", "web_content"):
+            # A 200 is necessary but not sufficient: the body has to look like a
+            # real profile page before the account is reported as found.
+            if resp.status_code == expected_status:
+                found, method, evidence = _validate_web_content(
+                    username, platform, resp.text or ""
+                )
+                result.found = found
+                result.validation_method = method
+                result.validation_evidence = f"HTTP {resp.status_code}; {evidence}"
+                if found:
+                    result.profile_url = url
+            elif resp.status_code in (301, 302, 303, 307, 308):
+                # Redirects are read per platform: for all bundled web platforms a
+                # redirect is a bounce to a login/consent or home page, i.e. the
+                # profile does not exist. Platforms that legitimately redirect to a
+                # canonical profile URL set redirect_means: found.
+                redirect_means = platform.get("redirect_means", "not_found")
+                location = resp.headers.get("Location", "")
+                if redirect_means == "found":
+                    result.found = True
+                    result.profile_url = location or url
+                    result.validation_method = VALIDATION_STATUS
+                    result.validation_evidence = (
+                        f"HTTP {resp.status_code} redirect to {location or 'unknown'} "
+                        "treated as found for this platform"
+                    )
+                else:
+                    result.validation_method = VALIDATION_CONTENT
+                    result.validation_evidence = (
+                        f"HTTP {resp.status_code} redirect to {location or 'unknown'} "
+                        f"treated as {redirect_means}"
+                    )
+            else:
+                result.validation_evidence = f"HTTP {resp.status_code}"
 
     except requests.Timeout:
         result.error = "timeout"
@@ -433,7 +613,11 @@ def generate_username_variants(username: str) -> list[str]:
 
 
 def get_discovered_artifacts(search_result: UsernameSearchResult) -> list[dict]:
-    """Extract new artifacts from username search results."""
+    """Extract new artifacts from username search results.
+
+    Confidence follows the strength of the check: content/API validated hits score
+    high, bare status-200 hits score low so analysts can discount them.
+    """
     artifacts = []
     for platform in search_result.platforms_found:
         if platform.profile_url:
@@ -441,7 +625,7 @@ def get_discovered_artifacts(search_result: UsernameSearchResult) -> list[dict]:
                 "type": "platform_presence",
                 "value": platform.profile_url,
                 "source": f"username_search_{platform.platform_name.lower().replace('/', '_')}",
-                "confidence": 0.85,
+                "confidence": platform.confidence,
                 "metadata": json.dumps(platform.to_dict()),
             })
     return artifacts

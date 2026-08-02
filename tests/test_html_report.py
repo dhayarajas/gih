@@ -97,6 +97,17 @@ class TestDrillDowns:
         assert "Ghost User" in html
         assert "https://example.com/a.png" in html
 
+    def test_validation_status_is_surfaced_per_presence(self, conn, tmp_path):
+        inv_id = db.create_investigation(conn, title="Validation")
+        db.add_platform_presence(conn, inv_id, platform_name="Steam",
+                                 username="ghostuser", is_verified=True)
+        db.add_platform_presence(conn, inv_id, platform_name="Pinterest",
+                                 username="ghostuser")
+        html = render(conn, inv_id, tmp_path)
+        assert "Content-validated" in html
+        assert "Unvalidated (status only)" in html
+        assert "1 of 2 platform presences are content-validated" in html
+
     def test_identity_evidence_drilldown(self, conn, investigation, tmp_path):
         html = render(conn, investigation, tmp_path)
         assert "Complete Evidence Basis" in html
