@@ -1,5 +1,6 @@
 """Tests for HTML/JSON report generation and artifact drill-downs."""
 
+import base64
 import json
 import tempfile
 from types import SimpleNamespace
@@ -12,6 +13,7 @@ from src.reporting.html_report import (
     HTML_TEMPLATE,
     LEGAL_TEMPLATE,
     TECHNICAL_TEMPLATE,
+    _generate_identity_images,
     _generate_tool_metrics,
     _normalize_tool_source,
     _select_template,
@@ -124,6 +126,87 @@ class TestEmptyInvestigation:
         html = render(conn, inv_id, tmp_path)
         assert "No artifacts were discovered" in html
         assert "No platform presence recorded" in html
+
+
+class TestIdentityImages:
+    """Which picture the identity card shows, and where it says it came from."""
+
+    STEAM = "https://avatars.akamai.steamstatic.com/abc_medium.jpg"
+    KEYBASE_STOCK = "https://keybase.io/images/no-photo/placeholder-avatar-180.png"
+    PINTEREST_STOCK = "https://s.pinimg.com/images/default_open_graph_1200.png"
+
+    @staticmethod
+    def _images(images, presences=(), artifacts=()):
+        correlation = SimpleNamespace(
+            identities=[SimpleNamespace(profile_id="IDENTITY-001", images=list(images))]
+        )
+        return _generate_identity_images(correlation, list(presences), list(artifacts))["IDENTITY-001"]
+
+    def test_stock_avatars_never_outrank_a_real_picture(self):
+        images = self._images([self.KEYBASE_STOCK, self.PINTEREST_STOCK, self.STEAM])
+        assert [i["src"] for i in images] == [self.STEAM, self.KEYBASE_STOCK, self.PINTEREST_STOCK]
+        assert [i["placeholder"] for i in images] == [False, True, True]
+
+    def test_images_are_labelled_with_the_platform_or_tool_they_came_from(self):
+        presences = [{"platform_name": "Steam", "profile_image_url": self.STEAM}]
+        artifacts = [
+            {"artifact_type": "image", "value": "https://cdn.example/x.png", "source": "profile_image_github"},
+            {"artifact_type": "image", "value": "https://cdn.example/y.png", "source": "plugin:ImageMatchPlugin"},
+        ]
+        labels = {
+            i["src"]: i["label"]
+            for i in self._images(
+                [self.STEAM, "https://cdn.example/x.png", "https://cdn.example/y.png", "https://cdn.example/z.png"],
+                presences,
+                artifacts,
+            )
+        }
+        assert labels[self.STEAM] == "Steam"
+        assert labels["https://cdn.example/x.png"] == "Github"
+        assert labels["https://cdn.example/y.png"] == "Image Match"
+        assert labels["https://cdn.example/z.png"] == "Unknown source"
+
+    def test_local_files_are_inlined_so_the_report_travels(self, tmp_path):
+        # 1x1 GIF: a real file, so the size and read paths are exercised.
+        photo = tmp_path / "seed.gif"
+        photo.write_bytes(base64.b64decode("R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7"))
+        artifacts = [{"artifact_type": "image", "value": str(photo), "source": "seed"}]
+
+        images = self._images([str(photo)], artifacts=artifacts)
+        assert images[0]["src"].startswith("data:image/gif;base64,")
+        assert images[0]["label"] == "Seed image"
+
+    def test_unreadable_local_files_are_dropped_rather_than_rendered_broken(self, tmp_path):
+        assert self._images([str(tmp_path / "gone.jpg")]) == []
+        assert self._images(["/etc/hostname"]) == []
+
+    def test_card_shows_the_avatar_its_provenance_and_the_other_matches(self, conn, investigation, tmp_path):
+        html = render(conn, investigation, tmp_path)
+        assert 'src="https://example.com/a.png"' in html
+        assert "avatar-caption" in html
+        assert ">GitHub<" in html
+
+    def test_card_says_so_when_no_image_was_found(self, conn, tmp_path):
+        inv_id = db.create_investigation(conn, title="No images")
+        artifact = db.add_artifact(conn, inv_id, "username", "ghostuser", source="seed")
+        db.add_platform_presence(conn, inv_id, platform_name="GitHub",
+                                 profile_url="https://github.com/ghostuser", username="ghostuser",
+                                 artifact_id=artifact)
+        html = render(conn, inv_id, tmp_path)
+        assert "No profile image found" in html
+
+    def test_remaining_candidates_are_carried_as_fallbacks(self, conn, investigation, tmp_path):
+        """A dead CDN URL must not leave the card blank."""
+        db.add_platform_presence(conn, investigation, platform_name="Mastodon",
+                                 profile_url="https://mastodon.social/@ghostuser",
+                                 username="ghostuser",
+                                 profile_image_url="https://example.com/b.png",
+                                 artifact_id=db.get_artifacts(conn, investigation)[0]["artifact_id"])
+        html = render(conn, investigation, tmp_path)
+        assert "function gihNextImage" in html
+        assert 'onerror="gihNextImage(this)"' in html
+        # The head defines the handler: an image can fail before the body parses.
+        assert html.index("function gihNextImage") < html.index("<body>")
 
 
 class TestToolMetrics:

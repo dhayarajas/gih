@@ -69,6 +69,7 @@ VERSION:
 2.0 - Production Ready Implementation
 """
 
+import base64
 import json
 import logging
 import re
@@ -252,6 +253,45 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             box-shadow: 0 1px 2px rgba(0,0,0,0.05);
         }
         .stat-value { font-size: 2rem; font-weight: 700; color: #1e3a5f; overflow-wrap: anywhere; }
+
+        /* Identity profile picture, its provenance caption and the other
+           matched images kept as thumbnails. */
+        .identity-avatar { flex-shrink: 0; width: 120px; }
+        .avatar-frame {
+            width: 120px;
+            height: 120px;
+            border-radius: 8px;
+            overflow: hidden;
+            border: 2px solid #e2e8f0;
+            background: #f7fafc;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .avatar-frame img { width: 100%; height: 100%; object-fit: cover; }
+        .avatar-missing {
+            display: none;
+            padding: 0.5rem;
+            font-size: 0.75rem;
+            color: #a0aec0;
+            text-align: center;
+        }
+        .avatar-frame-empty .avatar-missing { display: block; }
+        .avatar-caption {
+            font-size: 0.7rem;
+            color: #718096;
+            text-align: center;
+            margin-top: 0.35rem;
+            word-break: break-word;
+        }
+        .avatar-thumbs { display: flex; flex-wrap: wrap; gap: 0.25rem; margin-top: 0.4rem; }
+        .avatar-thumbs img {
+            width: 34px;
+            height: 34px;
+            object-fit: cover;
+            border-radius: 4px;
+            border: 1px solid #e2e8f0;
+        }
         .stat-label { font-size: 0.8rem; color: #718096; text-transform: uppercase; letter-spacing: 0.5px; }
 
         /* Tool metrics infographic. Bars are plain divs sized with an inline
@@ -436,6 +476,28 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         .priority-medium { border-left: 4px solid #d69e2e; }
         .priority-low { border-left: 4px solid #38a169; }
     </style>
+    <script>
+        // Profile images are scraped URLs on third-party CDNs: hotlink rules and
+        // deleted avatars make them fail long after the investigation ran, so walk
+        // the identity's remaining candidates instead of showing nothing. Defined
+        // in the head because an image can fail before the body script parses.
+        function gihNextImage(img) {
+            var remaining = (img.getAttribute('data-fallbacks') || '').split(' ').filter(Boolean);
+            var labels = (img.getAttribute('data-labels') || '').split('|');
+            labels.shift();
+            img.setAttribute('data-labels', labels.join('|'));
+            var caption = img.closest('.identity-avatar').querySelector('.avatar-caption');
+            if (remaining.length) {
+                img.setAttribute('data-fallbacks', remaining.slice(1).join(' '));
+                img.src = remaining[0];
+                if (caption && labels.length) { caption.textContent = labels[0]; }
+            } else {
+                img.parentElement.classList.add('avatar-frame-empty');
+                img.remove();
+                if (caption) { caption.textContent = 'Image unavailable'; }
+            }
+        }
+    </script>
 </head>
 <body>
     <div class="container">
@@ -473,13 +535,30 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     <div class="card">
         <h3>Identity Profile #{{ loop.index }}</h3>
         <div style="display: flex; gap: 1.5rem; align-items: flex-start;">
-            {% if identity.images and identity.images | length > 0 %}
-            <div style="flex-shrink: 0;">
-                <div style="width: 120px; height: 120px; border-radius: 8px; overflow: hidden; border: 2px solid #e2e8f0; background: #f7fafc;">
-                    <img src="{{ identity.images[0] }}" alt="Profile Image" style="width: 100%; height: 100%; object-fit: cover;" onerror="this.style.display='none'; this.parentElement.style.display='none';">
+            {% set images = identity_images.get(identity.profile_id, []) %}
+            <div class="identity-avatar">
+                {% if images %}
+                <div class="avatar-frame">
+                    <img src="{{ images[0].src }}" alt="Profile image from {{ images[0].label }}"
+                         data-fallbacks="{{ images[1:] | map(attribute='src') | join(' ') }}"
+                         data-labels="{{ images | map(attribute='label') | join('|') }}"
+                         onerror="gihNextImage(this)">
+                    <div class="avatar-missing">Image unavailable</div>
                 </div>
+                <div class="avatar-caption">{{ images[0].label }}{% if images[0].placeholder %} (stock avatar){% endif %}</div>
+                {% if images | length > 1 %}
+                <div class="avatar-thumbs">
+                    {% for image in images[1:5] %}
+                    <img src="{{ image.src }}" alt="Profile image from {{ image.label }}" title="{{ image.label }}"
+                         onerror="this.style.display='none';">
+                    {% endfor %}
+                </div>
+                <div class="avatar-caption">{{ images | length }} images matched</div>
+                {% endif %}
+                {% else %}
+                <div class="avatar-frame avatar-frame-empty"><div class="avatar-missing">No profile image found</div></div>
+                {% endif %}
             </div>
-            {% endif %}
             <div style="flex: 1;">
                 <p><strong>Profile ID:</strong> {{ identity.profile_id }}</p>
                 <p><strong>Confidence:</strong> {{ "%.1f%%" | format(identity.confidence * 100) }}</p>
@@ -1511,6 +1590,9 @@ def generate_html_report(
     # Per-tool contribution metrics for the infographic
     tool_metrics = _generate_tool_metrics(artifacts, correlation)
 
+    # Ranked, renderable profile pictures per identity
+    identity_images = _generate_identity_images(correlation, presences, artifacts)
+
     # Build drill-down views (parsed metadata, connected links, identity attribution)
     artifact_views = _build_artifact_views(artifacts, links, correlation)
     identity_artifacts = _build_identity_artifacts(artifact_views, correlation)
@@ -1545,6 +1627,7 @@ def generate_html_report(
         auto_escalation=auto_escalation,
         audit_trail=audit_trail,
         tool_metrics=tool_metrics,
+        identity_images=identity_images,
         generated_at=datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC"),
     )
 
@@ -2050,6 +2133,124 @@ def _generate_auto_escalation(artifacts: list, links: list, risk_levels: list, c
         'escalation_count': len(escalations),
         'escalations': escalations
     }
+
+
+# Substrings that mark a scraped "profile image" as the platform's stock avatar
+# rather than the target's own picture. Platforms serve these with HTTP 200 for
+# accounts that never uploaded one, so they are indistinguishable by status.
+_PLACEHOLDER_IMAGE_MARKERS = (
+    "no-photo",
+    "placeholder",
+    "default_profile",
+    "default-profile",
+    "default_open_graph",
+    "default_avatar",
+    "missing.png",
+    "steam_share_image",
+    "anonymous",
+    "/no_avatar",
+    "avatar_default",
+)
+
+# Local files are inlined so a report stays viewable off the machine that made
+# it. Anything larger is left as a path rather than bloating the HTML.
+_MAX_INLINE_IMAGE_BYTES = 512 * 1024
+
+_IMAGE_MIME_TYPES = {
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".png": "image/png",
+    ".gif": "image/gif",
+    ".webp": "image/webp",
+    ".bmp": "image/bmp",
+}
+
+
+def _is_placeholder_image(url: str) -> bool:
+    """Whether a profile image URL is the platform's stock avatar."""
+    lowered = url.lower()
+    return any(marker in lowered for marker in _PLACEHOLDER_IMAGE_MARKERS)
+
+
+def _inline_local_image(path: str) -> Optional[str]:
+    """Turn a local image path into a data URI, or None if it cannot be read.
+
+    Seeded and downloaded images are stored as filesystem paths, which a browser
+    resolves against the report's own location — so the avatar silently fails to
+    load as soon as the report is opened anywhere else.
+    """
+    file = Path(path)
+    mime = _IMAGE_MIME_TYPES.get(file.suffix.lower())
+    if not mime:
+        return None
+    try:
+        if file.stat().st_size > _MAX_INLINE_IMAGE_BYTES:
+            return None
+        encoded = base64.b64encode(file.read_bytes()).decode("ascii")
+    except OSError:
+        logger.debug("Could not inline profile image %s", path)
+        return None
+    return f"data:{mime};base64,{encoded}"
+
+
+def _label_for_image(url: str, presence_platforms: dict, artifact_sources: dict) -> str:
+    """Where an identity's profile image came from, for the caption."""
+    platform = presence_platforms.get(url)
+    if platform:
+        return platform
+    source = artifact_sources.get(url)
+    if not source:
+        return "Unknown source"
+    if source == "seed":
+        return "Seed image"
+    tool = _normalize_tool_source(source)
+    if source.startswith(("profile_image_", "image_search_", "face_match_")):
+        return source.split("_", 2)[-1].replace("_", " ").title()
+    return (tool or source).replace("_", " ").title()
+
+
+def _generate_identity_images(correlation, presences: list, artifacts: list) -> dict:
+    """Renderable profile images per identity, best candidate first.
+
+    The correlation engine hands over a bare, alphabetically sorted list of URLs,
+    which routinely puts a platform's stock avatar or an unreachable local path
+    first — and the template only ever showed the first one, hiding it on error.
+    Ranking real pictures ahead of stock ones and keeping the rest as fallbacks
+    is what makes an actual face show up.
+    """
+    presence_platforms = {
+        p["profile_image_url"]: p.get("platform_name") or "Unknown platform"
+        for p in presences
+        if p.get("profile_image_url")
+    }
+    artifact_sources = {
+        a["value"]: a.get("source", "")
+        for a in artifacts
+        if a.get("artifact_type") in ("image", "image_url") and a.get("value")
+    }
+
+    per_identity: dict = {}
+    for identity in getattr(correlation, "identities", []):
+        candidates = []
+        for url in identity.images:
+            src = url
+            if not url.lower().startswith(("http://", "https://", "data:")):
+                inlined = _inline_local_image(url)
+                if not inlined:
+                    continue
+                src = inlined
+            candidates.append({
+                "src": src,
+                "label": _label_for_image(url, presence_platforms, artifact_sources),
+                "placeholder": _is_placeholder_image(url),
+            })
+
+        # Stock avatars stay in the list — they are evidence the account exists —
+        # but never outrank a real picture.
+        candidates.sort(key=lambda c: c["placeholder"])
+        per_identity[identity.profile_id] = candidates
+
+    return per_identity
 
 
 # Slice colours for the artifact-type mix bar, cycled in rank order.
