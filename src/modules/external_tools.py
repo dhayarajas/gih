@@ -10,13 +10,40 @@ import subprocess
 import json
 import logging
 import re
+import threading
 from typing import Dict, List, Optional, Any
 from dataclasses import dataclass, field
 from enum import Enum
 
-from src.utils.tool_checker import check_tool_availability, get_tool_checker, skip_if_not_available
+from src.config.loader import get_config
+from src.utils.concurrency import io_slot
+from src.utils.tool_checker import (
+    check_tool_availability,
+    get_tool_checker,
+    skip_if_not_available,
+)
 
 logger = logging.getLogger(__name__)
+
+# Fallback timeout (seconds) used when a tool has no `timeout` configured.
+DEFAULT_TOOL_TIMEOUT = 60
+
+
+def _get_tool_timeout(tool_name: str, default: int = DEFAULT_TOOL_TIMEOUT) -> int:
+    """Resolve the configured per-tool subprocess timeout from config.yaml.
+
+    Per-tool timeouts live under the ``plugins.<tool_name>.timeout`` section
+    (with a top-level ``<tool_name>.timeout`` also honored as a fallback). This
+    ensures every integration uses its configured budget instead of the old
+    hardcoded 60s default (or nmap's hardcoded 300s).
+    """
+    try:
+        config = get_config()
+        plugins_cfg = config.get("plugins", {}) or {}
+        tool_cfg = plugins_cfg.get(tool_name) or config.get(tool_name) or {}
+        return int(tool_cfg.get("timeout", default))
+    except Exception:
+        return default
 
 
 class ToolOutputFormat(Enum):
@@ -46,29 +73,34 @@ class ExternalToolsIntegration:
     def __init__(self):
         self.results_cache: Dict[str, ToolResult] = {}
     
-    def run_tool(self, tool_name: str, command: List[str], timeout: int = 60) -> ToolResult:
+    def run_tool(self, tool_name: str, command: List[str], timeout: Optional[int] = None) -> ToolResult:
         """
         Execute an external OSINT tool and capture output.
         
         Args:
             tool_name: Name of the tool being executed
             command: Command list to execute
-            timeout: Execution timeout in seconds
+            timeout: Execution timeout in seconds. When ``None`` (the default),
+                the configured ``<tool_name>.timeout`` from config.yaml is used,
+                falling back to ``DEFAULT_TOOL_TIMEOUT``.
             
         Returns:
             ToolResult with execution output and status
         """
+        if timeout is None:
+            timeout = _get_tool_timeout(tool_name)
         result = ToolResult(tool_name=tool_name, success=False, output="")
         
         try:
             logger.info(f"Running {tool_name}: {' '.join(command)}")
             
-            process = subprocess.run(
-                command,
-                capture_output=True,
-                text=True,
-                timeout=timeout
-            )
+            with io_slot():
+                process = subprocess.run(
+                    command,
+                    capture_output=True,
+                    text=True,
+                    timeout=timeout
+                )
             
             result.success = process.returncode == 0
             result.output = process.stdout + process.stderr
@@ -204,7 +236,7 @@ class SherlockIntegration(ExternalToolsIntegration):
             "--no-color",
             "--no-txt",  # keep sherlock from writing <username>.txt into the working directory
         ]
-        result = self.run_tool("sherlock", command, timeout=300)
+        result = self.run_tool("sherlock", command)
         
         if result.success:
             result.artifacts_discovered = _parse_found_accounts(
@@ -233,7 +265,7 @@ class MaigretIntegration(ExternalToolsIntegration):
             "--no-color",
             "--no-recursion",
         ]
-        result = self.run_tool("maigret", command, timeout=300)
+        result = self.run_tool("maigret", command)
 
         if result.success:
             result.artifacts_discovered = _parse_found_accounts(
@@ -255,7 +287,7 @@ class HoleheIntegration(ExternalToolsIntegration):
     def check_email(self, email: str) -> ToolResult:
         """Discover which services an email address is registered on."""
         command = ["holehe", email, "--only-used", "--no-color"]
-        result = self.run_tool("holehe", command, timeout=300)
+        result = self.run_tool("holehe", command)
 
         if result.success:
             for line in result.output.splitlines():
@@ -290,7 +322,7 @@ class TheHarvesterIntegration(ExternalToolsIntegration):
     def harvest_email(self, domain: str) -> ToolResult:
         """Harvest emails from domain using theHarvester."""
         command = ["theHarvester", "-d", domain, "-b", "duckduckgo"]
-        result = self.run_tool("theharvester", command, timeout=180)
+        result = self.run_tool("theharvester", command)
         
         if result.success:
             # Extract email addresses from output
@@ -319,7 +351,7 @@ class TheHarvesterIntegration(ExternalToolsIntegration):
     def harvest_subdomains(self, domain: str) -> ToolResult:
         """Harvest subdomains using theHarvester."""
         command = ["theHarvester", "-d", domain, "-b", "duckduckgo"]
-        result = self.run_tool("theharvester", command, timeout=180)
+        result = self.run_tool("theharvester", command)
         
         if result.success:
             result.artifacts_discovered = _parse_subdomains(result.output, domain, "theharvester")
@@ -336,7 +368,7 @@ class SubfinderIntegration(ExternalToolsIntegration):
     def enumerate_subdomains(self, domain: str) -> ToolResult:
         """Enumerate subdomains using subfinder."""
         command = ["subfinder", "-d", domain, "-silent", "-timeout", "10"]
-        result = self.run_tool("subfinder", command, timeout=180)
+        result = self.run_tool("subfinder", command)
 
         if result.success:
             result.artifacts_discovered = _parse_subdomains(result.output, domain, "subfinder")
@@ -352,7 +384,7 @@ class Sublist3rIntegration(ExternalToolsIntegration):
     def enumerate_subdomains(self, domain: str) -> ToolResult:
         """Enumerate subdomains using Sublist3r."""
         command = ["sublist3r", "-d", domain, "-n"]
-        result = self.run_tool("sublist3r", command, timeout=180)
+        result = self.run_tool("sublist3r", command)
 
         if result.success:
             result.artifacts_discovered = _parse_subdomains(result.output, domain, "sublist3r")
@@ -368,7 +400,7 @@ class WhatWebIntegration(ExternalToolsIntegration):
     def fingerprint(self, target: str) -> ToolResult:
         """Fingerprint the web technologies served by a domain or host."""
         command = ["whatweb", "--color=never", "--no-errors", "-a", "1", target]
-        result = self.run_tool("whatweb", command, timeout=120)
+        result = self.run_tool("whatweb", command)
 
         if result.success:
             technologies = set()
@@ -578,7 +610,7 @@ class NmapIntegration(ExternalToolsIntegration):
         else:
             command = ["nmap", "-Pn", "-p", ports, "-sV", "--version-light", target]
         
-        result = self.run_tool("nmap", command, timeout=300)
+        result = self.run_tool("nmap", command)
         
         if result.success:
             # Parse Nmap output for open ports and services
@@ -796,6 +828,21 @@ def get_tool_coverage() -> Dict[str, Dict[str, Any]]:
     return coverage
 
 
+# Per-run memoization of tool analyses. The BFS rediscovers the same
+# domain/email/username from multiple parents; without this each occurrence
+# re-runs the same subprocess/HTTP work before dedup happens at persistence
+# time. Keyed by (tool_name, analysis_type, target); cleared at the start of
+# each investigation via clear_tool_analysis_cache().
+_analysis_cache: Dict[tuple, ToolResult] = {}
+_analysis_cache_lock = threading.Lock()
+
+
+def clear_tool_analysis_cache() -> None:
+    """Reset the per-run tool-analysis memoization cache."""
+    with _analysis_cache_lock:
+        _analysis_cache.clear()
+
+
 def run_tool_analysis(tool_name: str, analysis_type: str, target: str) -> ToolResult:
     """
     Run analysis using a specific external tool.
@@ -808,6 +855,13 @@ def run_tool_analysis(tool_name: str, analysis_type: str, target: str) -> ToolRe
     Returns:
         ToolResult with analysis output and discovered artifacts
     """
+    cache_key = (tool_name, analysis_type, target)
+    with _analysis_cache_lock:
+        cached = _analysis_cache.get(cache_key)
+    if cached is not None:
+        logger.debug("Tool analysis cache hit: %s/%s for %s", tool_name, analysis_type, target)
+        return cached
+
     integrations = get_tool_integrations()
     
     if tool_name not in integrations:
@@ -832,4 +886,6 @@ def run_tool_analysis(tool_name: str, analysis_type: str, target: str) -> ToolRe
             error_message=f"{tool_name} is not available",
         )
 
+    with _analysis_cache_lock:
+        _analysis_cache[cache_key] = result
     return result

@@ -503,6 +503,14 @@ def correlate_identities(conn: sqlite3.Connection, investigation_id: str) -> Cor
                             "display_name": presence["display_name"],
                         })
 
+                    # Surface any scraped profile image so it renders in the
+                    # report. Image URLs are otherwise filtered from the
+                    # correlation graph as noise, so presences are the reliable
+                    # path to attach them to an identity.
+                    presence_image = presence.get("profile_image_url")
+                    if presence_image:
+                        profile.images.append(presence_image)
+
         # Deduplicate values
         profile.phones = sorted(set(profile.phones))
         profile.emails = sorted(set(profile.emails))
