@@ -145,7 +145,8 @@ plugins:
   osrframework:
     enabled: false  # Disabled by default - requires installation
     priority: 2
-    timeout: 120
+    # usufy checks the whole "social" tag serially per thread; ~2m15s observed.
+    timeout: 180
     max_retries: 2
   
   # Specialized Tools

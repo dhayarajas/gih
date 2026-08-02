@@ -96,7 +96,7 @@ graph TD
         PBASE["base.py (OSINTPlugin, Artifact, PluginResult)"]
         PREG["registry.py (PluginRegistry)"]
         PMAN["manager.py (PluginManager, ThreadPoolExecutor)"]
-        PBUILT["builtins/ (11 plugins)"]
+        PBUILT["builtins/ (21 plugins)"]
     end
 
     subgraph ExternalTools["External tools"]
@@ -317,12 +317,26 @@ graph TD
         B11["ImageMatchPlugin (fullname)"]
     end
 
+    subgraph IntegrationBacked["Integration-backed plugins (IntegrationPlugin)"]
+        I1["MaigretPlugin, OsrframeworkPlugin (username)"]
+        I2["HolehePlugin (email)"]
+        I3["SubfinderPlugin, Sublist3rPlugin, AmassPlugin, WaybackMachinePlugin (domain)"]
+        I4["WhatWebPlugin (domain, subdomain)"]
+        I5["NmapPlugin (ip_address)"]
+        I6["ExifToolPlugin (image)"]
+    end
+
+    IBASE["IntegrationPlugin: delegates to external_tools.run_tool_analysis"]
+
     BASE --> HOOKS
     BASE --> TYPES
     REG --> BASE
     MAN --> REG
     MAN --> POOL
     REG --> Builtins
+    REG --> IntegrationBacked
+    BASE --> IBASE
+    IBASE --> IntegrationBacked
 ```
 
 ### 4.5 External Tools

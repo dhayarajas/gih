@@ -343,13 +343,38 @@ Execution of a single plugin:
 | `GoogleDorksPlugin` | `Google Dorks` | `username` | always | `google_dorks.run_google_dorks_search` |
 | `SherlockPlugin` | `Sherlock` | `username` | `check_tool_availability("sherlock")` | `sherlock --output /dev/stdout --format json` subprocess |
 | `TheHarvesterPlugin` | `theHarvester` | `domain` | `check_tool_availability("theharvester")` | `theHarvester` subprocess |
-| `WhoisPlugin` | `Whois` | `domain`, `ip` | `check_tool_availability("whois")` | `whois` subprocess |
+| `WhoisPlugin` | `Whois` | `domain`, `ip_address` | `check_tool_availability("whois")` | `whois` subprocess |
 | `DigPlugin` | `Dig` | `domain` | `check_tool_availability("dig")` | `dig` subprocess |
-| `ShodanPlugin` | `Shodan` | `ip`, `domain` | `check_tool_availability("shodan")` | `shodan` CLI subprocess |
+| `ShodanPlugin` | `Shodan` | `ip_address`, `domain` | `check_tool_availability("shodan")` | `shodan` CLI subprocess |
 | `ProfileImagePlugin` | `profile_image` | `platform_presence` | `bs4` importable | HTML scraping for avatar URLs |
 | `ImageMatchPlugin` | `image_match` | `fullname` | `face_recognition` importable | `image_match.search_and_match_identity` |
+| `MaigretPlugin` | `maigret` | `username` | `check_tool_availability("maigret")` | `MaigretIntegration.search_username` |
+| `OsrframeworkPlugin` | `osrframework` | `username` | `check_tool_availability("osrframework")` (resolves `usufy`) | `OsrframeworkIntegration.search_username` |
+| `HolehePlugin` | `holehe` | `email` | `check_tool_availability("holehe")` | `HoleheIntegration.check_email` |
+| `SubfinderPlugin` | `subfinder` | `domain` | `check_tool_availability("subfinder")` | `SubfinderIntegration.enumerate_subdomains` |
+| `Sublist3rPlugin` | `sublist3r` | `domain` | `check_tool_availability("sublist3r")` | `Sublist3rIntegration.enumerate_subdomains` |
+| `AmassPlugin` | `amass` | `domain` | `check_tool_availability("amass")` | `AmassIntegration.enumerate_subdomains` |
+| `WhatWebPlugin` | `whatweb` | `domain`, `subdomain` | `check_tool_availability("whatweb")` | `WhatWebIntegration.fingerprint` |
+| `NmapPlugin` | `nmap` | `ip_address` | `check_tool_availability("nmap")` | `NmapIntegration.scan_host` |
+| `ExifToolPlugin` | `exiftool` | `image` | `check_tool_availability("exiftool")` | `ExifToolIntegration.extract_metadata` |
+| `WaybackMachinePlugin` | `wayback_machine` | `domain` | always (HTTP API, no executable) | `WaybackMachineIntegration.get_historical_urls` |
 
 All plugins return `PluginResult` and convert failures into `PluginStatus.FAILURE` with an `error` string rather than raising.
+
+### 4.5 `IntegrationPlugin` (`src/plugins/integration_plugin.py`)
+
+The last ten rows above are one-declaration subclasses of `IntegrationPlugin`:
+
+```python
+class NmapPlugin(IntegrationPlugin):
+    tool_name = "nmap"
+    analysis_type = "host_scan"
+    artifact_types: ClassVar[list[str]] = ["ip_address"]
+```
+
+`IntegrationPlugin.execute` calls `run_tool_analysis(tool_name, analysis_type, artifact.value)` and maps each entry of `ToolResult.artifacts_discovered` onto an `Artifact`, moving parser-specific keys (`platform`, `service`, `record_type`, ...) into `Artifact.metadata`. The subprocess call, timeout, availability guard and output parser therefore live only in `src/modules/external_tools.py`; the earlier hand-written plugins (Sherlock, Whois, Dig, Shodan, theHarvester) keep their own duplicate copies and can drift from the integration's behaviour.
+
+`is_available()` delegates to `check_tool_availability(tool_name)` unless the subclass sets `requires_executable = False` (Wayback, which is an HTTP API). `check_wiring()` raises `ValueError` when a subclass names an `analysis_type` that `ANALYSIS_METHODS` does not define for its tool; `tests/test_integration_plugins.py` applies it to every plugin so a mis-wired plugin fails the suite instead of silently returning nothing at runtime.
 
 ## 5. External Tools
 
