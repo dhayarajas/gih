@@ -72,6 +72,61 @@ from src.utils.concurrency import io_slot
 
 logger = logging.getLogger(__name__)
 
+# Process-global rate-limit state shared across ALL GoogleDorksSearch instances.
+# An investigation creates a fresh instance per username artifact, and many run
+# concurrently across BFS workers, so a per-instance limiter never actually
+# spaces out the outbound search traffic -- dozens of requests fire at once and
+# the search engine responds with 429s. One shared clock throttles every search
+# request in the process regardless of which instance/thread issues it.
+_global_rate_limit_lock = threading.Lock()
+_global_last_request_time = 0.0
+
+
+# Path segments that are never real usernames; extracting them from result URLs
+# just spawns junk username searches (e.g. login.php, login?service=mail) that
+# balloon the BFS frontier and waste rate-limited search calls.
+_GENERIC_PATH_SEGMENTS = frozenset({
+    "login", "signin", "sign-in", "signup", "sign-up", "register", "logout",
+    "home", "index", "about", "about-us", "contact", "help", "support",
+    "search", "settings", "account", "accounts", "profile", "profiles",
+    "user", "users", "page", "pages", "post", "posts", "tag", "tags",
+    "category", "categories", "wiki", "news", "blog", "faq", "terms",
+    "privacy", "en", "www", "auth", "oauth", "sso", "dashboard", "explore",
+})
+
+# File extensions that indicate a page/asset path rather than a username.
+_FILE_EXTENSIONS = (
+    ".php", ".html", ".htm", ".asp", ".aspx", ".jsp", ".cgi", ".xml",
+    ".json", ".pdf", ".doc", ".docx", ".png", ".jpg", ".jpeg", ".gif",
+    ".css", ".js", ".txt",
+)
+
+
+def _is_valid_username(value: str) -> bool:
+    """Reject URL path segments that are clearly not usernames.
+
+    The dork extractor takes the last path segment of every result URL as a
+    candidate username; without this filter, values like ``login.php`` or
+    ``login?service=mail`` become artifacts and trigger their own searches.
+    """
+    if not value:
+        return False
+    value = value.strip()
+    # Query strings / fragments / encoded chars are never usernames.
+    if any(ch in value for ch in "?=&%#@ \t"):
+        return False
+    if not (3 <= len(value) <= 40):
+        return False
+    lowered = value.lower()
+    if lowered in _GENERIC_PATH_SEGMENTS:
+        return False
+    if lowered.endswith(_FILE_EXTENSIONS):
+        return False
+    # Must contain at least one letter and only username-safe characters.
+    if not re.search(r"[a-z]", lowered):
+        return False
+    return bool(re.fullmatch(r"[a-z0-9._-]+", lowered))
+
 
 def _get_google_dorks_config() -> dict:
     """Get Google Dorks configuration from config.yaml."""
@@ -231,15 +286,19 @@ class GoogleDorksSearch:
         self.cache_dir.mkdir(parents=True, exist_ok=True)
     
     def _rate_limit(self):
-        """Apply rate limiting between requests (thread-safe).
+        """Apply rate limiting between requests (thread-safe, process-global).
 
-        Reserve this request's slot under the lock, then sleep *outside* it so
-        concurrent callers don't serialize on a thread that is merely sleeping.
+        Reserve this request's slot against a shared clock under the lock, then
+        sleep *outside* it so concurrent callers don't serialize on a thread
+        that is merely sleeping. The clock is process-global so that all
+        instances spawned across BFS workers space their requests together
+        rather than each throttling only against its own last call.
         """
+        global _global_last_request_time
         now = time.time()
-        with self._rate_limit_lock:
-            scheduled = max(now, self.last_request_time + self.rate_limit)
-            self.last_request_time = scheduled
+        with _global_rate_limit_lock:
+            scheduled = max(now, _global_last_request_time + self.rate_limit)
+            _global_last_request_time = scheduled
 
         sleep_time = scheduled - now
         if sleep_time > 0:
@@ -775,9 +834,10 @@ class GoogleDorksSearch:
         # Extract platform from URL
         platform = self._extract_platform_from_url(url)
         
-        # Extract username from URL
+        # Extract username from URL (skip non-username path segments so junk
+        # like login.php or index.html doesn't spawn its own search).
         username_match = re.search(r'/([^/]+)/?$', url)
-        if username_match:
+        if username_match and _is_valid_username(username_match.group(1)):
             username = username_match.group(1)
             artifacts.append({
                 'type': 'username',
