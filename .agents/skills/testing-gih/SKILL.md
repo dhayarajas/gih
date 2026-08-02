@@ -41,9 +41,53 @@ Tips:
 - The image seed needs real EXIF (GPS + camera) to produce
   `gps_coordinates`/`camera_info`/`location` artifacts.
 
+## Full-name seeds
+
+`--full-name "First Last"` derives up to 5 username candidates
+(`firstlast, first.last, first_last, flast, firstl`, source
+`name_username_candidate`, confidence 0.4) and runs the username toolchain on
+each. A full-name run with `--use-google-dorks --search-engine duckduckgo`
+takes ~3 min and yields several hundred artifacts; `--no-external-tools` still
+derives the handles and runs the in-process `username_search` (~40 s).
+
+Expect Google Dorks to also harvest *unrelated* handles from search results and
+feed them to sherlock/maigret; they are merged into the same identity profile,
+which can even be named after a harvested handle rather than the subject. When
+testing name seeds, always quantify how many account hits belong to
+non-derived handles before calling the output "the subject's accounts".
+
+Use a name with a real footprint (e.g. "Linus Torvalds") to prove the toolchain
+works; a low-footprint name proves nothing either way.
+
+## Isolating runs
+
+Pass a per-run DB so runs never mix and old-vs-new comparisons stay clean:
+`python3 -m src.cli --db /tmp/run-a.db investigate ...`. The auto-generated HTML
+report still lands in `<cwd>/reports/INV-*.html`, so run the baseline from the
+worktree directory to keep its reports separate.
+
+## Search-engine scraping gotchas
+
+- From datacenter IPs, Google Images usually answers **HTTP 429** and Bing often
+  serves *decoy* results unrelated to the query. Do not read "0 images found" as
+  a code failure without checking the log for 429s/decoys.
+- Content-encoding matters: if the session advertises `br`/`zstd` that urllib3
+  cannot decode, `resp.text` is binary and every BeautifulSoup scrape silently
+  returns nothing. To test this class of bug, run a subprocess that blocks the
+  decoder imports with a `sys.meta_path` finder, then fetch the same URL with
+  the hardcoded vs the dynamic `Accept-Encoding` header and compare
+  `resp.text[:20]` and the parsed element count — decisive old-vs-new evidence
+  without uninstalling anything.
+
+## Devin Secrets Needed
+
+- `GOOGLE_API_KEY` + `GOOGLE_CX` — only needed to exercise the Google Custom
+  Search paths (`--use-google-api`, image CSE search). Without them those code
+  paths cannot be covered end-to-end; say so rather than implying coverage.
+
 ## Inspecting results
 
-DB: `~/.ghost_hunter/investigations.db`. Tables: `investigations`, `artifacts`,
+DB: `~/.ghost_hunter/investigations.db` (or whatever `--db` you passed). Tables: `investigations`, `artifacts`,
 `artifact_links` (NOT `links`), `platform_presence`, `investigation_metadata`,
 `audit_trail`.
 
