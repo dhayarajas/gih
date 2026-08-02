@@ -75,6 +75,7 @@ import logging
 import re
 import sqlite3
 from datetime import datetime
+from functools import lru_cache
 from pathlib import Path
 from typing import Optional
 
@@ -1368,11 +1369,13 @@ def _is_placeholder_image(url: str) -> bool:
 
 
 def _inline_local_image(path: str) -> Optional[str]:
-    """Turn a local image path into a data URI, or None if it cannot be read.
+    """Turn a local image path into a data URI, or None if it cannot be inlined.
 
     Seeded and downloaded images are stored as filesystem paths, which a browser
     resolves against the report's own location — so the avatar silently fails to
-    load as soon as the report is opened anywhere else.
+    load as soon as the report is opened anywhere else. Callers keep the path as
+    a candidate regardless: on the machine that ran the investigation an absolute
+    path still resolves, and a camera photo is routinely too big to inline.
     """
     file = Path(path)
     mime = _IMAGE_MIME_TYPES.get(file.suffix.lower())
@@ -1380,10 +1383,11 @@ def _inline_local_image(path: str) -> Optional[str]:
         return None
     try:
         if file.stat().st_size > _MAX_INLINE_IMAGE_BYTES:
+            logger.debug("Profile image %s is too large to inline", path)
             return None
         encoded = base64.b64encode(file.read_bytes()).decode("ascii")
     except OSError:
-        logger.debug("Could not inline profile image %s", path)
+        logger.debug("Could not read profile image %s", path)
         return None
     return f"data:{mime};base64,{encoded}"
 
@@ -1404,12 +1408,16 @@ def _label_for_image(url: str, presence_platforms: dict, artifact_sources: dict)
     return (tool or source).replace("_", " ").title()
 
 
+@lru_cache(maxsize=256)
 def _inline_remote_image(url: str) -> Optional[str]:
     """Download a remote image and return a data URI, or None on failure.
 
     Reports are often opened as file:// pages; many CDNs (GitHub avatars,
     etc.) refuse or fail those requests, so the <img> fires onerror and the
     avatar disappears. Embedding the bytes keeps the picture visible offline.
+
+    Cached per URL: correlated identities routinely share the same avatar, and
+    every miss costs a request with an eight-second timeout.
     """
     if not url or not url.lower().startswith(("http://", "https://")):
         return None
@@ -1456,16 +1464,32 @@ def _inline_remote_image(url: str) -> Optional[str]:
         return None
 
 
-def _resolve_image_src(url: str) -> Optional[str]:
-    """Return a browser-loadable src for a local path or remote URL."""
+def _resolve_image_src(url: str) -> tuple[Optional[str], bool]:
+    """A browser-loadable src for an image, and whether it stayed a local path.
+
+    A local file that is too big, unreadable or of an unrecognised type cannot be
+    embedded, but the path itself still resolves for the investigator who ran the
+    case — dropping the candidate outright is how a seeded camera photo ends up
+    invisible.
+    """
     if not url:
-        return None
+        return None, False
     lowered = url.lower()
     if lowered.startswith("data:"):
-        return url
+        return url, False
     if lowered.startswith(("http://", "https://")):
-        return _inline_remote_image(url) or url
-    return _inline_local_image(url)
+        return _inline_remote_image(url) or url, False
+    inlined = _inline_local_image(url)
+    return (inlined, False) if inlined else (url, True)
+
+
+def _image_caption(label: str, placeholder: bool, local_reference: bool) -> str:
+    """Caption naming the image's origin and any caveat about it."""
+    if placeholder:
+        return f"{label} (stock avatar)"
+    if local_reference:
+        return f"{label} (local file)"
+    return label
 
 
 def _generate_identity_images(correlation, presences: list, artifacts: list) -> dict:
@@ -1517,13 +1541,17 @@ def _generate_identity_images(correlation, presences: list, artifacts: list) -> 
 
         candidates = []
         for url in urls:
-            src = _resolve_image_src(url)
+            src, local = _resolve_image_src(url)
             if not src:
                 continue
+            label = _label_for_image(url, presence_platforms, artifact_sources)
+            placeholder = _is_placeholder_image(url)
             candidates.append({
                 "src": src,
-                "label": _label_for_image(url, presence_platforms, artifact_sources),
-                "placeholder": _is_placeholder_image(url),
+                "label": label,
+                "placeholder": placeholder,
+                "local": local,
+                "caption": _image_caption(label, placeholder, local),
             })
 
         # Stock avatars stay in the list — they are evidence the account exists —

@@ -149,6 +149,7 @@ class TestIdentityImages:
         images = self._images([self.KEYBASE_STOCK, self.PINTEREST_STOCK, self.STEAM])
         assert [i["src"] for i in images] == [self.STEAM, self.KEYBASE_STOCK, self.PINTEREST_STOCK]
         assert [i["placeholder"] for i in images] == [False, True, True]
+        assert images[1]["caption"].endswith("(stock avatar)")
 
     def test_images_are_labelled_with_the_platform_or_tool_they_came_from(self):
         presences = [{"platform_name": "Steam", "profile_image_url": self.STEAM}]
@@ -178,10 +179,24 @@ class TestIdentityImages:
         images = self._images([str(photo)], artifacts=artifacts)
         assert images[0]["src"].startswith("data:image/gif;base64,")
         assert images[0]["label"] == "Seed image"
+        assert images[0]["caption"] == "Seed image"
+        assert images[0]["local"] is False
 
-    def test_unreadable_local_files_are_dropped_rather_than_rendered_broken(self, tmp_path):
-        assert self._images([str(tmp_path / "gone.jpg")]) == []
-        assert self._images(["/etc/hostname"]) == []
+    def test_local_files_that_cannot_be_inlined_stay_as_paths(self, tmp_path):
+        """They still resolve on the machine that ran the investigation."""
+        missing = str(tmp_path / "gone.jpg")
+        assert [i["src"] for i in self._images([missing])] == [missing]
+        assert [i["src"] for i in self._images(["/etc/hostname"])] == ["/etc/hostname"]
+
+    def test_oversized_photos_are_kept_and_marked_local(self, tmp_path):
+        photo = tmp_path / "camera.jpg"
+        photo.write_bytes(b"\xff\xd8\xff" + b"0" * (512 * 1024 + 1))
+        artifacts = [{"artifact_type": "image", "value": str(photo), "source": "seed"}]
+
+        image = self._images([str(photo)], artifacts=artifacts)[0]
+        assert image["src"] == str(photo)
+        assert image["local"] is True
+        assert image["caption"] == "Seed image (local file)"
 
     def test_card_shows_the_avatar_its_provenance_and_the_other_matches(self, conn, investigation, tmp_path):
         html = render(conn, investigation, tmp_path)
@@ -208,6 +223,9 @@ class TestIdentityImages:
         html = render(conn, investigation, tmp_path)
         assert "function gihNextImage" in html
         assert 'onerror="gihNextImage(this)"' in html
+        # Delimiter-free metadata: scraped URLs and platform names are arbitrary.
+        assert "data-fallbacks='[" in html
+        assert "data-captions='[" in html
         # The head defines the handler: an image can fail before the body parses.
         assert html.index("function gihNextImage") < html.index("<body>")
 
