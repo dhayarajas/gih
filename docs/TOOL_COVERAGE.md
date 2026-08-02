@@ -5,6 +5,9 @@ detected, whether it has an integration with a real output parser in
 `src/modules/external_tools.py`, whether `_process_external_tools` invokes it, and which
 artifact types it contributes to correlation.
 
+For the exact command line, arguments and parser used for each tool, see
+[EXTERNAL_TOOLS.md](EXTERNAL_TOOLS.md).
+
 Generate the live version of this table at any time with:
 
 ```bash
