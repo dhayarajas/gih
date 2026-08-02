@@ -123,6 +123,23 @@ def cli(ctx: click.Context, verbose: bool, db_path: Optional[str]) -> None:
     ctx.obj["db_path"] = Path(db_path) if db_path else None
 
 
+def _json_output_path(report_output: Optional[str], report_format: str) -> Optional[str]:
+    """Keep --report-format both from writing the JSON over the HTML.
+
+    Both generators honour --report-output verbatim, so a single path would
+    leave the caller with a .html file containing JSON.
+    """
+    if not report_output or report_format != "both":
+        return report_output
+
+    path = Path(report_output)
+    json_path = path.with_suffix(".json")
+    if json_path == path:
+        json_path = path.with_name(f"{path.stem}_data.json")
+
+    return str(json_path)
+
+
 def _print_tool_coverage() -> None:
     """Print the availability and integration status of every declared OSINT tool."""
     coverage = get_tool_coverage()
@@ -213,10 +230,14 @@ def investigate(
         ghost-hunter investigate --full-name "Jane Doe"
     """
     # Validate input
-    if not phone and not email and not username and not full_name and not image and not domain and not ip and not check_tools:
+    if (
+        not phone and not email and not username and not full_name
+        and not image and not domain and not ip and not check_tools
+    ):
         click.echo(
             "Error: At least one seed artifact required "
-            "(--phone, --email, --username, --full-name, --image, --domain, or --ip) or use --check-tools"
+            "(--phone, --email, --username, --full-name, --image, --domain, "
+            "or --ip) or use --check-tools"
         )
         sys.exit(1)
 
@@ -320,7 +341,11 @@ def investigate(
                     click.echo(f"✓ HTML report saved: {html_path}")
                 
                 if report_format in ["json", "both"]:
-                    json_path = generate_json_report(conn, result.investigation_id, output_path=report_output)
+                    json_path = generate_json_report(
+                        conn,
+                        result.investigation_id,
+                        output_path=_json_output_path(report_output, report_format),
+                    )
                     click.echo(f"✓ JSON report saved: {json_path}")
                 
                 click.echo(f"\nReport generation complete!")

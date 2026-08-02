@@ -79,7 +79,7 @@ class DigPlugin(OSINTPlugin):
                     for record in records:
                         if record_type == "A":
                             discovered_artifacts.append(Artifact(
-                                type="ip",
+                                type="ip_address",
                                 value=record,
                                 source=self.name,
                                 confidence=0.9,

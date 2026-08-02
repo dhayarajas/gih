@@ -1,0 +1,4 @@
+15:57:41 [INFO] root: Logging to file: logs/dhaya_20260801_155741.log
+15:57:41 [INFO] src.correlation.linker: Correlation complete: 17 nodes, 16 edges, 1 identities
+15:57:41 [INFO] src.graph.visualizer: Graph saved to /var/folders/73/s7vzm9_d65n7bx0pjs4gmsmm0000gn/T/tmposmuwbf2.html (17 nodes, 16 edges)
+15:57:41 [INFO] src.reporting.html_report: HTML report saved to reports/INV-819c5229_report.html

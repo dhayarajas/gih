@@ -1,0 +1,47 @@
+06:39:24 [INFO] root: Logging to file: logs/dhaya_20260802_063924.log
+06:39:24 [INFO] src.orchestrator: Starting investigation with 1 seed artifact(s)
+06:39:24 [INFO] src.orchestrator: Available external tools: 0
+06:39:24 [INFO] src.orchestrator: Missing external tools: 35
+06:39:24 [INFO] src.plugins.registry: Registered plugin: SherlockPlugin
+06:39:24 [INFO] src.plugins.registry: Registered plugin: WhoisPlugin
+06:39:24 [INFO] src.plugins.registry: Registered plugin: UsernameSearchPlugin
+06:39:24 [INFO] src.plugins.registry: Registered plugin: ProfileImagePlugin
+06:39:24 [INFO] src.plugins.registry: Registered plugin: TheHarvesterPlugin
+06:39:24 [INFO] src.plugins.registry: Registered plugin: DigPlugin
+06:39:24 [INFO] src.plugins.registry: Registered plugin: EmailBreachPlugin
+06:39:24 [INFO] src.plugins.registry: Registered plugin: ImageMatchPlugin
+06:39:24 [INFO] src.plugins.registry: Registered plugin: GoogleDorksPlugin
+06:39:24 [INFO] src.plugins.registry: Registered plugin: ShodanPlugin
+06:39:24 [INFO] src.plugins.registry: Registered plugin: PhoneValidationPlugin
+06:39:24 [INFO] src.orchestrator: Available plugins: 8
+06:39:25 [INFO] src.orchestrator: Created investigation: INV-d1d508a6
+06:39:25 [INFO] src.orchestrator: Starting BFS processing with 1 artifacts in queue
+06:39:25 [INFO] src.orchestrator: Processing BFS level 1: 1 artifact(s) (elapsed=0.0s, workers=1)
+06:39:25 [INFO] src.modules.image_match: Starting identity search for: dhayanidhi rajasekaran
+06:39:30 [INFO] src.modules.image_match: Found 1 images for dhayanidhi rajasekaran
+06:39:31 [WARNING] src.modules.image_match: No reference face encoding found
+06:39:31 [INFO] src.modules.image_match: Identity search complete for dhayanidhi rajasekaran: 1 images, 0 face matches, probability=0.13
+06:39:31 [INFO] src.orchestrator: Image match complete for dhayanidhi rajasekaran: 1 images, 0 face matches, probability=0.13
+06:39:31 [INFO] src.plugins.builtins.image_match_plugin: Starting image match for: dhayanidhi rajasekaran
+06:39:31 [INFO] src.modules.image_match: Starting identity search for: dhayanidhi rajasekaran
+06:39:35 [INFO] src.modules.image_match: Found 1 images for dhayanidhi rajasekaran
+06:39:35 [WARNING] src.modules.image_match: No reference face encoding found
+06:39:35 [INFO] src.modules.image_match: Identity search complete for dhayanidhi rajasekaran: 1 images, 0 face matches, probability=0.13
+06:39:35 [INFO] src.plugins.builtins.image_match_plugin: Image match complete: 1 images, 0 face matches, probability=0.13
+06:39:35 [INFO] src.orchestrator: Plugin system processed 1 plugins, discovered 1 artifacts
+06:39:35 [INFO] src.orchestrator: BFS level 1 done in 10.6s (parallel=10.6s, db=0.0s); processed=1, seen=2, next_level=0
+06:39:35 [INFO] src.orchestrator: BFS processing complete: 1 artifact(s) processed across 1 level(s) in 10.6s
+06:39:35 [INFO] src.orchestrator: Summary: 2 artifacts, 1 links, 0 platform presences
+06:39:35 [INFO] src.modules.correlation: Correlation analysis: 2 artifacts, 1 links, 1 components
+06:39:35 [INFO] src.orchestrator: Correlation analysis: 1 connected components, largest component size: 2
+06:39:35 [INFO] src.orchestrator: Investigation INV-d1d508a6 complete: 2 artifacts, 1 links, 0 platforms, 0 risk indicators (finalize/correlation=0.0s, total=10.6s)
+06:39:35 [INFO] src.correlation.linker: Correlation complete: 1 nodes, 0 edges, 1 identities
+06:39:35 [INFO] src.graph.visualizer: Graph saved to /var/folders/73/s7vzm9_d65n7bx0pjs4gmsmm0000gn/T/tmpb15u1sck.html (1 nodes, 0 edges)
+06:39:35 [INFO] src.reporting.html_report: ============================================================
+06:39:35 [INFO] src.reporting.html_report: INVESTIGATION RECOMMENDATIONS
+06:39:35 [INFO] src.reporting.html_report: ============================================================
+06:39:35 [INFO] src.reporting.html_report: [LOW Priority - Investigation Depth]
+06:39:35 [INFO] src.reporting.html_report:   Action: Consider deeper investigation
+06:39:35 [INFO] src.reporting.html_report:   Details: Current investigation depth: 1. Consider increasing depth for more comprehensive results
+06:39:35 [INFO] src.reporting.html_report: ------------------------------------------------------------
+06:39:35 [INFO] src.reporting.html_report: HTML report saved to reports/INV-d1d508a6_report.html

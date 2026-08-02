@@ -1,0 +1,15 @@
+14:21:18 [INFO] root: Logging to file: logs/dhaya_20260801_142118.log
+14:21:18 [INFO] src.orchestrator: Starting investigation with 1 seed artifact(s)
+14:21:18 [INFO] src.orchestrator: Available external tools: 0
+14:21:18 [INFO] src.orchestrator: Missing external tools: 35
+14:21:18 [INFO] src.plugins.registry: Registered plugin: SherlockPlugin
+14:21:18 [INFO] src.plugins.registry: Registered plugin: WhoisPlugin
+14:21:18 [INFO] src.plugins.registry: Registered plugin: UsernameSearchPlugin
+14:21:18 [INFO] src.plugins.registry: Registered plugin: TheHarvesterPlugin
+14:21:18 [INFO] src.plugins.registry: Registered plugin: DigPlugin
+14:21:18 [INFO] src.plugins.registry: Registered plugin: EmailBreachPlugin
+14:21:18 [INFO] src.plugins.registry: Registered plugin: ImageMatchPlugin
+14:21:18 [INFO] src.plugins.registry: Registered plugin: GoogleDorksPlugin
+14:21:18 [INFO] src.plugins.registry: Registered plugin: ShodanPlugin
+14:21:18 [INFO] src.plugins.registry: Registered plugin: PhoneValidationPlugin
+14:21:18 [INFO] src.config.loader: Configuration loaded from: config/config.yaml
