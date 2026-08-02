@@ -1,0 +1,3150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OSINT Investigation Report - INV-7eae9f7f</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, sans-serif;
+            background: #f5f7fa;
+            color: #2c3e50;
+            padding: 0;
+            line-height: 1.6;
+        }
+        .container { max-width: 1400px; margin: 0 auto; padding: 2rem; }
+        
+        /* Professional Header */
+        .header {
+            background: linear-gradient(135deg, #1e3a5f 0%, #2c5282 100%);
+            color: white;
+            padding: 2rem;
+            margin: -2rem -2rem 2rem -2rem;
+            border-bottom: 4px solid #c53030;
+        }
+        .header h1 { color: white; margin: 0; font-size: 1.8rem; font-weight: 600; }
+        .header .meta { color: #cbd5e0; font-size: 0.9rem; margin-top: 0.5rem; }
+        .classification {
+            display: inline-block;
+            background: #c53030;
+            color: white;
+            padding: 0.25rem 0.75rem;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-top: 1rem;
+        }
+        
+        /* Content Styling */
+        h2 { 
+            color: #1e3a5f; 
+            border-bottom: 2px solid #3182ce; 
+            padding-bottom: 0.5rem; 
+            margin-top: 2rem; 
+            margin-bottom: 1rem;
+        }
+        
+        .section-blurb {
+            color: #4a5568;
+            font-size: 0.9rem;
+            margin-bottom: 1rem;
+            padding: 0.75rem;
+            background: #f7fafc;
+            border-left: 4px solid #3182ce;
+            border-radius: 4px;
+            line-height: 1.5;
+        }
+        
+        .subsection-blurb {
+            color: #718096;
+            font-size: 0.85rem;
+            margin-bottom: 0.75rem;
+            font-style: italic;
+        }
+        
+        h3 { 
+            color: #2d3748; 
+            margin-top: 1.5rem; 
+            margin-bottom: 0.75rem;
+        }
+        
+        .meta { color: #718096; font-size: 0.85rem; margin-bottom: 1rem; }
+        
+        /* Professional Cards */
+        .card {
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        
+        /* Professional Badges.
+           Qualified with the element name so the Bootstrap bundled inside the
+           embedded pyvis graph (".badge { color: #fff }") cannot win and render
+           these white on white. */
+        span.badge {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            margin: 0.1rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            background: #e2e8f0;
+            color: #2d3748;
+            border: 1px solid #cbd5e0;
+        }
+        span.badge-phone { background: #fed7d7; color: #c53030; border: 1px solid #feb2b2; }
+        span.badge-email { background: #bee3f8; color: #2b6cb0; border: 1px solid #90cdf4; }
+        span.badge-username { background: #c6f6d5; color: #276749; border: 1px solid #9ae6b4; }
+        span.badge-domain { background: #feebc8; color: #9c4221; border: 1px solid #fbd38d; }
+        /* Class names come from the artifact type verbatim (badge-). */
+        span.badge-ip_address { background: #e9d8fd; color: #553c9a; border: 1px solid #d6bcfa; }
+        span.badge-platform_presence { background: #e2e8f0; color: #4a5568; border: 1px solid #cbd5e0; }
+        span.badge-risk { background: #c53030; color: white; border: 1px solid #9b2c2c; }
+        span.badge-validated { background: #c6f6d5; color: #22543d; border: 1px solid #9ae6b4; }
+        span.badge-unvalidated { background: #fefcbf; color: #744210; border: 1px solid #f6e05e; }
+        
+        /* Risk Levels */
+        .risk-critical { color: #c53030; font-weight: bold; background: #fed7d7; padding: 0.2rem 0.5rem; border-radius: 4px; }
+        .risk-high { color: #dd6b20; font-weight: bold; background: #feebc8; padding: 0.2rem 0.5rem; border-radius: 4px; }
+        .risk-medium { color: #d69e2e; background: #faf089; padding: 0.2rem 0.5rem; border-radius: 4px; }
+        .risk-low { color: #38a169; background: #c6f6d5; padding: 0.2rem 0.5rem; border-radius: 4px; }
+        .risk-minimal { color: #3182ce; background: #bee3f8; padding: 0.2rem 0.5rem; border-radius: 4px; }
+        
+        /* Professional Tables */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1rem 0;
+            background: white;
+        }
+        th, td {
+            padding: 0.75rem 1rem;
+            text-align: left;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        th { 
+            background: #f7fafc; 
+            color: #2d3748; 
+            font-weight: 600;
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            border-bottom: 2px solid #cbd5e0;
+            position: sticky;
+            top: 0;
+            z-index: 1;
+        }
+        tr:hover { background: #f7fafc; }
+        
+        /* Links */
+        a { color: #3182ce; text-decoration: none; font-weight: 500; }
+        a:hover { text-decoration: underline; color: #2c5282; }
+        
+        /* Stats Grid */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin: 1rem 0;
+        }
+        .stat-card {
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            padding: 1.25rem;
+            text-align: center;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+        }
+        .stat-value { font-size: 2rem; font-weight: 700; color: #1e3a5f; overflow-wrap: anywhere; }
+        .stat-label { font-size: 0.8rem; color: #718096; text-transform: uppercase; letter-spacing: 0.5px; }
+
+        /* Tool metrics infographic. Bars are plain divs sized with an inline
+           width percentage so the report stays a single self-contained file
+           with no chart library and prints correctly. */
+        .tool-chart { display: grid; grid-template-columns: 11rem 1fr 4rem; gap: 0.5rem 0.75rem; align-items: center; }
+        .tool-chart-name { font-size: 0.85rem; font-weight: 600; color: #2d3748; word-break: break-all; }
+        .tool-chart-track { background: #edf2f7; border-radius: 3px; height: 1.4rem; overflow: hidden; }
+        .tool-chart-bar { background: #3182ce; height: 100%; border-radius: 3px; min-width: 2px; }
+        .tool-chart-count { font-size: 0.85rem; color: #4a5568; text-align: right; font-variant-numeric: tabular-nums; }
+        .type-bar { display: flex; width: 100%; height: 1.6rem; border-radius: 3px; overflow: hidden; border: 1px solid #e2e8f0; margin-bottom: 0.75rem; }
+        .type-bar-slice { height: 100%; }
+        .type-legend { display: flex; flex-wrap: wrap; gap: 0.5rem 1rem; font-size: 0.8rem; color: #4a5568; }
+        .type-legend-swatch { display: inline-block; width: 0.7rem; height: 0.7rem; border-radius: 2px; margin-right: 0.35rem; }
+        .silent-tools { font-size: 0.85rem; color: #718096; }
+
+        /* Evidence Chain */
+        .evidence-chain { 
+            font-family: 'Courier New', monospace; 
+            font-size: 0.85rem; 
+            color: #4a5568; 
+            background: #f7fafc;
+            padding: 1rem;
+            border-radius: 4px;
+            border-left: 3px solid #3182ce;
+        }
+        
+        /* Collapsible Sections */
+        .collapsible {
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            margin-bottom: 1rem;
+            overflow: hidden;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+        }
+        .collapsible-header {
+            background: #f7fafc;
+            padding: 1rem 1.5rem;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            user-select: none;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        .collapsible-header:hover { background: #edf2f7; }
+        .collapsible-header h4 { margin: 0; color: #2d3748; font-size: 0.95rem; font-weight: 600; }
+        .collapsible-content { padding: 1.5rem; display: none; }
+        .collapsible.active .collapsible-content { display: block; }
+        .collapsible-icon { color: #718096; font-size: 1.2rem; transition: transform 0.2s; }
+        .collapsible.active .collapsible-icon { transform: rotate(180deg); }
+
+        /* Drill-down (native details/summary) */
+        details.drilldown {
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            background: white;
+            margin-bottom: 0.5rem;
+        }
+        details.drilldown > summary {
+            list-style: none;
+            cursor: pointer;
+            padding: 0.65rem 1rem;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.75rem;
+            align-items: center;
+            background: #fbfdff;
+            border-radius: 6px;
+        }
+        details.drilldown > summary::-webkit-details-marker { display: none; }
+        details.drilldown > summary::before {
+            content: '\\25B8';
+            color: #718096;
+            font-size: 0.8rem;
+            width: 0.8rem;
+        }
+        details.drilldown[open] > summary::before { content: '\\25BE'; }
+        details.drilldown > summary:hover { background: #edf2f7; }
+        details.drilldown[open] > summary { border-bottom: 1px solid #e2e8f0; }
+        .drilldown-body { padding: 1rem 1.5rem; }
+        .drilldown-body h5 {
+            margin: 1rem 0 0.4rem 0;
+            color: #2d3748;
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .drilldown-body h5:first-child { margin-top: 0; }
+        .summary-value { font-weight: 600; color: #1e3a5f; }
+        .summary-meta { color: #718096; font-size: 0.85rem; }
+        .kv-table td:first-child {
+            width: 30%;
+            color: #4a5568;
+            font-weight: 600;
+            vertical-align: top;
+            word-break: break-word;
+        }
+        .kv-table td { font-size: 0.85rem; word-break: break-word; }
+        .empty-note { color: #718096; font-size: 0.85rem; font-style: italic; }
+        .thumb {
+            width: 72px;
+            height: 72px;
+            object-fit: cover;
+            border-radius: 6px;
+            border: 1px solid #e2e8f0;
+        }
+
+        /* Report metadata banner */
+        .report-banner {
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-left: 4px solid #1e3a5f;
+            border-radius: 6px;
+            padding: 1rem 1.5rem;
+            margin-bottom: 1.5rem;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 0.5rem 1.5rem;
+            font-size: 0.85rem;
+            color: #4a5568;
+        }
+        .report-banner strong { color: #2d3748; }
+
+        /* Expand / collapse controls */
+        .drilldown-controls { margin: 0.5rem 0 1rem 0; }
+        .drilldown-controls button {
+            font: inherit;
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: #2c5282;
+            background: white;
+            border: 1px solid #cbd5e0;
+            border-radius: 4px;
+            padding: 0.35rem 0.9rem;
+            margin-right: 0.5rem;
+            cursor: pointer;
+        }
+        .drilldown-controls button:hover { background: #edf2f7; }
+
+        /* Print */
+        @media print {
+            body { background: white; }
+            .drilldown-controls { display: none; }
+            details.drilldown > summary { background: white; }
+            details.drilldown, .card { break-inside: avoid; }
+            th { position: static; }
+            /* Chrome drops background fills unless "Background graphics" is
+               ticked, which would print the tool metrics charts as empty
+               outlines with their captions still in place. */
+            .tool-chart-track, .tool-chart-bar, .type-bar, .type-bar-slice, .type-legend-swatch {
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+            }
+        }
+        
+        /* Footer */
+        .footer {
+            background: #2d3748;
+            color: #cbd5e0;
+            padding: 1.5rem;
+            margin: 2rem -2rem -2rem -2rem;
+            text-align: center;
+            font-size: 0.85rem;
+        }
+        .footer a { color: #90cdf4; }
+        
+        /* Graph Container */
+        .graph-container {
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            padding: 1rem;
+            margin: 1rem 0;
+            min-height: 400px;
+        }
+        
+
+        .identity-avatar { flex-shrink: 0; width: 120px; }
+        .avatar-frame {
+            width: 120px;
+            height: 120px;
+            border-radius: 8px;
+            overflow: hidden;
+            border: 2px solid #e2e8f0;
+            background: #f7fafc;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .avatar-frame img { width: 100%; height: 100%; object-fit: cover; }
+        .avatar-missing {
+            display: none;
+            padding: 0.5rem;
+            font-size: 0.75rem;
+            color: #a0aec0;
+            text-align: center;
+        }
+        .avatar-frame-empty .avatar-missing { display: block; }
+        .avatar-caption {
+            font-size: 0.7rem;
+            color: #718096;
+            text-align: center;
+            margin-top: 0.35rem;
+            word-break: break-word;
+        }
+        .avatar-thumbs { display: flex; flex-wrap: wrap; gap: 0.25rem; margin-top: 0.4rem; }
+        .avatar-thumbs img {
+            width: 34px;
+            height: 34px;
+            object-fit: cover;
+            border-radius: 4px;
+            border: 1px solid #e2e8f0;
+        }
+        .stat-label { font-size: 0.8rem; color: #718096; text-transform: uppercase; letter-spacing: 0.5px; }
+
+        /* Tool metrics infographic. Bars are plain divs sized with an inline
+           width percentage so the report stays a single self-contained file
+           with no chart library and prints correctly. */
+        .tool-chart { display: grid; grid-template-columns: 11rem 1fr 4rem; gap: 0.5rem 0.75rem; align-items: center; }
+        .tool-chart-name { font-size: 0.85rem; font-weight: 600; color: #2d3748; word-break: break-all; }
+        .tool-chart-track { background: #edf2f7; border-radius: 3px; height: 1.4rem; overflow: hidden; }
+        .tool-chart-bar { background: #3182ce; height: 100%; border-radius: 3px; min-width: 2px; }
+        .tool-chart-count { font-size: 0.85rem; color: #4a5568; text-align: right; font-variant-numeric: tabular-nums; }
+        .type-bar { display: flex; width: 100%; height: 1.6rem; border-radius: 3px; overflow: hidden; border: 1px solid #e2e8f0; margin-bottom: 0.75rem; }
+        .type-bar-slice { height: 100%; }
+        .type-legend { display: flex; flex-wrap: wrap; gap: 0.5rem 1rem; font-size: 0.8rem; color: #4a5568; }
+        .type-legend-swatch { display: inline-block; width: 0.7rem; height: 0.7rem; border-radius: 2px; margin-right: 0.35rem; }
+        .silent-tools { font-size: 0.85rem; color: #718096; }
+
+        /* Evidence Chain */
+        .evidence-chain { 
+            font-family: 'Courier New', monospace; 
+            font-size: 0.85rem; 
+            color: #4a5568; 
+            background: #f7fafc;
+            padding: 1rem;
+            border-radius: 4px;
+            border-left: 3px solid #3182ce;
+        }
+        
+        /* Collapsible Sections */
+        .collapsible {
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            margin-bottom: 1rem;
+            overflow: hidden;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+        }
+        .collapsible-header {
+            background: #f7fafc;
+            padding: 1rem 1.5rem;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            user-select: none;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        .collapsible-header:hover { background: #edf2f7; }
+        .collapsible-header h4 { margin: 0; color: #2d3748; font-size: 0.95rem; font-weight: 600; }
+        .collapsible-content { padding: 1.5rem; display: none; }
+        .collapsible.active .collapsible-content { display: block; }
+        .collapsible-icon { color: #718096; font-size: 1.2rem; transition: transform 0.2s; }
+        .collapsible.active .collapsible-icon { transform: rotate(180deg); }
+
+        /* Drill-down (native details/summary) */
+        details.drilldown {
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            background: white;
+            margin-bottom: 0.5rem;
+        }
+        details.drilldown > summary {
+            list-style: none;
+            cursor: pointer;
+            padding: 0.65rem 1rem;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.75rem;
+            align-items: center;
+            background: #fbfdff;
+            border-radius: 6px;
+        }
+        details.drilldown > summary::-webkit-details-marker { display: none; }
+        details.drilldown > summary::before {
+            content: '\\25B8';
+            color: #718096;
+            font-size: 0.8rem;
+            width: 0.8rem;
+        }
+        details.drilldown[open] > summary::before { content: '\\25BE'; }
+        details.drilldown > summary:hover { background: #edf2f7; }
+        details.drilldown[open] > summary { border-bottom: 1px solid #e2e8f0; }
+        .drilldown-body { padding: 1rem 1.5rem; }
+        .drilldown-body h5 {
+            margin: 1rem 0 0.4rem 0;
+            color: #2d3748;
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .drilldown-body h5:first-child { margin-top: 0; }
+        .summary-value { font-weight: 600; color: #1e3a5f; }
+        .summary-meta { color: #718096; font-size: 0.85rem; }
+        .kv-table td:first-child {
+            width: 30%;
+            color: #4a5568;
+            font-weight: 600;
+            vertical-align: top;
+            word-break: break-word;
+        }
+        .kv-table td { font-size: 0.85rem; word-break: break-word; }
+        .empty-note { color: #718096; font-size: 0.85rem; font-style: italic; }
+        .thumb {
+            width: 72px;
+            height: 72px;
+            object-fit: cover;
+            border-radius: 6px;
+            border: 1px solid #e2e8f0;
+        }
+
+        /* Report metadata banner */
+        .report-banner {
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-left: 4px solid #1e3a5f;
+            border-radius: 6px;
+            padding: 1rem 1.5rem;
+            margin-bottom: 1.5rem;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 0.5rem 1.5rem;
+            font-size: 0.85rem;
+            color: #4a5568;
+        }
+        .report-banner strong { color: #2d3748; }
+
+
+        /* Branding / watermark injected via branding_css */
+        
+:root {
+  --gih-primary: #1a1a2e;
+  --gih-secondary: #16213e;
+  --gih-accent: #e94560;
+  --gih-text: #ffffff;
+  --gih-bg: #0f0f1a;
+  --gih-font: Arial, sans-serif;
+}
+body { font-family: var(--gih-font); background: var(--gih-bg); }
+.header { background: linear-gradient(135deg, var(--gih-primary) 0%, var(--gih-secondary) 100%) !important; color: var(--gih-text) !important; border-bottom-color: var(--gih-accent) !important; }
+.classification { background: var(--gih-accent) !important; }
+
+        
+
+        .filter-bar {
+            display: flex; flex-wrap: wrap; gap: 0.5rem 1rem; align-items: center;
+            background: white; border: 1px solid #e2e8f0; border-radius: 6px;
+            padding: 0.75rem 1rem; margin-bottom: 1rem;
+        }
+        .filter-bar input, .filter-bar select {
+            font: inherit; font-size: 0.85rem; padding: 0.35rem 0.6rem;
+            border: 1px solid #cbd5e0; border-radius: 4px;
+        }
+        .filter-bar label { font-size: 0.8rem; color: #4a5568; font-weight: 600; }
+        .artifact-row.hidden, .presence-row.hidden { display: none !important; }
+        .graph-frame {
+            width: 100%; min-height: 480px; border: 0; border-radius: 6px;
+            background: #fff;
+        }
+        .org-logo { max-height: 48px; margin-bottom: 0.75rem; }
+        .map-list { columns: 2; column-gap: 1.5rem; }
+        .map-list li { break-inside: avoid; margin-bottom: 0.35rem; font-size: 0.9rem; }
+        .chain-step { display: inline-block; padding: 0.2rem 0.5rem; background: #edf2f7; border-radius: 4px; margin: 0.15rem; font-size: 0.8rem; }
+        .chain-arrow { color: #718096; margin: 0 0.15rem; }
+        .status-not_installed { color: #c53030; }
+        .status-silent_or_not_dispatched { color: #d69e2e; }
+        .status-produced_output { color: #276749; }
+        .redacted-banner {
+            background: #fefcbf; border: 1px solid #f6e05e; color: #744210;
+            padding: 0.75rem 1rem; border-radius: 6px; margin-bottom: 1rem; font-weight: 600;
+        }
+
+        /* Priority Queue */
+        .priority-critical { border-left: 4px solid #c53030; }
+        .priority-high { border-left: 4px solid #dd6b20; }
+        .priority-medium { border-left: 4px solid #d69e2e; }
+        .priority-low { border-left: 4px solid #38a169; }
+    </style>
+    <script>
+        // Profile images are scraped URLs on third-party CDNs: hotlink rules and
+        // deleted avatars make them fail long after the investigation ran, so walk
+        // the identity's remaining candidates instead of showing nothing. Defined
+        // in the head because an image can fail before the body script parses.
+        function gihNextImage(img) {
+            var remaining = (img.getAttribute('data-fallbacks') || '').split(' ').filter(Boolean);
+            var labels = (img.getAttribute('data-labels') || '').split('|');
+            labels.shift();
+            img.setAttribute('data-labels', labels.join('|'));
+            var caption = img.closest('.identity-avatar').querySelector('.avatar-caption');
+            if (remaining.length) {
+                img.setAttribute('data-fallbacks', remaining.slice(1).join(' '));
+                img.src = remaining[0];
+                if (caption && labels.length) { caption.textContent = labels[0]; }
+            } else {
+                img.parentElement.classList.add('avatar-frame-empty');
+                img.remove();
+                if (caption) { caption.textContent = 'Image unavailable'; }
+            }
+        }
+    </script>
+</head>
+<body>
+    <div class="container">
+        <!-- Professional Header -->
+        <div class="header">
+            
+            <h1>Ghost Identity Hunter - OSINT Investigation Report</h1>
+            <div class="meta">
+                <strong>Investigation ID:</strong> INV-7eae9f7f | 
+                <strong>Title:</strong> Investigation INV-7eae9f7f | 
+                <strong>Status:</strong> Completed | 
+                <strong>Generated:</strong> 2026-08-02 07:58 UTC
+            </div>
+            <div class="classification">Confidential &mdash; Investigative Use Only</div>
+        </div>
+
+    <!-- Report Metadata -->
+    <div class="report-banner">
+        <div><strong>Case reference:</strong> INV-7eae9f7f</div>
+        <div><strong>Opened:</strong> 2026-08-02T07:57:49</div>
+        <div><strong>Report generated:</strong> 2026-08-02 07:58 UTC</div>
+        <div><strong>Artifacts / links:</strong> 11 / 12</div>
+        <div><strong>Identity profiles:</strong> 1</div>
+        <div><strong>Handling:</strong> Automated analysis &mdash; requires analyst review</div>
+    </div>
+
+    
+
+    
+    <div class="filter-bar" id="report-filters">
+        <label>Filter type
+            <select id="filter-type">
+                <option value="">All types</option>
+            </select>
+        </label>
+        <label>Min confidence
+            <select id="filter-confidence">
+                <option value="0">Any</option>
+                <option value="0.5">≥ 50%</option>
+                <option value="0.7">≥ 70%</option>
+                <option value="0.9">≥ 90%</option>
+            </select>
+        </label>
+        <label>Source contains
+            <input type="search" id="filter-source" placeholder="e.g. sherlock">
+        </label>
+        <label>Search value
+            <input type="search" id="filter-value" placeholder="artifact value">
+        </label>
+        <span class="summary-meta" id="filter-count"></span>
+    </div>
+    
+
+    <div class="drilldown-controls">
+        <button type="button" id="expand-all">Expand all details</button>
+        <button type="button" id="collapse-all">Collapse all details</button>
+    </div>
+
+    
+    <!-- Identity Profiles -->
+    <h2>1. Identity Profiles</h2>
+    <p class="section-blurb">Correlated personas that link multiple artifacts to single identities, showing confidence scores, associated risk indicators, and profile images for understanding the target's digital footprint. Expand a profile to review its complete evidence basis.</p>
+    
+    <div class="card">
+        <h3>Identity Profile #1</h3>
+        <div style="display: flex; gap: 1.5rem; align-items: flex-start;">
+            
+            <div class="identity-avatar">
+                
+                <div class="avatar-frame">
+                    <img src="https://avatars.githubusercontent.com/u/7057030?v=4" alt="Profile image from GitHub"
+                         data-fallbacks=""
+                         data-labels="GitHub"
+                         onerror="gihNextImage(this)">
+                    <div class="avatar-missing">Image unavailable</div>
+                </div>
+                <div class="avatar-caption">GitHub</div>
+                
+                
+            </div>
+            <div style="flex: 1;">
+                <p><strong>Profile ID:</strong> IDENTITY-001</p>
+                <p><strong>Confidence:</strong> 30.0%</p>
+                <p><strong>Artifacts:</strong> 2</p>
+                <p><strong>Risk Indicators:</strong> None</p>
+                
+                
+                
+                <p><strong>Usernames:</strong> mail2dhaya</p>
+                
+                
+                <p><strong>Accounts Found:</strong> 1
+                   (GitHub)</p>
+                
+                
+                <p><strong>Domains:</strong> support.google.com</p>
+                
+                
+                
+                <p><strong>IP Addresses:</strong> 142.250.66.14</p>
+                
+                
+                
+                
+                
+                
+                
+                
+            </div>
+        </div>
+        
+        <details class="drilldown" style="margin-top: 1rem;">
+            <summary><strong>Complete Evidence Basis (2 artifacts)</strong></summary>
+            <div class="drilldown-body">
+                
+                <table>
+                    <thead>
+                        <tr><th>Type</th><th>Value</th><th>Source</th><th>Confidence</th><th>Depth</th><th>Discovered</th></tr>
+                    </thead>
+                    <tbody>
+                        
+                        <tr>
+                            <td><span class="badge badge-username">username</span></td>
+                            <td>mail2dhaya</td>
+                            <td>seed</td>
+                            <td>100%</td>
+                            <td>0</td>
+                            <td>2026-08-02T07:57:49</td>
+                        </tr>
+                        
+                        <tr>
+                            <td><span class="badge badge-image">image</span></td>
+                            <td>https://avatars.githubusercontent.com/u/7057030?v=4</td>
+                            <td>profile_image_github</td>
+                            <td>85%</td>
+                            <td>1</td>
+                            <td>2026-08-02T07:57:52</td>
+                        </tr>
+                        
+                    </tbody>
+                </table>
+                
+            </div>
+        </details>
+        
+        <details class="drilldown">
+            <summary><strong>External Tool Findings (3)</strong>
+                     &mdash; tools: dig, google_dorks_profile_pages, whois</summary>
+            <div class="drilldown-body">
+            <table>
+                <thead>
+                    <tr><th>Tool</th><th>Artifact Type</th><th>Value</th><th>Confidence</th></tr>
+                </thead>
+                <tbody>
+                    
+                    <tr>
+                        <td>dig</td>
+                        <td><span class="badge">ip_address</span></td>
+                        <td>142.250.66.14</td>
+                        <td>95%</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>google_dorks_profile_pages</td>
+                        <td><span class="badge">domain</span></td>
+                        <td>support.google.com</td>
+                        <td>49%</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>whois</td>
+                        <td><span class="badge">domain_info</span></td>
+                        <td>support.google.com</td>
+                        <td>95%</td>
+                    </tr>
+                    
+                </tbody>
+            </table>
+            </div>
+        </details>
+        
+    </div>
+    
+
+    
+
+    
+    <!-- Summary -->
+    <h2>2. Summary</h2>
+    <p class="section-blurb">Investigation overview including timeline of discoveries, key findings, statistical metrics, confidence scores, and risk assessment matrix.</p>
+    <div class="card">
+        <h3>Investigation Timeline</h3>
+        <p class="subsection-blurb">Chronological sequence showing when each artifact was discovered during the investigation process.</p>
+        <table>
+            <thead>
+                <tr><th>Time</th><th>Type</th><th>Value</th><th>Source</th><th>Depth</th></tr>
+            </thead>
+            <tbody>
+                
+                <tr>
+                    <td>2026-08-02T07:57:49</td>
+                    <td><span class="badge badge-username">username</span></td>
+                    <td>mail2dhaya</td>
+                    <td>seed</td>
+                    <td>0</td>
+                </tr>
+                
+                <tr>
+                    <td>2026-08-02T07:57:52</td>
+                    <td><span class="badge badge-image">image</span></td>
+                    <td>https://avatars.githubusercontent.com/u/...</td>
+                    <td>profile_image_github</td>
+                    <td>1</td>
+                </tr>
+                
+                <tr>
+                    <td>2026-08-02T07:57:52</td>
+                    <td><span class="badge badge-platform_presence">platform_presence</span></td>
+                    <td>https://github.com/mail2dhaya</td>
+                    <td>username_search_github</td>
+                    <td>1</td>
+                </tr>
+                
+                <tr>
+                    <td>2026-08-02T07:57:52</td>
+                    <td><span class="badge badge-username">username</span></td>
+                    <td>websearch</td>
+                    <td>google_dorks_profile_pages</td>
+                    <td>1</td>
+                </tr>
+                
+                <tr>
+                    <td>2026-08-02T07:57:52</td>
+                    <td><span class="badge badge-domain">domain</span></td>
+                    <td>support.google.com</td>
+                    <td>google_dorks_profile_pages</td>
+                    <td>1</td>
+                </tr>
+                
+                <tr>
+                    <td>2026-08-02T07:58:23</td>
+                    <td><span class="badge badge-image">image</span></td>
+                    <td>https://avatars.githubusercontent.com/u/...</td>
+                    <td>profile_image_github</td>
+                    <td>2</td>
+                </tr>
+                
+                <tr>
+                    <td>2026-08-02T07:58:23</td>
+                    <td><span class="badge badge-image">image</span></td>
+                    <td>https://s.pinimg.com/images/default_open...</td>
+                    <td>profile_image_pinterest</td>
+                    <td>2</td>
+                </tr>
+                
+                <tr>
+                    <td>2026-08-02T07:58:23</td>
+                    <td><span class="badge badge-platform_presence">platform_presence</span></td>
+                    <td>https://github.com/webSearch</td>
+                    <td>username_search_github</td>
+                    <td>2</td>
+                </tr>
+                
+                <tr>
+                    <td>2026-08-02T07:58:23</td>
+                    <td><span class="badge badge-platform_presence">platform_presence</span></td>
+                    <td>https://www.pinterest.com/websearch/</td>
+                    <td>username_search_pinterest</td>
+                    <td>2</td>
+                </tr>
+                
+                <tr>
+                    <td>2026-08-02T07:58:23</td>
+                    <td><span class="badge badge-ip_address">ip_address</span></td>
+                    <td>142.250.66.14</td>
+                    <td>dig</td>
+                    <td>2</td>
+                </tr>
+                
+            </tbody>
+        </table>
+    </div>
+
+    <div class="card">
+        <h3>Key Findings</h3>
+        <p class="subsection-blurb">Most significant discoveries from the investigation including high-value targets, security risks, and important connections.</p>
+        <ul>
+            
+            <li>Found 9 high-confidence artifacts</li>
+            
+            <li>Detected presence on 2 platforms: Pinterest, GitHub</li>
+            
+            <li>Total of 11 artifacts discovered with 12 connections</li>
+            
+        </ul>
+    </div>
+
+    <div class="card">
+        <h3>Summary Statistics</h3>
+        <p class="subsection-blurb">Aggregate metrics showing total artifacts, connections, identities, and platforms discovered during the investigation.</p>
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-value">11</div>
+                <div class="stat-label">Artifacts Found</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value">12</div>
+                <div class="stat-label">Connections</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value">1</div>
+                <div class="stat-label">Identities</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value">3</div>
+                <div class="stat-label">Platforms</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Confidence Metrics</h3>
+        <p class="subsection-blurb">Overall reliability score of findings broken down by data type, indicating how trustworthy the discovered information is based on source reliability and verification.</p>
+        <table>
+            <thead>
+                <tr><th>Metric</th><th>Value</th></tr>
+            </thead>
+            <tbody>
+                <tr><td>Overall Confidence</td><td>85.0%</td></tr>
+                
+                <tr><td>Username</td><td>85.0%</td></tr>
+                
+                <tr><td>Image</td><td>85.0%</td></tr>
+                
+                <tr><td>Platform_presence</td><td>90.0%</td></tr>
+                
+                <tr><td>Domain</td><td>49.0%</td></tr>
+                
+                <tr><td>Ip_address</td><td>95.0%</td></tr>
+                
+                <tr><td>Domain_info</td><td>95.0%</td></tr>
+                
+            </tbody>
+        </table>
+    </div>
+
+    <div class="card">
+        <h3>Risk Assessment Matrix</h3>
+        <p class="subsection-blurb">Categorizes findings by risk level (Critical, High, Medium, Low) with counts and percentages, providing immediate visual representation of threat exposure.</p>
+        <table>
+            <thead>
+                <tr><th>Risk Level</th><th>Count</th><th>Percentage</th></tr>
+            </thead>
+            <tbody>
+                
+                <tr>
+                    <td><span class="risk-critical">Critical</span></td>
+                    <td>0</td>
+                    <td>0.0%</td>
+                </tr>
+                
+                <tr>
+                    <td><span class="risk-high">High</span></td>
+                    <td>0</td>
+                    <td>0.0%</td>
+                </tr>
+                
+                <tr>
+                    <td><span class="risk-medium">Medium</span></td>
+                    <td>0</td>
+                    <td>0.0%</td>
+                </tr>
+                
+                <tr>
+                    <td><span class="risk-low">Low</span></td>
+                    <td>0</td>
+                    <td>0.0%</td>
+                </tr>
+                
+                <tr>
+                    <td><span class="risk-minimal">Minimal</span></td>
+                    <td>1</td>
+                    <td>100.0%</td>
+                </tr>
+                
+            </tbody>
+        </table>
+    </div>
+
+    
+
+    
+    <!-- Tool Metrics -->
+    <h2>3. Tool Metrics</h2>
+    <p class="section-blurb">What each OSINT tool actually contributed to this investigation: how many artifacts it produced, of which types, at what average confidence, and how many identity profiles its output reached. Seeded artifacts are excluded, so the totals here count only discovered evidence. Rows marked <em>derived</em> are pipeline steps rather than tools &mdash; the orchestrator pivoting one artifact into another &mdash; and are excluded from the tool count.</p>
+    <div class="card">
+        
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-value">5</div>
+                <div class="stat-label">Tools Producing Output</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value">10</div>
+                <div class="stat-label">Tool-Derived Artifacts</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value">profile_image</div>
+                <div class="stat-label">Highest Yield</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value">6</div>
+                <div class="stat-label">Artifact Types Covered</div>
+            </div>
+        </div>
+
+        <h3>Artifacts per Tool</h3>
+        <p class="subsection-blurb">Bar length is relative to the highest-yielding tool. Volume is not quality &mdash; a single domain_info record can outweigh fifty profile hits.</p>
+        <div class="tool-chart">
+            
+            <div class="tool-chart-name">profile_image</div>
+            <div class="tool-chart-track">
+                <div class="tool-chart-bar" style="width: 100%;"></div>
+            </div>
+            <div class="tool-chart-count">3</div>
+            
+            <div class="tool-chart-name">username_search</div>
+            <div class="tool-chart-track">
+                <div class="tool-chart-bar" style="width: 100%;"></div>
+            </div>
+            <div class="tool-chart-count">3</div>
+            
+            <div class="tool-chart-name">google_dorks</div>
+            <div class="tool-chart-track">
+                <div class="tool-chart-bar" style="width: 66%;"></div>
+            </div>
+            <div class="tool-chart-count">2</div>
+            
+            <div class="tool-chart-name">dig</div>
+            <div class="tool-chart-track">
+                <div class="tool-chart-bar" style="width: 33%;"></div>
+            </div>
+            <div class="tool-chart-count">1</div>
+            
+            <div class="tool-chart-name">whois</div>
+            <div class="tool-chart-track">
+                <div class="tool-chart-bar" style="width: 33%;"></div>
+            </div>
+            <div class="tool-chart-count">1</div>
+            
+        </div>
+
+        <h3>Artifact Type Mix</h3>
+        <p class="subsection-blurb">Share of tool-derived artifacts by type across the whole investigation.</p>
+        <div class="type-bar">
+            
+            <div class="type-bar-slice" style="width: 30.0%; background: #3182ce;"
+                 title="image: 3"></div>
+            
+            <div class="type-bar-slice" style="width: 30.0%; background: #38a169;"
+                 title="platform_presence: 3"></div>
+            
+            <div class="type-bar-slice" style="width: 10.0%; background: #dd6b20;"
+                 title="domain: 1"></div>
+            
+            <div class="type-bar-slice" style="width: 10.0%; background: #805ad5;"
+                 title="domain_info: 1"></div>
+            
+            <div class="type-bar-slice" style="width: 10.0%; background: #319795;"
+                 title="ip_address: 1"></div>
+            
+            <div class="type-bar-slice" style="width: 10.0%; background: #d53f8c;"
+                 title="username: 1"></div>
+            
+        </div>
+        <div class="type-legend">
+            
+            <span>
+                <span class="type-legend-swatch" style="background: #3182ce;"></span>
+                image &mdash; 3 (30.0%)
+            </span>
+            
+            <span>
+                <span class="type-legend-swatch" style="background: #38a169;"></span>
+                platform_presence &mdash; 3 (30.0%)
+            </span>
+            
+            <span>
+                <span class="type-legend-swatch" style="background: #dd6b20;"></span>
+                domain &mdash; 1 (10.0%)
+            </span>
+            
+            <span>
+                <span class="type-legend-swatch" style="background: #805ad5;"></span>
+                domain_info &mdash; 1 (10.0%)
+            </span>
+            
+            <span>
+                <span class="type-legend-swatch" style="background: #319795;"></span>
+                ip_address &mdash; 1 (10.0%)
+            </span>
+            
+            <span>
+                <span class="type-legend-swatch" style="background: #d53f8c;"></span>
+                username &mdash; 1 (10.0%)
+            </span>
+            
+        </div>
+
+        <h3>Per-Tool Breakdown</h3>
+        <table>
+            <thead>
+                <tr><th>Tool</th><th>Artifacts</th><th>Share</th><th>Avg. confidence</th><th>Identities reached</th><th>Artifact types</th></tr>
+            </thead>
+            <tbody>
+                
+                <tr>
+                    <td>profile_image</td>
+                    <td>3</td>
+                    <td>30.0%</td>
+                    <td>0.85</td>
+                    <td>0</td>
+                    <td>
+                        
+                        
+                        <span class="badge badge-image">image 3</span>
+                        
+                    </td>
+                </tr>
+                
+                <tr>
+                    <td>username_search</td>
+                    <td>3</td>
+                    <td>30.0%</td>
+                    <td>0.90</td>
+                    <td>0</td>
+                    <td>
+                        
+                        
+                        <span class="badge badge-platform_presence">platform_presence 3</span>
+                        
+                    </td>
+                </tr>
+                
+                <tr>
+                    <td>google_dorks</td>
+                    <td>2</td>
+                    <td>20.0%</td>
+                    <td>0.59</td>
+                    <td>1</td>
+                    <td>
+                        
+                        
+                        <span class="badge badge-domain">domain 1</span>
+                        
+                        <span class="badge badge-username">username 1</span>
+                        
+                    </td>
+                </tr>
+                
+                <tr>
+                    <td>dig</td>
+                    <td>1</td>
+                    <td>10.0%</td>
+                    <td>0.95</td>
+                    <td>1</td>
+                    <td>
+                        
+                        
+                        <span class="badge badge-ip_address">ip_address 1</span>
+                        
+                    </td>
+                </tr>
+                
+                <tr>
+                    <td>whois</td>
+                    <td>1</td>
+                    <td>10.0%</td>
+                    <td>0.95</td>
+                    <td>1</td>
+                    <td>
+                        
+                        
+                        <span class="badge badge-domain_info">domain_info 1</span>
+                        
+                    </td>
+                </tr>
+                
+            </tbody>
+        </table>
+
+        
+        <p class="silent-tools">Integrated but silent in this run (13 of 15):
+           amass, exiftool, holehe, maigret, nmap, osrframework, sherlock, shodan, subfinder, sublist3r, theharvester, wayback_machine, whatweb. A tool is silent when it is not installed, was never dispatched for the artifact types seen here, or ran and found nothing.</p>
+        
+        
+    </div>
+
+    
+
+    
+    <!-- Platform Presence -->
+    <h2>4. Platform Presence</h2>
+    <p class="section-blurb">All discovered social media and online platform accounts with direct profile links for verification and understanding the target's online behavior and communication channels. Expand a platform to review the captured profile details.
+    <strong>Content-validated</strong> entries were confirmed by inspecting the profile page or API response; <strong>unvalidated (status only)</strong> entries rest on an HTTP 200 alone and may be soft 404s, login walls or app shells &mdash; treat them as leads, not findings.</p>
+    <div class="card">
+        
+        <p class="section-blurb">3 of 3 platform presences are content-validated.</p>
+        
+        <details class="drilldown presence-row" data-type="platform_presence" data-confidence="1" data-source="GitHub" data-value="mail2dhaya">
+            <summary>
+                <span class="summary-value">GitHub</span>
+                <span class="summary-meta">mail2dhaya</span>
+                <span class="badge badge-validated">Content-validated</span>
+                
+                
+                <span class="summary-meta">https://github.com/mail2dhaya</span>
+                
+            </summary>
+            <div class="drilldown-body">
+                <div style="display: flex; gap: 1.5rem; align-items: flex-start;">
+                    
+                    <img class="thumb" src="https://avatars.githubusercontent.com/u/7057030?v=4" alt="GitHub profile image"
+                         onerror="this.style.display='none';">
+                    
+                    <table class="kv-table">
+                        <tbody>
+                            <tr><td>Platform</td><td>GitHub</td></tr>
+                            <tr><td>Username</td><td>mail2dhaya</td></tr>
+                            <tr><td>Display name</td><td>Dhaya</td></tr>
+                            <tr>
+                                <td>Profile URL</td>
+                                <td>
+                                    
+                                    <a href="https://github.com/mail2dhaya" target="_blank" rel="noopener">https://github.com/mail2dhaya</a>
+                                    
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>Validation</td>
+                                <td>Content-validated (profile page or API confirmed the account)</td>
+                            </tr>
+                            <tr><td>Followers</td><td>0</td></tr>
+                            <tr><td>Account created</td><td>-</td></tr>
+                            <tr><td>Last active</td><td>-</td></tr>
+                            <tr><td>Bio</td><td>-</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </details>
+        
+        <details class="drilldown presence-row" data-type="platform_presence" data-confidence="1" data-source="GitHub" data-value="websearch">
+            <summary>
+                <span class="summary-value">GitHub</span>
+                <span class="summary-meta">websearch</span>
+                <span class="badge badge-validated">Content-validated</span>
+                
+                
+                <span class="summary-meta">https://github.com/webSearch</span>
+                
+            </summary>
+            <div class="drilldown-body">
+                <div style="display: flex; gap: 1.5rem; align-items: flex-start;">
+                    
+                    <img class="thumb" src="https://avatars.githubusercontent.com/u/2688015?v=4" alt="GitHub profile image"
+                         onerror="this.style.display='none';">
+                    
+                    <table class="kv-table">
+                        <tbody>
+                            <tr><td>Platform</td><td>GitHub</td></tr>
+                            <tr><td>Username</td><td>websearch</td></tr>
+                            <tr><td>Display name</td><td>webSearch</td></tr>
+                            <tr>
+                                <td>Profile URL</td>
+                                <td>
+                                    
+                                    <a href="https://github.com/webSearch" target="_blank" rel="noopener">https://github.com/webSearch</a>
+                                    
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>Validation</td>
+                                <td>Content-validated (profile page or API confirmed the account)</td>
+                            </tr>
+                            <tr><td>Followers</td><td>0</td></tr>
+                            <tr><td>Account created</td><td>-</td></tr>
+                            <tr><td>Last active</td><td>-</td></tr>
+                            <tr><td>Bio</td><td>-</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </details>
+        
+        <details class="drilldown presence-row" data-type="platform_presence" data-confidence="1" data-source="Pinterest" data-value="websearch">
+            <summary>
+                <span class="summary-value">Pinterest</span>
+                <span class="summary-meta">websearch</span>
+                <span class="badge badge-validated">Content-validated</span>
+                
+                
+                <span class="summary-meta">https://www.pinterest.com/websearch/</span>
+                
+            </summary>
+            <div class="drilldown-body">
+                <div style="display: flex; gap: 1.5rem; align-items: flex-start;">
+                    
+                    <img class="thumb" src="https://s.pinimg.com/images/default_open_graph_1200.png" alt="Pinterest profile image"
+                         onerror="this.style.display='none';">
+                    
+                    <table class="kv-table">
+                        <tbody>
+                            <tr><td>Platform</td><td>Pinterest</td></tr>
+                            <tr><td>Username</td><td>websearch</td></tr>
+                            <tr><td>Display name</td><td>-</td></tr>
+                            <tr>
+                                <td>Profile URL</td>
+                                <td>
+                                    
+                                    <a href="https://www.pinterest.com/websearch/" target="_blank" rel="noopener">https://www.pinterest.com/websearch/</a>
+                                    
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>Validation</td>
+                                <td>Content-validated (profile page or API confirmed the account)</td>
+                            </tr>
+                            <tr><td>Followers</td><td>-</td></tr>
+                            <tr><td>Account created</td><td>-</td></tr>
+                            <tr><td>Last active</td><td>-</td></tr>
+                            <tr><td>Bio</td><td>-</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </details>
+        
+        
+    </div>
+
+    
+
+    
+    <!-- Relationship Graph -->
+    <h2>5. Relationship Graph</h2>
+    <p class="section-blurb">Visual network diagram showing connections between artifacts and identities, helping identify clusters, central nodes, and relationship patterns for understanding social connections and potential attack vectors.</p>
+    <div class="card">
+        <div class="graph-container">
+            
+            <iframe class="graph-frame" title="Identity relationship graph" sandbox="allow-scripts allow-same-origin" srcdoc="&amp;lt;html&amp;gt;
+    &amp;lt;head&amp;gt;
+        &amp;lt;meta charset=&amp;quot;utf-8&amp;quot;&amp;gt;
+        
+            &amp;lt;script src=&amp;quot;lib/bindings/utils.js&amp;quot;&amp;gt;&amp;lt;/script&amp;gt;
+            &amp;lt;link rel=&amp;quot;stylesheet&amp;quot; href=&amp;quot;https://cdnjs.cloudflare.com/ajax/libs/vis-network/9.1.2/dist/dist/vis-network.min.css&amp;quot; integrity=&amp;quot;sha512-WgxfT5LWjfszlPHXRmBWHkV2eceiWTOBvrKCNbdgDYTHrT2AeLCGbF4sZlZw3UMN3WtL0tGUoIAKsu8mllg/XA==&amp;quot; crossorigin=&amp;quot;anonymous&amp;quot; referrerpolicy=&amp;quot;no-referrer&amp;quot; /&amp;gt;
+            &amp;lt;script src=&amp;quot;https://cdnjs.cloudflare.com/ajax/libs/vis-network/9.1.2/dist/vis-network.min.js&amp;quot; integrity=&amp;quot;sha512-LnvoEWDFrqGHlHmDD2101OrLcbsfkrzoSpvtSQtxK3RMnRV0eOkhhBN2dXHKRrUU8p2DGRTk35n4O8nWSVe1mQ==&amp;quot; crossorigin=&amp;quot;anonymous&amp;quot; referrerpolicy=&amp;quot;no-referrer&amp;quot;&amp;gt;&amp;lt;/script&amp;gt;
+            
+        
+&amp;lt;center&amp;gt;
+&amp;lt;h1&amp;gt;&amp;lt;/h1&amp;gt;
+&amp;lt;/center&amp;gt;
+
+&amp;lt;!-- &amp;lt;link rel=&amp;quot;stylesheet&amp;quot; href=&amp;quot;../node_modules/vis/dist/vis.min.css&amp;quot; type=&amp;quot;text/css&amp;quot; /&amp;gt;
+&amp;lt;script type=&amp;quot;text/javascript&amp;quot; src=&amp;quot;../node_modules/vis/dist/vis.js&amp;quot;&amp;gt; &amp;lt;/script&amp;gt;--&amp;gt;
+        &amp;lt;link
+          href=&amp;quot;https://cdn.jsdelivr.net/npm/bootstrap@5.0.0-beta3/dist/css/bootstrap.min.css&amp;quot;
+          rel=&amp;quot;stylesheet&amp;quot;
+          integrity=&amp;quot;sha384-eOJMYsd53ii+scO/bJGFsiCZc+5NDVN2yr8+0RDqr0Ql0h+rP48ckxlpbzKgwra6&amp;quot;
+          crossorigin=&amp;quot;anonymous&amp;quot;
+        /&amp;gt;
+        &amp;lt;script
+          src=&amp;quot;https://cdn.jsdelivr.net/npm/bootstrap@5.0.0-beta3/dist/js/bootstrap.bundle.min.js&amp;quot;
+          integrity=&amp;quot;sha384-JEW9xMcG8R+pH31jmWH6WWP0WintQrMb4s7ZOdauHnUtxwoG2vI5DkLtS3qm9Ekf&amp;quot;
+          crossorigin=&amp;quot;anonymous&amp;quot;
+        &amp;gt;&amp;lt;/script&amp;gt;
+
+
+        &amp;lt;center&amp;gt;
+          &amp;lt;h1&amp;gt;&amp;lt;/h1&amp;gt;
+        &amp;lt;/center&amp;gt;
+        &amp;lt;style type=&amp;quot;text/css&amp;quot;&amp;gt;
+
+             #mynetwork {
+                 width: 100%;
+                 height: 700px;
+                 background-color: #1a1a2e;
+                 border: 1px solid lightgray;
+                 position: relative;
+                 float: left;
+             }
+
+             
+
+             
+
+             
+        &amp;lt;/style&amp;gt;
+    &amp;lt;/head&amp;gt;
+
+
+    &amp;lt;body&amp;gt;
+        &amp;lt;div class=&amp;quot;card&amp;quot; style=&amp;quot;width: 100%&amp;quot;&amp;gt;
+            
+            
+            &amp;lt;div id=&amp;quot;mynetwork&amp;quot; class=&amp;quot;card-body&amp;quot;&amp;gt;&amp;lt;/div&amp;gt;
+        &amp;lt;/div&amp;gt;
+
+        
+        
+
+        &amp;lt;script type=&amp;quot;text/javascript&amp;quot;&amp;gt;
+
+              // initialize global variables.
+              var edges;
+              var nodes;
+              var allNodes;
+              var allEdges;
+              var nodeColors;
+              var originalNodes;
+              var network;
+              var container;
+              var options, data;
+              var filter = {
+                  item : &amp;#x27;&amp;#x27;,
+                  property : &amp;#x27;&amp;#x27;,
+                  value : []
+              };
+
+              
+
+              
+
+              // This method is responsible for drawing the graph, returns the drawn network
+              function drawGraph() {
+                  var container = document.getElementById(&amp;#x27;mynetwork&amp;#x27;);
+
+                  
+
+                  // parsing and collecting nodes and edges from the python
+                  nodes = new vis.DataSet([{&amp;quot;color&amp;quot;: &amp;quot;#45B7D1&amp;quot;, &amp;quot;font&amp;quot;: {&amp;quot;color&amp;quot;: &amp;quot;#ffffff&amp;quot;}, &amp;quot;id&amp;quot;: &amp;quot;ART-cf72dcfb&amp;quot;, &amp;quot;label&amp;quot;: &amp;quot;mail2dhaya&amp;quot;, &amp;quot;shape&amp;quot;: &amp;quot;triangle&amp;quot;, &amp;quot;size&amp;quot;: 25, &amp;quot;title&amp;quot;: &amp;quot;Type: username\nValue: mail2dhaya\nSource: seed\nConfidence: 1.0\nDepth: 0&amp;quot;}]);
+                  edges = new vis.DataSet([]);
+
+                  nodeColors = {};
+                  allNodes = nodes.get({ returnType: &amp;quot;Object&amp;quot; });
+                  for (nodeId in allNodes) {
+                    nodeColors[nodeId] = allNodes[nodeId].color;
+                  }
+                  allEdges = edges.get({ returnType: &amp;quot;Object&amp;quot; });
+                  // adding nodes and edges to the graph
+                  data = {nodes: nodes, edges: edges};
+
+                  var options = {&amp;quot;physics&amp;quot;: {&amp;quot;forceAtlas2Based&amp;quot;: {&amp;quot;gravitationalConstant&amp;quot;: -50, &amp;quot;centralGravity&amp;quot;: 0.01, &amp;quot;springLength&amp;quot;: 200, &amp;quot;springConstant&amp;quot;: 0.08}, &amp;quot;solver&amp;quot;: &amp;quot;forceAtlas2Based&amp;quot;, &amp;quot;stabilization&amp;quot;: {&amp;quot;iterations&amp;quot;: 150}}, &amp;quot;nodes&amp;quot;: {&amp;quot;font&amp;quot;: {&amp;quot;size&amp;quot;: 12, &amp;quot;face&amp;quot;: &amp;quot;monospace&amp;quot;}}, &amp;quot;edges&amp;quot;: {&amp;quot;smooth&amp;quot;: {&amp;quot;type&amp;quot;: &amp;quot;continuous&amp;quot;}}};
+
+                  
+
+
+                  
+
+                  network = new vis.Network(container, data, options);
+
+                  
+
+                  
+
+                  
+
+
+                  
+
+                  return network;
+
+              }
+              drawGraph();
+        &amp;lt;/script&amp;gt;
+    &amp;lt;/body&amp;gt;
+&amp;lt;/html&amp;gt;"></iframe>
+            
+        </div>
+    </div>
+
+    
+
+    
+    <!-- Artifacts -->
+    <h2>6. Discovered Artifacts</h2>
+    <p class="section-blurb">Complete inventory of all data points found (emails, usernames, phone numbers, domains, etc.) with source attribution, confidence scores, and discovery depth. Expand an artifact to review its full metadata and the links that connect it to the rest of the investigation.</p>
+    <div class="card">
+        
+        
+        <details class="drilldown artifact-row" data-type="username" data-confidence="1.0" data-source="seed" data-value="mail2dhaya">
+            <summary>
+                <span class="badge badge-username">username</span>
+                <span class="summary-value">mail2dhaya</span>
+                <span class="summary-meta">Source: seed</span>
+                <span class="summary-meta">Confidence: 100%</span>
+                <span class="summary-meta">Depth: 0</span>
+                <span class="summary-meta">4 link(s)</span>
+            </summary>
+            <div class="drilldown-body">
+                <h5>Artifact Detail</h5>
+                <table class="kv-table">
+                    <tbody>
+                        <tr><td>Artifact ID</td><td>ART-cf72dcfb</td></tr>
+                        <tr><td>Type</td><td>username</td></tr>
+                        <tr><td>Value</td><td>mail2dhaya</td></tr>
+                        <tr><td>Source</td><td>seed</td></tr>
+                        <tr><td>Confidence</td><td>100%</td></tr>
+                        <tr><td>Discovery depth</td><td>0</td></tr>
+                        <tr><td>Discovered at</td><td>2026-08-02T07:57:49</td></tr>
+                        <tr><td>Attributed identity</td><td>Identity Profile #1 (mail2dhaya)</td></tr>
+                    </tbody>
+                </table>
+
+                <h5>Metadata</h5>
+                
+                <table class="kv-table">
+                    <tbody>
+                        
+                        <tr><td>found_count</td><td>1</td></tr>
+                        
+                        <tr><td>platforms_error</td><td>[]</td></tr>
+                        
+                        <tr><td>platforms_found</td><td>[{&#34;platform_name&#34;: &#34;GitHub&#34;, &#34;found&#34;: true, &#34;profile_url&#34;: &#34;https://github.com/mail2dhaya&#34;, &#34;username&#34;: &#34;mail2dhaya&#34;, &#34;display_name&#34;: &#34;Dhaya&#34;, &#34;bio&#34;: null, &#34;avatar_url&#34;: &#34;https://avatars.githubusercontent.com/u/7057030?v=4&#34;, &#34;follower_count&#34;: 0, &#34;error&#34;: null, &#34;validation_method&#34;: &#34;api&#34;, &#34;validation_evidence&#34;: &#34;API returned 200&#34;, &#34;is_validated&#34;: true, &#34;confidence&#34;: 0.9}]</td></tr>
+                        
+                        <tr><td>platforms_not_found</td><td>[&#34;Steam&#34;, &#34;Reddit&#34;, &#34;Mastodon&#34;, &#34;Twitter/X&#34;, &#34;GitLab&#34;, &#34;LinkedIn&#34;, &#34;Instagram&#34;, &#34;Keybase&#34;, &#34;HackerNews&#34;, &#34;Pinterest&#34;, &#34;Medium&#34;]</td></tr>
+                        
+                        <tr><td>total_checked</td><td>12</td></tr>
+                        
+                        <tr><td>username</td><td>mail2dhaya</td></tr>
+                        
+                    </tbody>
+                </table>
+                
+
+                <h5>Connected Artifacts</h5>
+                
+                <table>
+                    <thead>
+                        <tr><th>Direction</th><th>Link Type</th><th>Connected Artifact</th><th>Confidence</th><th>Evidence</th></tr>
+                    </thead>
+                    <tbody>
+                        
+                        <tr>
+                            <td>outgoing</td>
+                            <td>has_profile_image</td>
+                            <td><span class="badge badge-image">image</span> https://avatars.githubusercontent.com/u/7057030?v=4</td>
+                            <td>85%</td>
+                            <td>profile_image_github</td>
+                        </tr>
+                        
+                        <tr>
+                            <td>outgoing</td>
+                            <td>discovered_from</td>
+                            <td><span class="badge badge-platform_presence">platform_presence</span> https://github.com/mail2dhaya</td>
+                            <td>90%</td>
+                            <td>username_search_github</td>
+                        </tr>
+                        
+                        <tr>
+                            <td>outgoing</td>
+                            <td>discovered_from</td>
+                            <td><span class="badge badge-username">username</span> websearch</td>
+                            <td>70%</td>
+                            <td>google_dorks_profile_pages</td>
+                        </tr>
+                        
+                        <tr>
+                            <td>outgoing</td>
+                            <td>discovered_from</td>
+                            <td><span class="badge badge-domain">domain</span> support.google.com</td>
+                            <td>49%</td>
+                            <td>google_dorks_profile_pages</td>
+                        </tr>
+                        
+                    </tbody>
+                </table>
+                
+            </div>
+        </details>
+        
+        <details class="drilldown artifact-row" data-type="image" data-confidence="0.85" data-source="profile_image_github" data-value="https://avatars.githubusercontent.com/u/7057030?v=4">
+            <summary>
+                <span class="badge badge-image">image</span>
+                <span class="summary-value">https://avatars.githubusercontent.com/u/7057030?v=4</span>
+                <span class="summary-meta">Source: profile_image_github</span>
+                <span class="summary-meta">Confidence: 85%</span>
+                <span class="summary-meta">Depth: 1</span>
+                <span class="summary-meta">2 link(s)</span>
+            </summary>
+            <div class="drilldown-body">
+                <h5>Artifact Detail</h5>
+                <table class="kv-table">
+                    <tbody>
+                        <tr><td>Artifact ID</td><td>ART-4b13ad16</td></tr>
+                        <tr><td>Type</td><td>image</td></tr>
+                        <tr><td>Value</td><td>https://avatars.githubusercontent.com/u/7057030?v=4</td></tr>
+                        <tr><td>Source</td><td>profile_image_github</td></tr>
+                        <tr><td>Confidence</td><td>85%</td></tr>
+                        <tr><td>Discovery depth</td><td>1</td></tr>
+                        <tr><td>Discovered at</td><td>2026-08-02T07:57:52</td></tr>
+                        <tr><td>Attributed identity</td><td>Identity Profile #1 (mail2dhaya)</td></tr>
+                    </tbody>
+                </table>
+
+                <h5>Metadata</h5>
+                
+                <table class="kv-table">
+                    <tbody>
+                        
+                        <tr><td>dimensions</td><td>[0, 0]</td></tr>
+                        
+                        <tr><td>exif</td><td>-</td></tr>
+                        
+                        <tr><td>file_hash_md5</td><td></td></tr>
+                        
+                        <tr><td>file_hash_sha256</td><td></td></tr>
+                        
+                        <tr><td>file_path</td><td>/Users/dhaya/CSCD/Capstone/gih/https:/avatars.githubusercontent.com/u/7057030?v=4</td></tr>
+                        
+                        <tr><td>file_size_bytes</td><td>0</td></tr>
+                        
+                        <tr><td>has_exif</td><td>False</td></tr>
+                        
+                        <tr><td>image_format</td><td></td></tr>
+                        
+                        <tr><td>is_stock_photo</td><td>False</td></tr>
+                        
+                        <tr><td>reverse_search_urls</td><td>[]</td></tr>
+                        
+                        <tr><td>risk_indicators</td><td>[&#34;file_not_found&#34;]</td></tr>
+                        
+                    </tbody>
+                </table>
+                
+
+                <h5>Connected Artifacts</h5>
+                
+                <table>
+                    <thead>
+                        <tr><th>Direction</th><th>Link Type</th><th>Connected Artifact</th><th>Confidence</th><th>Evidence</th></tr>
+                    </thead>
+                    <tbody>
+                        
+                        <tr>
+                            <td>incoming</td>
+                            <td>has_profile_image</td>
+                            <td><span class="badge badge-username">username</span> mail2dhaya</td>
+                            <td>85%</td>
+                            <td>profile_image_github</td>
+                        </tr>
+                        
+                        <tr>
+                            <td>incoming</td>
+                            <td>discovered_from</td>
+                            <td><span class="badge badge-platform_presence">platform_presence</span> https://github.com/mail2dhaya</td>
+                            <td>85%</td>
+                            <td>plugin:ProfileImagePlugin</td>
+                        </tr>
+                        
+                    </tbody>
+                </table>
+                
+            </div>
+        </details>
+        
+        <details class="drilldown artifact-row" data-type="platform_presence" data-confidence="0.9" data-source="username_search_github" data-value="https://github.com/mail2dhaya">
+            <summary>
+                <span class="badge badge-platform_presence">platform_presence</span>
+                <span class="summary-value">https://github.com/mail2dhaya</span>
+                <span class="summary-meta">Source: username_search_github</span>
+                <span class="summary-meta">Confidence: 90%</span>
+                <span class="summary-meta">Depth: 1</span>
+                <span class="summary-meta">2 link(s)</span>
+            </summary>
+            <div class="drilldown-body">
+                <h5>Artifact Detail</h5>
+                <table class="kv-table">
+                    <tbody>
+                        <tr><td>Artifact ID</td><td>ART-9e9ad4a4</td></tr>
+                        <tr><td>Type</td><td>platform_presence</td></tr>
+                        <tr><td>Value</td><td>https://github.com/mail2dhaya</td></tr>
+                        <tr><td>Source</td><td>username_search_github</td></tr>
+                        <tr><td>Confidence</td><td>90%</td></tr>
+                        <tr><td>Discovery depth</td><td>1</td></tr>
+                        <tr><td>Discovered at</td><td>2026-08-02T07:57:52</td></tr>
+                        <tr><td>Attributed identity</td><td>Not attributed</td></tr>
+                    </tbody>
+                </table>
+
+                <h5>Metadata</h5>
+                
+                <table class="kv-table">
+                    <tbody>
+                        
+                        <tr><td>avatar_url</td><td>https://avatars.githubusercontent.com/u/7057030?v=4</td></tr>
+                        
+                        <tr><td>bio</td><td>-</td></tr>
+                        
+                        <tr><td>confidence</td><td>0.9</td></tr>
+                        
+                        <tr><td>display_name</td><td>Dhaya</td></tr>
+                        
+                        <tr><td>error</td><td>-</td></tr>
+                        
+                        <tr><td>follower_count</td><td>0</td></tr>
+                        
+                        <tr><td>found</td><td>True</td></tr>
+                        
+                        <tr><td>is_validated</td><td>True</td></tr>
+                        
+                        <tr><td>platform_name</td><td>GitHub</td></tr>
+                        
+                        <tr><td>profile_url</td><td>https://github.com/mail2dhaya</td></tr>
+                        
+                        <tr><td>username</td><td>mail2dhaya</td></tr>
+                        
+                        <tr><td>validation_evidence</td><td>API returned 200</td></tr>
+                        
+                        <tr><td>validation_method</td><td>api</td></tr>
+                        
+                    </tbody>
+                </table>
+                
+
+                <h5>Connected Artifacts</h5>
+                
+                <table>
+                    <thead>
+                        <tr><th>Direction</th><th>Link Type</th><th>Connected Artifact</th><th>Confidence</th><th>Evidence</th></tr>
+                    </thead>
+                    <tbody>
+                        
+                        <tr>
+                            <td>incoming</td>
+                            <td>discovered_from</td>
+                            <td><span class="badge badge-username">username</span> mail2dhaya</td>
+                            <td>90%</td>
+                            <td>username_search_github</td>
+                        </tr>
+                        
+                        <tr>
+                            <td>outgoing</td>
+                            <td>discovered_from</td>
+                            <td><span class="badge badge-image">image</span> https://avatars.githubusercontent.com/u/7057030?v=4</td>
+                            <td>85%</td>
+                            <td>plugin:ProfileImagePlugin</td>
+                        </tr>
+                        
+                    </tbody>
+                </table>
+                
+            </div>
+        </details>
+        
+        <details class="drilldown artifact-row" data-type="username" data-confidence="0.7" data-source="google_dorks_profile_pages" data-value="websearch">
+            <summary>
+                <span class="badge badge-username">username</span>
+                <span class="summary-value">websearch</span>
+                <span class="summary-meta">Source: google_dorks_profile_pages</span>
+                <span class="summary-meta">Confidence: 70%</span>
+                <span class="summary-meta">Depth: 1</span>
+                <span class="summary-meta">6 link(s)</span>
+            </summary>
+            <div class="drilldown-body">
+                <h5>Artifact Detail</h5>
+                <table class="kv-table">
+                    <tbody>
+                        <tr><td>Artifact ID</td><td>ART-3f32a351</td></tr>
+                        <tr><td>Type</td><td>username</td></tr>
+                        <tr><td>Value</td><td>websearch</td></tr>
+                        <tr><td>Source</td><td>google_dorks_profile_pages</td></tr>
+                        <tr><td>Confidence</td><td>70%</td></tr>
+                        <tr><td>Discovery depth</td><td>1</td></tr>
+                        <tr><td>Discovered at</td><td>2026-08-02T07:57:52</td></tr>
+                        <tr><td>Attributed identity</td><td>Not attributed</td></tr>
+                    </tbody>
+                </table>
+
+                <h5>Metadata</h5>
+                
+                <table class="kv-table">
+                    <tbody>
+                        
+                        <tr><td>found_count</td><td>2</td></tr>
+                        
+                        <tr><td>platforms_error</td><td>[]</td></tr>
+                        
+                        <tr><td>platforms_found</td><td>[{&#34;platform_name&#34;: &#34;GitHub&#34;, &#34;found&#34;: true, &#34;profile_url&#34;: &#34;https://github.com/webSearch&#34;, &#34;username&#34;: &#34;websearch&#34;, &#34;display_name&#34;: &#34;webSearch&#34;, &#34;bio&#34;: null, &#34;avatar_url&#34;: &#34;https://avatars.githubusercontent.com/u/2688015?v=4&#34;, &#34;follower_count&#34;: 0, &#34;error&#34;: null, &#34;validation_method&#34;: &#34;api&#34;, &#34;validation_evidence&#34;: &#34;API returned 200&#34;, &#34;is_validated&#34;: true, &#34;confidence&#34;: 0.9}, {&#34;platform_name&#34;: &#34;Pinterest&#34;, &#34;found&#34;: true, &#34;profile_url&#34;: &#34;https://www.pinterest.com/websearch/&#34;, &#34;username&#34;: &#34;websearch&#34;, &#34;display_name&#34;: null, &#34;bio&#34;: null, &#34;avatar_url&#34;: null, &#34;follower_count&#34;: null, &#34;error&#34;: null, &#34;validation_method&#34;: &#34;content&#34;, &#34;validation_evidence&#34;: &#34;HTTP 200; profile marker present: &#39;pinterest.com/websearch&#39;&#34;, &#34;is_validated&#34;: true, &#34;confidence&#34;: 0.9}]</td></tr>
+                        
+                        <tr><td>platforms_not_found</td><td>[&#34;Mastodon&#34;, &#34;HackerNews&#34;, &#34;Keybase&#34;, &#34;Twitter/X&#34;, &#34;Reddit&#34;, &#34;GitLab&#34;, &#34;Steam&#34;, &#34;LinkedIn&#34;, &#34;Instagram&#34;, &#34;Medium&#34;]</td></tr>
+                        
+                        <tr><td>total_checked</td><td>12</td></tr>
+                        
+                        <tr><td>username</td><td>websearch</td></tr>
+                        
+                    </tbody>
+                </table>
+                
+
+                <h5>Connected Artifacts</h5>
+                
+                <table>
+                    <thead>
+                        <tr><th>Direction</th><th>Link Type</th><th>Connected Artifact</th><th>Confidence</th><th>Evidence</th></tr>
+                    </thead>
+                    <tbody>
+                        
+                        <tr>
+                            <td>incoming</td>
+                            <td>discovered_from</td>
+                            <td><span class="badge badge-username">username</span> mail2dhaya</td>
+                            <td>70%</td>
+                            <td>google_dorks_profile_pages</td>
+                        </tr>
+                        
+                        <tr>
+                            <td>outgoing</td>
+                            <td>has_profile_image</td>
+                            <td><span class="badge badge-image">image</span> https://avatars.githubusercontent.com/u/2688015?v=4</td>
+                            <td>85%</td>
+                            <td>profile_image_github</td>
+                        </tr>
+                        
+                        <tr>
+                            <td>outgoing</td>
+                            <td>has_profile_image</td>
+                            <td><span class="badge badge-image">image</span> https://s.pinimg.com/images/default_open_graph_1200.png</td>
+                            <td>85%</td>
+                            <td>profile_image_pinterest</td>
+                        </tr>
+                        
+                        <tr>
+                            <td>outgoing</td>
+                            <td>discovered_from</td>
+                            <td><span class="badge badge-platform_presence">platform_presence</span> https://github.com/webSearch</td>
+                            <td>90%</td>
+                            <td>username_search_github</td>
+                        </tr>
+                        
+                        <tr>
+                            <td>outgoing</td>
+                            <td>discovered_from</td>
+                            <td><span class="badge badge-platform_presence">platform_presence</span> https://www.pinterest.com/websearch/</td>
+                            <td>90%</td>
+                            <td>username_search_pinterest</td>
+                        </tr>
+                        
+                        <tr>
+                            <td>outgoing</td>
+                            <td>discovered_from</td>
+                            <td><span class="badge badge-domain">domain</span> support.google.com</td>
+                            <td>35%</td>
+                            <td>google_dorks_simple_search</td>
+                        </tr>
+                        
+                    </tbody>
+                </table>
+                
+            </div>
+        </details>
+        
+        <details class="drilldown artifact-row" data-type="domain" data-confidence="0.48999999999999994" data-source="google_dorks_profile_pages" data-value="support.google.com">
+            <summary>
+                <span class="badge badge-domain">domain</span>
+                <span class="summary-value">support.google.com</span>
+                <span class="summary-meta">Source: google_dorks_profile_pages</span>
+                <span class="summary-meta">Confidence: 49%</span>
+                <span class="summary-meta">Depth: 1</span>
+                <span class="summary-meta">4 link(s)</span>
+            </summary>
+            <div class="drilldown-body">
+                <h5>Artifact Detail</h5>
+                <table class="kv-table">
+                    <tbody>
+                        <tr><td>Artifact ID</td><td>ART-1cd6d376</td></tr>
+                        <tr><td>Type</td><td>domain</td></tr>
+                        <tr><td>Value</td><td>support.google.com</td></tr>
+                        <tr><td>Source</td><td>google_dorks_profile_pages</td></tr>
+                        <tr><td>Confidence</td><td>49%</td></tr>
+                        <tr><td>Discovery depth</td><td>1</td></tr>
+                        <tr><td>Discovered at</td><td>2026-08-02T07:57:52</td></tr>
+                        <tr><td>Attributed identity</td><td>Not attributed</td></tr>
+                    </tbody>
+                </table>
+
+                <h5>Metadata</h5>
+                
+                <table class="kv-table">
+                    <tbody>
+                        
+                        <tr><td>pattern</td><td>profile_pages</td></tr>
+                        
+                        <tr><td>url</td><td>https://support.google.com/websearch</td></tr>
+                        
+                    </tbody>
+                </table>
+                
+
+                <h5>Connected Artifacts</h5>
+                
+                <table>
+                    <thead>
+                        <tr><th>Direction</th><th>Link Type</th><th>Connected Artifact</th><th>Confidence</th><th>Evidence</th></tr>
+                    </thead>
+                    <tbody>
+                        
+                        <tr>
+                            <td>incoming</td>
+                            <td>discovered_from</td>
+                            <td><span class="badge badge-username">username</span> mail2dhaya</td>
+                            <td>49%</td>
+                            <td>google_dorks_profile_pages</td>
+                        </tr>
+                        
+                        <tr>
+                            <td>incoming</td>
+                            <td>discovered_from</td>
+                            <td><span class="badge badge-username">username</span> websearch</td>
+                            <td>35%</td>
+                            <td>google_dorks_simple_search</td>
+                        </tr>
+                        
+                        <tr>
+                            <td>outgoing</td>
+                            <td>discovered_from</td>
+                            <td><span class="badge badge-ip_address">ip_address</span> 142.250.66.14</td>
+                            <td>95%</td>
+                            <td>dig</td>
+                        </tr>
+                        
+                        <tr>
+                            <td>outgoing</td>
+                            <td>discovered_from</td>
+                            <td><span class="badge badge-domain_info">domain_info</span> support.google.com</td>
+                            <td>95%</td>
+                            <td>whois</td>
+                        </tr>
+                        
+                    </tbody>
+                </table>
+                
+            </div>
+        </details>
+        
+        <details class="drilldown artifact-row" data-type="image" data-confidence="0.85" data-source="profile_image_github" data-value="https://avatars.githubusercontent.com/u/2688015?v=4">
+            <summary>
+                <span class="badge badge-image">image</span>
+                <span class="summary-value">https://avatars.githubusercontent.com/u/2688015?v=4</span>
+                <span class="summary-meta">Source: profile_image_github</span>
+                <span class="summary-meta">Confidence: 85%</span>
+                <span class="summary-meta">Depth: 2</span>
+                <span class="summary-meta">1 link(s)</span>
+            </summary>
+            <div class="drilldown-body">
+                <h5>Artifact Detail</h5>
+                <table class="kv-table">
+                    <tbody>
+                        <tr><td>Artifact ID</td><td>ART-0e726697</td></tr>
+                        <tr><td>Type</td><td>image</td></tr>
+                        <tr><td>Value</td><td>https://avatars.githubusercontent.com/u/2688015?v=4</td></tr>
+                        <tr><td>Source</td><td>profile_image_github</td></tr>
+                        <tr><td>Confidence</td><td>85%</td></tr>
+                        <tr><td>Discovery depth</td><td>2</td></tr>
+                        <tr><td>Discovered at</td><td>2026-08-02T07:58:23</td></tr>
+                        <tr><td>Attributed identity</td><td>Not attributed</td></tr>
+                    </tbody>
+                </table>
+
+                <h5>Metadata</h5>
+                
+                <table class="kv-table">
+                    <tbody>
+                        
+                        <tr><td>dimensions</td><td>[0, 0]</td></tr>
+                        
+                        <tr><td>exif</td><td>-</td></tr>
+                        
+                        <tr><td>file_hash_md5</td><td></td></tr>
+                        
+                        <tr><td>file_hash_sha256</td><td></td></tr>
+                        
+                        <tr><td>file_path</td><td>/Users/dhaya/CSCD/Capstone/gih/https:/avatars.githubusercontent.com/u/2688015?v=4</td></tr>
+                        
+                        <tr><td>file_size_bytes</td><td>0</td></tr>
+                        
+                        <tr><td>has_exif</td><td>False</td></tr>
+                        
+                        <tr><td>image_format</td><td></td></tr>
+                        
+                        <tr><td>is_stock_photo</td><td>False</td></tr>
+                        
+                        <tr><td>reverse_search_urls</td><td>[]</td></tr>
+                        
+                        <tr><td>risk_indicators</td><td>[&#34;file_not_found&#34;]</td></tr>
+                        
+                    </tbody>
+                </table>
+                
+
+                <h5>Connected Artifacts</h5>
+                
+                <table>
+                    <thead>
+                        <tr><th>Direction</th><th>Link Type</th><th>Connected Artifact</th><th>Confidence</th><th>Evidence</th></tr>
+                    </thead>
+                    <tbody>
+                        
+                        <tr>
+                            <td>incoming</td>
+                            <td>has_profile_image</td>
+                            <td><span class="badge badge-username">username</span> websearch</td>
+                            <td>85%</td>
+                            <td>profile_image_github</td>
+                        </tr>
+                        
+                    </tbody>
+                </table>
+                
+            </div>
+        </details>
+        
+        <details class="drilldown artifact-row" data-type="image" data-confidence="0.85" data-source="profile_image_pinterest" data-value="https://s.pinimg.com/images/default_open_graph_1200.png">
+            <summary>
+                <span class="badge badge-image">image</span>
+                <span class="summary-value">https://s.pinimg.com/images/default_open_graph_1200.png</span>
+                <span class="summary-meta">Source: profile_image_pinterest</span>
+                <span class="summary-meta">Confidence: 85%</span>
+                <span class="summary-meta">Depth: 2</span>
+                <span class="summary-meta">1 link(s)</span>
+            </summary>
+            <div class="drilldown-body">
+                <h5>Artifact Detail</h5>
+                <table class="kv-table">
+                    <tbody>
+                        <tr><td>Artifact ID</td><td>ART-f892d8d0</td></tr>
+                        <tr><td>Type</td><td>image</td></tr>
+                        <tr><td>Value</td><td>https://s.pinimg.com/images/default_open_graph_1200.png</td></tr>
+                        <tr><td>Source</td><td>profile_image_pinterest</td></tr>
+                        <tr><td>Confidence</td><td>85%</td></tr>
+                        <tr><td>Discovery depth</td><td>2</td></tr>
+                        <tr><td>Discovered at</td><td>2026-08-02T07:58:23</td></tr>
+                        <tr><td>Attributed identity</td><td>Not attributed</td></tr>
+                    </tbody>
+                </table>
+
+                <h5>Metadata</h5>
+                
+                <table class="kv-table">
+                    <tbody>
+                        
+                        <tr><td>dimensions</td><td>[0, 0]</td></tr>
+                        
+                        <tr><td>exif</td><td>-</td></tr>
+                        
+                        <tr><td>file_hash_md5</td><td></td></tr>
+                        
+                        <tr><td>file_hash_sha256</td><td></td></tr>
+                        
+                        <tr><td>file_path</td><td>/Users/dhaya/CSCD/Capstone/gih/https:/s.pinimg.com/images/default_open_graph_1200.png</td></tr>
+                        
+                        <tr><td>file_size_bytes</td><td>0</td></tr>
+                        
+                        <tr><td>has_exif</td><td>False</td></tr>
+                        
+                        <tr><td>image_format</td><td></td></tr>
+                        
+                        <tr><td>is_stock_photo</td><td>False</td></tr>
+                        
+                        <tr><td>reverse_search_urls</td><td>[]</td></tr>
+                        
+                        <tr><td>risk_indicators</td><td>[&#34;file_not_found&#34;]</td></tr>
+                        
+                    </tbody>
+                </table>
+                
+
+                <h5>Connected Artifacts</h5>
+                
+                <table>
+                    <thead>
+                        <tr><th>Direction</th><th>Link Type</th><th>Connected Artifact</th><th>Confidence</th><th>Evidence</th></tr>
+                    </thead>
+                    <tbody>
+                        
+                        <tr>
+                            <td>incoming</td>
+                            <td>has_profile_image</td>
+                            <td><span class="badge badge-username">username</span> websearch</td>
+                            <td>85%</td>
+                            <td>profile_image_pinterest</td>
+                        </tr>
+                        
+                    </tbody>
+                </table>
+                
+            </div>
+        </details>
+        
+        <details class="drilldown artifact-row" data-type="platform_presence" data-confidence="0.9" data-source="username_search_github" data-value="https://github.com/webSearch">
+            <summary>
+                <span class="badge badge-platform_presence">platform_presence</span>
+                <span class="summary-value">https://github.com/webSearch</span>
+                <span class="summary-meta">Source: username_search_github</span>
+                <span class="summary-meta">Confidence: 90%</span>
+                <span class="summary-meta">Depth: 2</span>
+                <span class="summary-meta">1 link(s)</span>
+            </summary>
+            <div class="drilldown-body">
+                <h5>Artifact Detail</h5>
+                <table class="kv-table">
+                    <tbody>
+                        <tr><td>Artifact ID</td><td>ART-216cf901</td></tr>
+                        <tr><td>Type</td><td>platform_presence</td></tr>
+                        <tr><td>Value</td><td>https://github.com/webSearch</td></tr>
+                        <tr><td>Source</td><td>username_search_github</td></tr>
+                        <tr><td>Confidence</td><td>90%</td></tr>
+                        <tr><td>Discovery depth</td><td>2</td></tr>
+                        <tr><td>Discovered at</td><td>2026-08-02T07:58:23</td></tr>
+                        <tr><td>Attributed identity</td><td>Not attributed</td></tr>
+                    </tbody>
+                </table>
+
+                <h5>Metadata</h5>
+                
+                <table class="kv-table">
+                    <tbody>
+                        
+                        <tr><td>avatar_url</td><td>https://avatars.githubusercontent.com/u/2688015?v=4</td></tr>
+                        
+                        <tr><td>bio</td><td>-</td></tr>
+                        
+                        <tr><td>confidence</td><td>0.9</td></tr>
+                        
+                        <tr><td>display_name</td><td>webSearch</td></tr>
+                        
+                        <tr><td>error</td><td>-</td></tr>
+                        
+                        <tr><td>follower_count</td><td>0</td></tr>
+                        
+                        <tr><td>found</td><td>True</td></tr>
+                        
+                        <tr><td>is_validated</td><td>True</td></tr>
+                        
+                        <tr><td>platform_name</td><td>GitHub</td></tr>
+                        
+                        <tr><td>profile_url</td><td>https://github.com/webSearch</td></tr>
+                        
+                        <tr><td>username</td><td>websearch</td></tr>
+                        
+                        <tr><td>validation_evidence</td><td>API returned 200</td></tr>
+                        
+                        <tr><td>validation_method</td><td>api</td></tr>
+                        
+                    </tbody>
+                </table>
+                
+
+                <h5>Connected Artifacts</h5>
+                
+                <table>
+                    <thead>
+                        <tr><th>Direction</th><th>Link Type</th><th>Connected Artifact</th><th>Confidence</th><th>Evidence</th></tr>
+                    </thead>
+                    <tbody>
+                        
+                        <tr>
+                            <td>incoming</td>
+                            <td>discovered_from</td>
+                            <td><span class="badge badge-username">username</span> websearch</td>
+                            <td>90%</td>
+                            <td>username_search_github</td>
+                        </tr>
+                        
+                    </tbody>
+                </table>
+                
+            </div>
+        </details>
+        
+        <details class="drilldown artifact-row" data-type="platform_presence" data-confidence="0.9" data-source="username_search_pinterest" data-value="https://www.pinterest.com/websearch/">
+            <summary>
+                <span class="badge badge-platform_presence">platform_presence</span>
+                <span class="summary-value">https://www.pinterest.com/websearch/</span>
+                <span class="summary-meta">Source: username_search_pinterest</span>
+                <span class="summary-meta">Confidence: 90%</span>
+                <span class="summary-meta">Depth: 2</span>
+                <span class="summary-meta">1 link(s)</span>
+            </summary>
+            <div class="drilldown-body">
+                <h5>Artifact Detail</h5>
+                <table class="kv-table">
+                    <tbody>
+                        <tr><td>Artifact ID</td><td>ART-10dd7a0b</td></tr>
+                        <tr><td>Type</td><td>platform_presence</td></tr>
+                        <tr><td>Value</td><td>https://www.pinterest.com/websearch/</td></tr>
+                        <tr><td>Source</td><td>username_search_pinterest</td></tr>
+                        <tr><td>Confidence</td><td>90%</td></tr>
+                        <tr><td>Discovery depth</td><td>2</td></tr>
+                        <tr><td>Discovered at</td><td>2026-08-02T07:58:23</td></tr>
+                        <tr><td>Attributed identity</td><td>Not attributed</td></tr>
+                    </tbody>
+                </table>
+
+                <h5>Metadata</h5>
+                
+                <table class="kv-table">
+                    <tbody>
+                        
+                        <tr><td>avatar_url</td><td>-</td></tr>
+                        
+                        <tr><td>bio</td><td>-</td></tr>
+                        
+                        <tr><td>confidence</td><td>0.9</td></tr>
+                        
+                        <tr><td>display_name</td><td>-</td></tr>
+                        
+                        <tr><td>error</td><td>-</td></tr>
+                        
+                        <tr><td>follower_count</td><td>-</td></tr>
+                        
+                        <tr><td>found</td><td>True</td></tr>
+                        
+                        <tr><td>is_validated</td><td>True</td></tr>
+                        
+                        <tr><td>platform_name</td><td>Pinterest</td></tr>
+                        
+                        <tr><td>profile_url</td><td>https://www.pinterest.com/websearch/</td></tr>
+                        
+                        <tr><td>username</td><td>websearch</td></tr>
+                        
+                        <tr><td>validation_evidence</td><td>HTTP 200; profile marker present: &#39;pinterest.com/websearch&#39;</td></tr>
+                        
+                        <tr><td>validation_method</td><td>content</td></tr>
+                        
+                    </tbody>
+                </table>
+                
+
+                <h5>Connected Artifacts</h5>
+                
+                <table>
+                    <thead>
+                        <tr><th>Direction</th><th>Link Type</th><th>Connected Artifact</th><th>Confidence</th><th>Evidence</th></tr>
+                    </thead>
+                    <tbody>
+                        
+                        <tr>
+                            <td>incoming</td>
+                            <td>discovered_from</td>
+                            <td><span class="badge badge-username">username</span> websearch</td>
+                            <td>90%</td>
+                            <td>username_search_pinterest</td>
+                        </tr>
+                        
+                    </tbody>
+                </table>
+                
+            </div>
+        </details>
+        
+        <details class="drilldown artifact-row" data-type="ip_address" data-confidence="0.95" data-source="dig" data-value="142.250.66.14">
+            <summary>
+                <span class="badge badge-ip_address">ip_address</span>
+                <span class="summary-value">142.250.66.14</span>
+                <span class="summary-meta">Source: dig</span>
+                <span class="summary-meta">Confidence: 95%</span>
+                <span class="summary-meta">Depth: 2</span>
+                <span class="summary-meta">1 link(s)</span>
+            </summary>
+            <div class="drilldown-body">
+                <h5>Artifact Detail</h5>
+                <table class="kv-table">
+                    <tbody>
+                        <tr><td>Artifact ID</td><td>ART-7ae4c691</td></tr>
+                        <tr><td>Type</td><td>ip_address</td></tr>
+                        <tr><td>Value</td><td>142.250.66.14</td></tr>
+                        <tr><td>Source</td><td>dig</td></tr>
+                        <tr><td>Confidence</td><td>95%</td></tr>
+                        <tr><td>Discovery depth</td><td>2</td></tr>
+                        <tr><td>Discovered at</td><td>2026-08-02T07:58:23</td></tr>
+                        <tr><td>Attributed identity</td><td>Not attributed</td></tr>
+                    </tbody>
+                </table>
+
+                <h5>Metadata</h5>
+                
+                <table class="kv-table">
+                    <tbody>
+                        
+                        <tr><td>domain</td><td>support.google.com</td></tr>
+                        
+                    </tbody>
+                </table>
+                
+
+                <h5>Connected Artifacts</h5>
+                
+                <table>
+                    <thead>
+                        <tr><th>Direction</th><th>Link Type</th><th>Connected Artifact</th><th>Confidence</th><th>Evidence</th></tr>
+                    </thead>
+                    <tbody>
+                        
+                        <tr>
+                            <td>incoming</td>
+                            <td>discovered_from</td>
+                            <td><span class="badge badge-domain">domain</span> support.google.com</td>
+                            <td>95%</td>
+                            <td>dig</td>
+                        </tr>
+                        
+                    </tbody>
+                </table>
+                
+            </div>
+        </details>
+        
+        <details class="drilldown artifact-row" data-type="domain_info" data-confidence="0.95" data-source="whois" data-value="support.google.com">
+            <summary>
+                <span class="badge badge-domain_info">domain_info</span>
+                <span class="summary-value">support.google.com</span>
+                <span class="summary-meta">Source: whois</span>
+                <span class="summary-meta">Confidence: 95%</span>
+                <span class="summary-meta">Depth: 2</span>
+                <span class="summary-meta">1 link(s)</span>
+            </summary>
+            <div class="drilldown-body">
+                <h5>Artifact Detail</h5>
+                <table class="kv-table">
+                    <tbody>
+                        <tr><td>Artifact ID</td><td>ART-57bf108a</td></tr>
+                        <tr><td>Type</td><td>domain_info</td></tr>
+                        <tr><td>Value</td><td>support.google.com</td></tr>
+                        <tr><td>Source</td><td>whois</td></tr>
+                        <tr><td>Confidence</td><td>95%</td></tr>
+                        <tr><td>Discovery depth</td><td>2</td></tr>
+                        <tr><td>Discovered at</td><td>2026-08-02T07:58:23</td></tr>
+                        <tr><td>Attributed identity</td><td>Not attributed</td></tr>
+                    </tbody>
+                </table>
+
+                <h5>Metadata</h5>
+                
+                <table class="kv-table">
+                    <tbody>
+                        
+                        <tr><td>data</td><td>{}</td></tr>
+                        
+                    </tbody>
+                </table>
+                
+
+                <h5>Connected Artifacts</h5>
+                
+                <table>
+                    <thead>
+                        <tr><th>Direction</th><th>Link Type</th><th>Connected Artifact</th><th>Confidence</th><th>Evidence</th></tr>
+                    </thead>
+                    <tbody>
+                        
+                        <tr>
+                            <td>incoming</td>
+                            <td>discovered_from</td>
+                            <td><span class="badge badge-domain">domain</span> support.google.com</td>
+                            <td>95%</td>
+                            <td>whois</td>
+                        </tr>
+                        
+                    </tbody>
+                </table>
+                
+            </div>
+        </details>
+        
+        
+    </div>
+
+
+    
+
+    
+    <h2>7. Recommendations</h2>
+    <p class="section-blurb">Actionable next steps tied to specific findings — not generic advice.</p>
+    <div class="card">
+        
+        <table>
+            <thead><tr><th>Priority</th><th>Category</th><th>Action</th><th>Details</th><th>Ref</th></tr></thead>
+            <tbody>
+            
+            <tr class="priority-medium">
+                <td><span class="risk-medium">MEDIUM</span></td>
+                <td>Low Confidence</td>
+                <td>Re-check domain:support.google.com</td>
+                <td>Confidence 49% from source google_dorks_profile_pages</td>
+                <td>support.google.com</td>
+            </tr>
+            
+            <tr class="priority-low">
+                <td><span class="risk-low">LOW</span></td>
+                <td>Silent Tool</td>
+                <td>Confirm whether &#39;amass&#39; should have run</td>
+                <td>Integrated tool produced no artifacts (missing binary, not dispatched, or empty result).</td>
+                <td>amass</td>
+            </tr>
+            
+            <tr class="priority-low">
+                <td><span class="risk-low">LOW</span></td>
+                <td>Silent Tool</td>
+                <td>Confirm whether &#39;exiftool&#39; should have run</td>
+                <td>Integrated tool produced no artifacts (missing binary, not dispatched, or empty result).</td>
+                <td>exiftool</td>
+            </tr>
+            
+            <tr class="priority-low">
+                <td><span class="risk-low">LOW</span></td>
+                <td>Silent Tool</td>
+                <td>Confirm whether &#39;holehe&#39; should have run</td>
+                <td>Integrated tool produced no artifacts (missing binary, not dispatched, or empty result).</td>
+                <td>holehe</td>
+            </tr>
+            
+            <tr class="priority-low">
+                <td><span class="risk-low">LOW</span></td>
+                <td>Silent Tool</td>
+                <td>Confirm whether &#39;maigret&#39; should have run</td>
+                <td>Integrated tool produced no artifacts (missing binary, not dispatched, or empty result).</td>
+                <td>maigret</td>
+            </tr>
+            
+            <tr class="priority-low">
+                <td><span class="risk-low">LOW</span></td>
+                <td>Silent Tool</td>
+                <td>Confirm whether &#39;nmap&#39; should have run</td>
+                <td>Integrated tool produced no artifacts (missing binary, not dispatched, or empty result).</td>
+                <td>nmap</td>
+            </tr>
+            
+            <tr class="priority-low">
+                <td><span class="risk-low">LOW</span></td>
+                <td>Silent Tool</td>
+                <td>Confirm whether &#39;osrframework&#39; should have run</td>
+                <td>Integrated tool produced no artifacts (missing binary, not dispatched, or empty result).</td>
+                <td>osrframework</td>
+            </tr>
+            
+            <tr class="priority-low">
+                <td><span class="risk-low">LOW</span></td>
+                <td>Silent Tool</td>
+                <td>Confirm whether &#39;sherlock&#39; should have run</td>
+                <td>Integrated tool produced no artifacts (missing binary, not dispatched, or empty result).</td>
+                <td>sherlock</td>
+            </tr>
+            
+            <tr class="priority-low">
+                <td><span class="risk-low">LOW</span></td>
+                <td>Silent Tool</td>
+                <td>Confirm whether &#39;shodan&#39; should have run</td>
+                <td>Integrated tool produced no artifacts (missing binary, not dispatched, or empty result).</td>
+                <td>shodan</td>
+            </tr>
+            
+            <tr class="priority-medium">
+                <td><span class="risk-medium">MEDIUM</span></td>
+                <td>Unattributed Finding</td>
+                <td>Link or discard orphan platform_presence:https://github.com/mail2dhaya</td>
+                <td>Finding is not attached to an identity profile; seed an identity artifact if attribution is expected.</td>
+                <td>https://github.com/mail2dhaya</td>
+            </tr>
+            
+            <tr class="priority-medium">
+                <td><span class="risk-medium">MEDIUM</span></td>
+                <td>Unattributed Finding</td>
+                <td>Link or discard orphan username:websearch</td>
+                <td>Finding is not attached to an identity profile; seed an identity artifact if attribution is expected.</td>
+                <td>websearch</td>
+            </tr>
+            
+            <tr class="priority-medium">
+                <td><span class="risk-medium">MEDIUM</span></td>
+                <td>Unattributed Finding</td>
+                <td>Link or discard orphan image:https://avatars.githubusercontent.com/u/2688015?v=4</td>
+                <td>Finding is not attached to an identity profile; seed an identity artifact if attribution is expected.</td>
+                <td>https://avatars.githubusercontent.com/u/2688015?v=4</td>
+            </tr>
+            
+            <tr class="priority-medium">
+                <td><span class="risk-medium">MEDIUM</span></td>
+                <td>Unattributed Finding</td>
+                <td>Link or discard orphan image:https://s.pinimg.com/images/default_open_graph_1200.png</td>
+                <td>Finding is not attached to an identity profile; seed an identity artifact if attribution is expected.</td>
+                <td>https://s.pinimg.com/images/default_open_graph_1200.png</td>
+            </tr>
+            
+            <tr class="priority-medium">
+                <td><span class="risk-medium">MEDIUM</span></td>
+                <td>Unattributed Finding</td>
+                <td>Link or discard orphan platform_presence:https://github.com/webSearch</td>
+                <td>Finding is not attached to an identity profile; seed an identity artifact if attribution is expected.</td>
+                <td>https://github.com/webSearch</td>
+            </tr>
+            
+            </tbody>
+        </table>
+        
+    </div>
+    
+
+    
+    <h2>8. Evidence Chains</h2>
+    <p class="section-blurb">Provenance paths from seed artifacts through discovery links (type, confidence, evidence text).</p>
+    <div class="card">
+        
+        
+        <div class="evidence-chain" style="margin-bottom: 0.75rem;">
+            
+            <span class="chain-step"><span class="badge badge-username">username</span> mail2dhaya
+            
+            </span><span class="chain-arrow">→</span>
+            
+            <span class="chain-step"><span class="badge badge-image">image</span> https://avatars.githubusercontent.com/u/7057030?v=4
+             <span class="summary-meta">(via has_profile_image: profile_image_github)</span>
+            </span>
+            
+        </div>
+        
+        <div class="evidence-chain" style="margin-bottom: 0.75rem;">
+            
+            <span class="chain-step"><span class="badge badge-username">username</span> mail2dhaya
+            
+            </span><span class="chain-arrow">→</span>
+            
+            <span class="chain-step"><span class="badge badge-domain">domain</span> support.google.com
+             <span class="summary-meta">(via discovered_from: google_dorks_profile_pages)</span>
+            </span><span class="chain-arrow">→</span>
+            
+            <span class="chain-step"><span class="badge badge-ip_address">ip_address</span> 142.250.66.14
+             <span class="summary-meta">(via discovered_from: dig)</span>
+            </span>
+            
+        </div>
+        
+        <div class="evidence-chain" style="margin-bottom: 0.75rem;">
+            
+            <span class="chain-step"><span class="badge badge-username">username</span> mail2dhaya
+            
+            </span><span class="chain-arrow">→</span>
+            
+            <span class="chain-step"><span class="badge badge-domain">domain</span> support.google.com
+             <span class="summary-meta">(via discovered_from: google_dorks_profile_pages)</span>
+            </span><span class="chain-arrow">→</span>
+            
+            <span class="chain-step"><span class="badge badge-domain_info">domain_info</span> support.google.com
+             <span class="summary-meta">(via discovered_from: whois)</span>
+            </span>
+            
+        </div>
+        
+        <div class="evidence-chain" style="margin-bottom: 0.75rem;">
+            
+            <span class="chain-step"><span class="badge badge-username">username</span> mail2dhaya
+            
+            </span><span class="chain-arrow">→</span>
+            
+            <span class="chain-step"><span class="badge badge-username">username</span> websearch
+             <span class="summary-meta">(via discovered_from: google_dorks_profile_pages)</span>
+            </span><span class="chain-arrow">→</span>
+            
+            <span class="chain-step"><span class="badge badge-image">image</span> https://avatars.githubusercontent.com/u/2688015?v=4
+             <span class="summary-meta">(via has_profile_image: profile_image_github)</span>
+            </span>
+            
+        </div>
+        
+        <div class="evidence-chain" style="margin-bottom: 0.75rem;">
+            
+            <span class="chain-step"><span class="badge badge-username">username</span> mail2dhaya
+            
+            </span><span class="chain-arrow">→</span>
+            
+            <span class="chain-step"><span class="badge badge-username">username</span> websearch
+             <span class="summary-meta">(via discovered_from: google_dorks_profile_pages)</span>
+            </span><span class="chain-arrow">→</span>
+            
+            <span class="chain-step"><span class="badge badge-image">image</span> https://s.pinimg.com/images/default_open_graph_1200.png
+             <span class="summary-meta">(via has_profile_image: profile_image_pinterest)</span>
+            </span>
+            
+        </div>
+        
+        <div class="evidence-chain" style="margin-bottom: 0.75rem;">
+            
+            <span class="chain-step"><span class="badge badge-username">username</span> mail2dhaya
+            
+            </span><span class="chain-arrow">→</span>
+            
+            <span class="chain-step"><span class="badge badge-username">username</span> websearch
+             <span class="summary-meta">(via discovered_from: google_dorks_profile_pages)</span>
+            </span><span class="chain-arrow">→</span>
+            
+            <span class="chain-step"><span class="badge badge-platform_presence">platform_presence</span> https://github.com/webSearch
+             <span class="summary-meta">(via discovered_from: username_search_github)</span>
+            </span>
+            
+        </div>
+        
+        <div class="evidence-chain" style="margin-bottom: 0.75rem;">
+            
+            <span class="chain-step"><span class="badge badge-username">username</span> mail2dhaya
+            
+            </span><span class="chain-arrow">→</span>
+            
+            <span class="chain-step"><span class="badge badge-username">username</span> websearch
+             <span class="summary-meta">(via discovered_from: google_dorks_profile_pages)</span>
+            </span><span class="chain-arrow">→</span>
+            
+            <span class="chain-step"><span class="badge badge-platform_presence">platform_presence</span> https://www.pinterest.com/websearch/
+             <span class="summary-meta">(via discovered_from: username_search_pinterest)</span>
+            </span>
+            
+        </div>
+        
+        <div class="evidence-chain" style="margin-bottom: 0.75rem;">
+            
+            <span class="chain-step"><span class="badge badge-username">username</span> mail2dhaya
+            
+            </span><span class="chain-arrow">→</span>
+            
+            <span class="chain-step"><span class="badge badge-username">username</span> websearch
+             <span class="summary-meta">(via discovered_from: google_dorks_profile_pages)</span>
+            </span><span class="chain-arrow">→</span>
+            
+            <span class="chain-step"><span class="badge badge-domain">domain</span> support.google.com
+             <span class="summary-meta">(via discovered_from: google_dorks_simple_search)</span>
+            </span><span class="chain-arrow">→</span>
+            
+            <span class="chain-step"><span class="badge badge-ip_address">ip_address</span> 142.250.66.14
+             <span class="summary-meta">(via discovered_from: dig)</span>
+            </span>
+            
+        </div>
+        
+        <div class="evidence-chain" style="margin-bottom: 0.75rem;">
+            
+            <span class="chain-step"><span class="badge badge-username">username</span> mail2dhaya
+            
+            </span><span class="chain-arrow">→</span>
+            
+            <span class="chain-step"><span class="badge badge-username">username</span> websearch
+             <span class="summary-meta">(via discovered_from: google_dorks_profile_pages)</span>
+            </span><span class="chain-arrow">→</span>
+            
+            <span class="chain-step"><span class="badge badge-domain">domain</span> support.google.com
+             <span class="summary-meta">(via discovered_from: google_dorks_simple_search)</span>
+            </span><span class="chain-arrow">→</span>
+            
+            <span class="chain-step"><span class="badge badge-domain_info">domain_info</span> support.google.com
+             <span class="summary-meta">(via discovered_from: whois)</span>
+            </span>
+            
+        </div>
+        
+        <div class="evidence-chain" style="margin-bottom: 0.75rem;">
+            
+            <span class="chain-step"><span class="badge badge-username">username</span> mail2dhaya
+            
+            </span><span class="chain-arrow">→</span>
+            
+            <span class="chain-step"><span class="badge badge-platform_presence">platform_presence</span> https://github.com/mail2dhaya
+             <span class="summary-meta">(via discovered_from: username_search_github)</span>
+            </span><span class="chain-arrow">→</span>
+            
+            <span class="chain-step"><span class="badge badge-image">image</span> https://avatars.githubusercontent.com/u/7057030?v=4
+             <span class="summary-meta">(via discovered_from: plugin:ProfileImagePlugin)</span>
+            </span>
+            
+        </div>
+        
+        
+    </div>
+    
+
+    
+    <h2>9. Unattributed Findings</h2>
+    <p class="section-blurb">Artifacts that are not attached to an identity profile (common for IP/domain-only seeds).</p>
+    <div class="card">
+        
+        <table>
+            <thead><tr><th>Type</th><th>Value</th><th>Source</th><th>Confidence</th><th>Depth</th></tr></thead>
+            <tbody>
+            
+            <tr>
+                <td><span class="badge badge-platform_presence">platform_presence</span></td>
+                <td>https://github.com/mail2dhaya</td>
+                <td>username_search_github</td>
+                <td>90%</td>
+                <td>1</td>
+            </tr>
+            
+            <tr>
+                <td><span class="badge badge-username">username</span></td>
+                <td>websearch</td>
+                <td>google_dorks_profile_pages</td>
+                <td>70%</td>
+                <td>1</td>
+            </tr>
+            
+            <tr>
+                <td><span class="badge badge-image">image</span></td>
+                <td>https://avatars.githubusercontent.com/u/2688015?v=4</td>
+                <td>profile_image_github</td>
+                <td>85%</td>
+                <td>2</td>
+            </tr>
+            
+            <tr>
+                <td><span class="badge badge-image">image</span></td>
+                <td>https://s.pinimg.com/images/default_open_graph_1200.png</td>
+                <td>profile_image_pinterest</td>
+                <td>85%</td>
+                <td>2</td>
+            </tr>
+            
+            <tr>
+                <td><span class="badge badge-platform_presence">platform_presence</span></td>
+                <td>https://github.com/webSearch</td>
+                <td>username_search_github</td>
+                <td>90%</td>
+                <td>2</td>
+            </tr>
+            
+            <tr>
+                <td><span class="badge badge-platform_presence">platform_presence</span></td>
+                <td>https://www.pinterest.com/websearch/</td>
+                <td>username_search_pinterest</td>
+                <td>90%</td>
+                <td>2</td>
+            </tr>
+            
+            </tbody>
+        </table>
+        
+    </div>
+    
+
+    
+    <h2>10. Tool Run Status</h2>
+    <p class="section-blurb">Distinguishes not-installed tools from installed tools that were silent or not dispatched.</p>
+    <div class="card">
+        <table>
+            <thead><tr><th>Tool</th><th>Available</th><th>State</th></tr></thead>
+            <tbody>
+            
+            <tr>
+                <td>amass</td>
+                <td>no</td>
+                <td class="status-not_installed">not_installed</td>
+            </tr>
+            
+            <tr>
+                <td>dig</td>
+                <td>yes</td>
+                <td class="status-produced_output">produced_output</td>
+            </tr>
+            
+            <tr>
+                <td>exiftool</td>
+                <td>no</td>
+                <td class="status-not_installed">not_installed</td>
+            </tr>
+            
+            <tr>
+                <td>holehe</td>
+                <td>no</td>
+                <td class="status-not_installed">not_installed</td>
+            </tr>
+            
+            <tr>
+                <td>maigret</td>
+                <td>no</td>
+                <td class="status-not_installed">not_installed</td>
+            </tr>
+            
+            <tr>
+                <td>nmap</td>
+                <td>no</td>
+                <td class="status-not_installed">not_installed</td>
+            </tr>
+            
+            <tr>
+                <td>osrframework</td>
+                <td>no</td>
+                <td class="status-not_installed">not_installed</td>
+            </tr>
+            
+            <tr>
+                <td>sherlock</td>
+                <td>no</td>
+                <td class="status-not_installed">not_installed</td>
+            </tr>
+            
+            <tr>
+                <td>shodan</td>
+                <td>no</td>
+                <td class="status-not_installed">not_installed</td>
+            </tr>
+            
+            <tr>
+                <td>subfinder</td>
+                <td>no</td>
+                <td class="status-not_installed">not_installed</td>
+            </tr>
+            
+            <tr>
+                <td>sublist3r</td>
+                <td>no</td>
+                <td class="status-not_installed">not_installed</td>
+            </tr>
+            
+            <tr>
+                <td>theharvester</td>
+                <td>no</td>
+                <td class="status-not_installed">not_installed</td>
+            </tr>
+            
+            <tr>
+                <td>wayback_machine</td>
+                <td>yes</td>
+                <td class="status-silent_or_not_dispatched">silent_or_not_dispatched</td>
+            </tr>
+            
+            <tr>
+                <td>whatweb</td>
+                <td>no</td>
+                <td class="status-not_installed">not_installed</td>
+            </tr>
+            
+            <tr>
+                <td>whois</td>
+                <td>yes</td>
+                <td class="status-produced_output">produced_output</td>
+            </tr>
+            
+            </tbody>
+        </table>
+        
+        <p class="silent-tools">Not installed: amass, exiftool, holehe, maigret, nmap, osrframework, sherlock, shodan, subfinder, sublist3r, theharvester, whatweb</p>
+        
+        
+        <p class="silent-tools">Installed but silent/not dispatched: wayback_machine</p>
+        
+    </div>
+    
+
+    
+    <h2>11. Geographic / Location Signals</h2>
+    <p class="section-blurb">GPS and location-related artifacts (EXIF, phone region, etc.).</p>
+    <div class="card">
+        
+        <p class="empty-note">No geographic signals recorded.</p>
+        
+    </div>
+    
+
+    
+    <h2>12. Audit Trail</h2>
+    <p class="section-blurb">Investigation lifecycle events recorded during collection and reporting.</p>
+    <div class="card">
+        
+        <table>
+            <thead><tr><th>When</th><th>Action</th><th>Entity</th><th>Details</th></tr></thead>
+            <tbody>
+            
+            <tr>
+                <td>2026-08-02T07:58:27</td>
+                <td>investigation_completed</td>
+                <td>investigation INV-7eae9f7f</td>
+                <td>{&#34;total_artifacts&#34;: 0, &#34;total_links&#34;: 0, &#34;total_platforms&#34;: 0}</td>
+            </tr>
+            
+            <tr>
+                <td>2026-08-02T07:57:49</td>
+                <td>investigation_started</td>
+                <td>investigation INV-7eae9f7f</td>
+                <td>{&#34;seed_count&#34;: 1, &#34;title&#34;: null}</td>
+            </tr>
+            
+            </tbody>
+        </table>
+        
+    </div>
+    
+
+    
+    <h2>13. Investigator Notes</h2>
+    <p class="section-blurb">Threaded comments and annotations attached to the investigation.</p>
+    <div class="card">
+        
+        <p class="empty-note">No investigator notes yet.</p>
+        
+    </div>
+    
+
+    
+    <h2>14. Cross-Investigation Matches</h2>
+    <p class="section-blurb">Same artifact values seen in other investigations in this database.</p>
+    <div class="card">
+        
+        <table>
+            <thead><tr><th>Other INV</th><th>Type</th><th>Value</th><th>Source</th></tr></thead>
+            <tbody>
+            
+            <tr>
+                <td>INV-e4ff9b09</td>
+                <td>platform_presence</td>
+                <td>https://www.pinterest.com/websearch/</td>
+                <td>username_search_pinterest</td>
+            </tr>
+            
+            <tr>
+                <td>INV-b0dee37d</td>
+                <td>platform_presence</td>
+                <td>https://www.pinterest.com/websearch/</td>
+                <td>username_search_pinterest</td>
+            </tr>
+            
+            <tr>
+                <td>INV-473e0a40</td>
+                <td>platform_presence</td>
+                <td>https://www.pinterest.com/websearch/</td>
+                <td>username_search_pinterest</td>
+            </tr>
+            
+            <tr>
+                <td>INV-457e1194</td>
+                <td>platform_presence</td>
+                <td>https://www.pinterest.com/websearch/</td>
+                <td>username_search_pinterest</td>
+            </tr>
+            
+            <tr>
+                <td>INV-dff41e32</td>
+                <td>platform_presence</td>
+                <td>https://www.pinterest.com/websearch/</td>
+                <td>username_search_pinterest</td>
+            </tr>
+            
+            <tr>
+                <td>INV-e4ff9b09</td>
+                <td>username</td>
+                <td>websearch</td>
+                <td>plugin:GoogleDorksPlugin</td>
+            </tr>
+            
+            <tr>
+                <td>INV-b0dee37d</td>
+                <td>username</td>
+                <td>websearch</td>
+                <td>plugin:GoogleDorksPlugin</td>
+            </tr>
+            
+            <tr>
+                <td>INV-473e0a40</td>
+                <td>username</td>
+                <td>websearch</td>
+                <td>plugin:GoogleDorksPlugin</td>
+            </tr>
+            
+            <tr>
+                <td>INV-14093707</td>
+                <td>username</td>
+                <td>websearch</td>
+                <td>plugin:GoogleDorksPlugin</td>
+            </tr>
+            
+            <tr>
+                <td>INV-457e1194</td>
+                <td>username</td>
+                <td>websearch</td>
+                <td>plugin:GoogleDorksPlugin</td>
+            </tr>
+            
+            <tr>
+                <td>INV-a79b9c7c</td>
+                <td>platform_presence</td>
+                <td>https://github.com/mail2dhaya</td>
+                <td>username_search_github</td>
+            </tr>
+            
+            <tr>
+                <td>INV-bafdfa07</td>
+                <td>platform_presence</td>
+                <td>https://github.com/mail2dhaya</td>
+                <td>username_search_github</td>
+            </tr>
+            
+            <tr>
+                <td>INV-7184b52a</td>
+                <td>platform_presence</td>
+                <td>https://github.com/mail2dhaya</td>
+                <td>username_search_github</td>
+            </tr>
+            
+            <tr>
+                <td>INV-fa4805fc</td>
+                <td>platform_presence</td>
+                <td>https://github.com/mail2dhaya</td>
+                <td>username_search_github</td>
+            </tr>
+            
+            <tr>
+                <td>INV-b3b5f237</td>
+                <td>platform_presence</td>
+                <td>https://github.com/mail2dhaya</td>
+                <td>username_search_github</td>
+            </tr>
+            
+            <tr>
+                <td>INV-e4ff9b09</td>
+                <td>domain</td>
+                <td>support.google.com</td>
+                <td>plugin:GoogleDorksPlugin</td>
+            </tr>
+            
+            <tr>
+                <td>INV-b0dee37d</td>
+                <td>domain</td>
+                <td>support.google.com</td>
+                <td>plugin:GoogleDorksPlugin</td>
+            </tr>
+            
+            <tr>
+                <td>INV-473e0a40</td>
+                <td>domain</td>
+                <td>support.google.com</td>
+                <td>plugin:GoogleDorksPlugin</td>
+            </tr>
+            
+            <tr>
+                <td>INV-14093707</td>
+                <td>domain</td>
+                <td>support.google.com</td>
+                <td>plugin:GoogleDorksPlugin</td>
+            </tr>
+            
+            <tr>
+                <td>INV-457e1194</td>
+                <td>domain</td>
+                <td>support.google.com</td>
+                <td>plugin:GoogleDorksPlugin</td>
+            </tr>
+            
+            <tr>
+                <td>INV-e4ff9b09</td>
+                <td>platform_presence</td>
+                <td>https://github.com/webSearch</td>
+                <td>username_search_github</td>
+            </tr>
+            
+            <tr>
+                <td>INV-b0dee37d</td>
+                <td>platform_presence</td>
+                <td>https://github.com/webSearch</td>
+                <td>username_search_github</td>
+            </tr>
+            
+            <tr>
+                <td>INV-457e1194</td>
+                <td>platform_presence</td>
+                <td>https://github.com/webSearch</td>
+                <td>username_search_github</td>
+            </tr>
+            
+            <tr>
+                <td>INV-dff41e32</td>
+                <td>platform_presence</td>
+                <td>https://github.com/webSearch</td>
+                <td>username_search_github</td>
+            </tr>
+            
+            <tr>
+                <td>INV-fa4805fc</td>
+                <td>platform_presence</td>
+                <td>https://github.com/webSearch</td>
+                <td>username_search_github</td>
+            </tr>
+            
+            </tbody>
+        </table>
+        
+    </div>
+    
+
+    
+
+    <!-- Footer -->
+    <div class="footer">
+        <p>Ghost Identity Hunter - OSINT Investigation Report | Generated 2026-08-02 07:58 UTC</p>
+    </div>
+</div>
+
+<script>
+    function toggleCollapsible(element) {
+        element.classList.toggle('active');
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+        document.querySelectorAll('.collapsible-header').forEach(function (header) {
+            header.addEventListener('click', function () {
+                toggleCollapsible(header.parentElement);
+            });
+        });
+
+        function setAllDetails(open) {
+            document.querySelectorAll('details.drilldown').forEach(function (item) {
+                item.open = open;
+            });
+        }
+
+        var expandAll = document.getElementById('expand-all');
+        var collapseAll = document.getElementById('collapse-all');
+        if (expandAll) { expandAll.addEventListener('click', function () { setAllDetails(true); }); }
+        if (collapseAll) { collapseAll.addEventListener('click', function () { setAllDetails(false); }); }
+
+        // Interactive filters for artifacts / platforms
+        var typeSelect = document.getElementById('filter-type');
+        if (typeSelect) {
+            var types = {};
+            document.querySelectorAll('.artifact-row').forEach(function (el) {
+                var t = el.getAttribute('data-type');
+                if (t) types[t] = true;
+            });
+            Object.keys(types).sort().forEach(function (t) {
+                var opt = document.createElement('option');
+                opt.value = t; opt.textContent = t;
+                typeSelect.appendChild(opt);
+            });
+            function applyFilters() {
+                var type = (document.getElementById('filter-type').value || '').toLowerCase();
+                var minC = parseFloat(document.getElementById('filter-confidence').value || '0');
+                var source = (document.getElementById('filter-source').value || '').toLowerCase();
+                var value = (document.getElementById('filter-value').value || '').toLowerCase();
+                var shown = 0, total = 0;
+                document.querySelectorAll('.artifact-row, .presence-row').forEach(function (el) {
+                    total += 1;
+                    var ok = true;
+                    var dt = (el.getAttribute('data-type') || '').toLowerCase();
+                    var dc = parseFloat(el.getAttribute('data-confidence') || '0');
+                    var ds = (el.getAttribute('data-source') || '').toLowerCase();
+                    var dv = (el.getAttribute('data-value') || '').toLowerCase();
+                    if (type && dt !== type) ok = false;
+                    if (dc < minC) ok = false;
+                    if (source && ds.indexOf(source) === -1) ok = false;
+                    if (value && dv.indexOf(value) === -1) ok = false;
+                    el.classList.toggle('hidden', !ok);
+                    if (ok) shown += 1;
+                });
+                var count = document.getElementById('filter-count');
+                if (count) count.textContent = 'Showing ' + shown + ' of ' + total;
+            }
+            ['filter-type','filter-confidence','filter-source','filter-value'].forEach(function (id) {
+                var el = document.getElementById(id);
+                if (el) el.addEventListener('input', applyFilters);
+                if (el) el.addEventListener('change', applyFilters);
+            });
+            applyFilters();
+        }
+    });
+</script>
+</body>
+</html>
