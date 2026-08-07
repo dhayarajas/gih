@@ -91,6 +91,188 @@ def parse_sections(raw: Optional[str | list[str]]) -> set[str]:
     return set(items) & set(DEFAULT_SECTIONS) or set(DEFAULT_SECTIONS)
 
 
+# Event kinds shown on the timeline, with the reading each carries.
+TIMELINE_KINDS: dict[str, str] = {
+    "discovery": "Discovered by the investigation",
+    "breach": "Credentials exposed in a breach",
+    "registration": "Domain or account registered",
+    "expiry": "Registration expires",
+    "updated": "Registration record updated",
+    "capture": "Photograph taken",
+    "archive": "Page archived",
+    "activity": "Account activity",
+}
+
+# Metadata keys that carry a date, mapped to the kind of event they describe.
+_DATE_KEYS = {
+    "breach_date": "breach",
+    "breachdate": "breach",
+    "added_date": "breach",
+    "addeddate": "breach",
+    "leak_date": "breach",
+    "creation_date": "registration",
+    "created_at": "registration",
+    "created_date": "registration",
+    "registered_on": "registration",
+    "registration_date": "registration",
+    "expiration_date": "expiry",
+    "expiry_date": "expiry",
+    "updated_date": "updated",
+    "last_updated": "updated",
+    "date_taken": "capture",
+    "datetimeoriginal": "capture",
+    "createdate": "capture",
+    "timestamp": "archive",
+    "first_capture": "archive",
+    "last_capture": "archive",
+    "last_activity": "activity",
+    "last_seen": "activity",
+    "joined": "activity",
+    "join_date": "activity",
+}
+
+# Artifact types whose value is itself a date.
+_DATE_VALUE_TYPES = {"creation_date": "capture"}
+
+_WAYBACK_TS = re.compile(r"^\d{14}$")
+_EXIF_TS = re.compile(r"^(\d{4}):(\d{2}):(\d{2})[ T](\d{2}:\d{2}:\d{2})")
+_ISO_DATE = re.compile(r"(\d{4})-(\d{2})-(\d{2})")
+
+
+def parse_event_date(value) -> Optional[str]:
+    """Normalise a tool-supplied date to ISO 8601, or None if it isn't one.
+
+    Dates arrive in whatever the source emits: EXIF colons, Wayback's packed
+    timestamps, whois strings, HIBP ISO dates. Anything unrecognised is
+    dropped rather than guessed, since a wrong date on a timeline is worse
+    than a missing one.
+    """
+    if value is None or isinstance(value, bool):
+        return None
+    if isinstance(value, (int, float)):
+        value = str(int(value))
+    if not isinstance(value, str):
+        return None
+
+    text = value.strip()
+    if not text:
+        return None
+
+    if _WAYBACK_TS.match(text):
+        return (f"{text[0:4]}-{text[4:6]}-{text[6:8]}"
+                f"T{text[8:10]}:{text[10:12]}:{text[12:14]}")
+
+    exif = _EXIF_TS.match(text)
+    if exif:
+        return f"{exif.group(1)}-{exif.group(2)}-{exif.group(3)}T{exif.group(4)}"
+
+    iso = _ISO_DATE.search(text)
+    if iso:
+        rest = text[iso.end():]
+        time_part = re.match(r"[ T](\d{2}:\d{2}(:\d{2})?)", rest)
+        return f"{iso.group(0)}T{time_part.group(1)}" if time_part else iso.group(0)
+
+    return None
+
+
+def build_timeline(artifacts: list) -> list[dict]:
+    """Build a typed chronology from discovery times and artifact metadata.
+
+    Discovery order says when the investigation looked, not when anything
+    happened to the subject. Breach dates, EXIF capture times, archive
+    snapshots and registration dates are already in artifact metadata but were
+    never plotted; each becomes its own event so a persona's lifecycle is
+    readable rather than implied.
+    """
+    events = []
+    for artifact in artifacts:
+        artifact_id = artifact.get("artifact_id")
+        atype = artifact.get("artifact_type", "unknown")
+        value = artifact.get("value", "")
+        source = artifact.get("source", "unknown")
+
+        discovered = parse_event_date(artifact.get("discovered_at"))
+        if discovered:
+            events.append({
+                "when": discovered,
+                "kind": "discovery",
+                "artifact_id": artifact_id,
+                "artifact_type": atype,
+                "value": value,
+                "source": source,
+                "detail": f"depth {artifact.get('depth', 0)}",
+            })
+
+        if atype in _DATE_VALUE_TYPES:
+            when = parse_event_date(value)
+            if when:
+                events.append({
+                    "when": when,
+                    "kind": _DATE_VALUE_TYPES[atype],
+                    "artifact_id": artifact_id,
+                    "artifact_type": atype,
+                    "value": value,
+                    "source": source,
+                    "detail": atype.replace("_", " "),
+                })
+
+        for key, raw in _flatten_metadata(_parse_metadata_field(artifact.get("metadata"))):
+            kind = _DATE_KEYS.get(key.lower())
+            if not kind:
+                continue
+            when = parse_event_date(raw)
+            if not when:
+                continue
+            events.append({
+                "when": when,
+                "kind": kind,
+                "artifact_id": artifact_id,
+                "artifact_type": atype,
+                "value": value,
+                "source": source,
+                "detail": key.replace("_", " "),
+            })
+
+    seen = set()
+    unique = []
+    for event in sorted(events, key=lambda e: (e["when"], e["kind"], e["value"])):
+        key = (event["when"], event["kind"], event["artifact_id"], event["detail"])
+        if key in seen:
+            continue
+        seen.add(key)
+        event["kind_label"] = TIMELINE_KINDS.get(event["kind"], event["kind"])
+        unique.append(event)
+    return unique
+
+
+def _parse_metadata_field(raw) -> dict:
+    """Parse an artifact metadata column into a dict, tolerating bad JSON."""
+    if isinstance(raw, dict):
+        return raw
+    if not raw or not isinstance(raw, str):
+        return {}
+    try:
+        parsed = json.loads(raw)
+    except (ValueError, TypeError):
+        return {}
+    return parsed if isinstance(parsed, dict) else {}
+
+
+def _flatten_metadata(data, depth: int = 0):
+    """Yield (key, value) pairs from nested metadata, bounded in depth."""
+    if depth > 3:
+        return
+    if isinstance(data, dict):
+        for key, value in data.items():
+            if isinstance(value, (dict, list)):
+                yield from _flatten_metadata(value, depth + 1)
+            else:
+                yield str(key), value
+    elif isinstance(data, list):
+        for item in data[:50]:
+            yield from _flatten_metadata(item, depth + 1)
+
+
 def build_preserved_evidence(
     conn: sqlite3.Connection,
     investigation_id: str,
@@ -726,6 +908,14 @@ table, .collapsible, .collapsible-content, .drilldown-body, details.drilldown > 
   border-color: {card_border} !important;
 }}
 .chain-step {{ background: {banner_bg} !important; color: {body_color} !important; }}
+.timeline-when, .timeline-kind, .timeline-controls label {{ color: {body_color} !important; }}
+.timeline-detail {{ color: var(--gih-muted) !important; }}
+.timeline-controls select {{
+  background: {surface_bg} !important;
+  color: {body_color} !important;
+  border-color: {card_border} !important;
+}}
+ol.timeline {{ border-left-color: {card_border} !important; }}
 .status-not_installed {{ color: {status_bad} !important; }}
 .status-silent_or_not_dispatched {{ color: {status_warn} !important; }}
 .status-produced_output {{ color: {status_good} !important; }}

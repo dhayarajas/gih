@@ -463,6 +463,21 @@
         .status-verified { color: #276749; font-weight: 600; }
         .status-modified { color: #c53030; font-weight: 600; }
         .status-missing { color: #975a16; font-weight: 600; }
+        /* Timeline */
+        .timeline-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 0.75rem; margin-bottom: 0.75rem; font-size: 0.85rem; }
+        .timeline-controls select { padding: 0.3rem 0.5rem; border: 1px solid #cbd5e0; border-radius: 4px; background: #ffffff; color: #1a202c; }
+        .timeline-toggle { display: inline-flex; align-items: center; gap: 0.35rem; }
+        ol.timeline { list-style: none; margin: 0; padding: 0 0 0 1rem; border-left: 2px solid #cbd5e0; }
+        .timeline-event { position: relative; display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.5rem; padding: 0.4rem 0 0.4rem 0.75rem; font-size: 0.85rem; }
+        .timeline-event::before { content: ''; position: absolute; left: -1.42rem; top: 0.85rem; width: 9px; height: 9px; border-radius: 50%; background: #718096; }
+        .timeline-event.kind-breach::before { background: #c53030; }
+        .timeline-event.kind-registration::before { background: #2f855a; }
+        .timeline-event.kind-capture::before { background: #6b46c1; }
+        .timeline-event.kind-archive::before { background: #2b6cb0; }
+        .timeline-event.kind-expiry::before, .timeline-event.kind-updated::before { background: #975a16; }
+        .timeline-when { font-family: 'SF Mono', Menlo, Consolas, monospace; color: #4a5568; white-space: nowrap; }
+        .timeline-kind { font-weight: 600; color: #2d3748; }
+        .timeline-detail { color: #718096; font-size: 0.78rem; }
         .evidence-table th { white-space: nowrap; }
         .evidence-table td:first-child, .evidence-table td:nth-child(2) { white-space: nowrap; }
         .evidence-command, .evidence-digest {
@@ -746,24 +761,29 @@
     <p class="section-blurb">Investigation overview including timeline of discoveries, key findings, statistical metrics, confidence scores, and risk assessment matrix.</p>
     {% if timeline %}
     <div class="card">
-        <h3>Investigation Timeline</h3>
-        <p class="subsection-blurb">Chronological sequence showing when each artifact was discovered during the investigation process.</p>
-        <table>
-            <thead>
-                <tr><th>Time</th><th>Type</th><th>Value</th><th>Source</th><th>Depth</th></tr>
-            </thead>
-            <tbody>
-                {% for event in timeline[:10] %}
-                <tr>
-                    <td>{{ event.time[:19] if event.time else '-' }}</td>
-                    <td><span class="badge badge-{{ event.type }}">{{ event.type }}</span></td>
-                    <td>{{ event.value[:40] }}{% if event.value | length > 40 %}...{% endif %}</td>
-                    <td>{{ event.source or '-' }}</td>
-                    <td>{{ event.depth }}</td>
-                </tr>
+        <h3>Timeline</h3>
+        <p class="subsection-blurb">Every dated event in one chronology: when the subject's accounts and domains were registered, when photographs were taken, when pages were archived, when credentials were exposed, and when this investigation found each artifact. Use the selector to read one kind of event on its own.</p>
+        <div class="timeline-controls">
+            <label for="timeline-kind">Show</label>
+            <select id="timeline-kind">
+                <option value="">All events ({{ timeline | length }})</option>
+                {% for kind, label in timeline | groupby('kind') %}
+                <option value="{{ kind }}">{{ label[0].kind_label }} ({{ label | length }})</option>
                 {% endfor %}
-            </tbody>
-        </table>
+            </select>
+            <label class="timeline-toggle"><input type="checkbox" id="timeline-hide-discovery"> Hide discovery events</label>
+        </div>
+        <ol class="timeline">
+            {% for event in timeline %}
+            <li class="timeline-event kind-{{ event.kind }}" data-kind="{{ event.kind }}">
+                <span class="timeline-when">{{ event.when.replace('T', ' ') }}</span>
+                <span class="timeline-kind">{{ event.kind_label }}</span>
+                <span class="badge badge-{{ event.artifact_type }}">{{ event.artifact_type }}</span>
+                <a class="xref" href="#artifact-{{ event.artifact_id }}">{{ event.value }}</a>
+                <span class="timeline-detail">{{ event.detail }} &middot; {{ event.source or 'unknown' }}</span>
+            </li>
+            {% endfor %}
+        </ol>
     </div>
     {% endif %}
 
@@ -1374,6 +1394,27 @@
                 }
             });
         });
+
+        // Timeline filtering. Discovery events outnumber everything else, so
+        // they can be dropped to leave only what happened to the subject.
+        var timelineKind = document.getElementById('timeline-kind');
+        var timelineHideDiscovery = document.getElementById('timeline-hide-discovery');
+
+        function applyTimelineFilter() {
+            var kind = timelineKind ? timelineKind.value : '';
+            var hideDiscovery = timelineHideDiscovery && timelineHideDiscovery.checked;
+            document.querySelectorAll('.timeline-event').forEach(function (event) {
+                var eventKind = event.getAttribute('data-kind');
+                var show = (!kind || eventKind === kind) &&
+                           !(hideDiscovery && eventKind === 'discovery');
+                event.style.display = show ? '' : 'none';
+            });
+        }
+
+        if (timelineKind) { timelineKind.addEventListener('change', applyTimelineFilter); }
+        if (timelineHideDiscovery) {
+            timelineHideDiscovery.addEventListener('change', applyTimelineFilter);
+        }
 
         // The graph runs in a file:// iframe, which cannot touch this document,
         // so it asks for a node's detail section by message instead.
