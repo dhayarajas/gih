@@ -341,6 +341,22 @@
         }
         .drilldown-controls button:hover { background: #edf2f7; }
 
+        /* Cross-references between entities */
+        a.xref {
+            color: #2b6cb0;
+            text-decoration: none;
+            border-bottom: 1px dotted #90cdf4;
+        }
+        a.xref:hover { border-bottom-style: solid; }
+        .xref-hit {
+            animation: xref-flash 2s ease-out;
+            scroll-margin-top: 1rem;
+        }
+        @keyframes xref-flash {
+            from { box-shadow: 0 0 0 3px #f6e05e; }
+            to { box-shadow: 0 0 0 3px rgba(246, 224, 94, 0); }
+        }
+
         /* Print */
         @media print {
             body { background: white; }
@@ -574,7 +590,7 @@
     <h2>{{ ns.n }}. Identity Profiles</h2>
     <p class="section-blurb">Correlated personas that link multiple artifacts to single identities, showing confidence scores, associated risk indicators, and profile images for understanding the target's digital footprint. Expand a profile to review its complete evidence basis.</p>
     {% for identity in correlation.identities %}
-    <div class="card">
+    <div class="card" id="identity-{{ identity.profile_id }}">
         <h3>Identity Profile #{{ loop.index }}</h3>
         <div style="display: flex; gap: 1.5rem; align-items: flex-start;">
             {% set images = identity_images.get(identity.profile_id, []) %}
@@ -671,7 +687,7 @@
                         {% for a in profile_artifacts %}
                         <tr>
                             <td><span class="badge badge-{{ a.artifact_type }}">{{ a.artifact_type }}</span></td>
-                            <td>{{ a.value }}</td>
+                            <td><a class="xref" href="#artifact-{{ a.artifact_id }}">{{ a.value }}</a></td>
                             <td>{{ a.source or '-' }}</td>
                             <td>{{ "%.0f%%" | format((a.confidence or 0) * 100) }}</td>
                             <td>{{ a.depth }}</td>
@@ -963,7 +979,7 @@
     <p class="section-blurb">Complete inventory of all data points found (emails, usernames, phone numbers, domains, etc.) with source attribution, confidence scores, and discovery depth. Expand an artifact to review its full metadata and the links that connect it to the rest of the investigation.</p>
     <div class="card">
         {% for a in artifact_views %}
-        <details class="drilldown artifact-row" data-type="{{ a.artifact_type }}" data-confidence="{{ a.confidence or 0 }}" data-source="{{ a.source or '' }}" data-value="{{ a.value }}">
+        <details class="drilldown artifact-row" id="artifact-{{ a.artifact_id }}" data-type="{{ a.artifact_type }}" data-confidence="{{ a.confidence or 0 }}" data-source="{{ a.source or '' }}" data-value="{{ a.value }}">
             <summary>
                 <span class="badge badge-{{ a.artifact_type }}">{{ a.artifact_type }}</span>
                 <span class="summary-value">{{ a.value }}</span>
@@ -983,7 +999,7 @@
                         <tr><td>Confidence</td><td>{{ "%.0f%%" | format((a.confidence or 0) * 100) }}</td></tr>
                         <tr><td>Discovery depth</td><td>{{ a.depth }}</td></tr>
                         <tr><td>Discovered at</td><td>{{ a.discovered_at[:19] if a.discovered_at else '-' }}</td></tr>
-                        <tr><td>Attributed identity</td><td>{{ a.identity_label or 'Not attributed' }}</td></tr>
+                        <tr><td>Attributed identity</td><td>{% if a.identity_profile_id %}<a class="xref" href="#identity-{{ a.identity_profile_id }}">{{ a.identity_label }}</a>{% else %}Not attributed{% endif %}</td></tr>
                     </tbody>
                 </table>
 
@@ -1031,7 +1047,7 @@
                         <tr>
                             <td>{{ c.direction }}</td>
                             <td>{{ c.link_type }}</td>
-                            <td><span class="badge badge-{{ c.other_type }}">{{ c.other_type }}</span> {{ c.other_value }}</td>
+                            <td><span class="badge badge-{{ c.other_type }}">{{ c.other_type }}</span> <a class="xref" href="#artifact-{{ c.other_id }}">{{ c.other_value }}</a></td>
                             <td>{{ "%.0f%%" | format(c.confidence * 100) }}</td>
                             <td>{{ c.evidence or '-' }}</td>
                         </tr>
@@ -1057,7 +1073,7 @@
         {% for chain in evidence_chains %}
         <div class="evidence-chain" style="margin-bottom: 0.75rem;">
             {% for step in chain.steps %}
-            <span class="chain-step"><span class="badge badge-{{ step.type }}">{{ step.type }}</span> {{ step.value }}
+            <span class="chain-step"><span class="badge badge-{{ step.type }}">{{ step.type }}</span> <a class="xref" href="#artifact-{{ step.artifact_id }}">{{ step.value }}</a>
             {% if step.via %} <span class="summary-meta">(via {{ step.via.link_type }}{% if step.via.evidence %}: {{ step.via.evidence }}{% endif %})</span>{% endif %}
             </span>{% if not loop.last %}<span class="chain-arrow">→</span>{% endif %}
             {% endfor %}
@@ -1077,7 +1093,7 @@
             {% for o in orphan_findings %}
             <tr>
                 <td><span class="badge badge-{{ o.type }}">{{ o.type }}</span></td>
-                <td>{{ o.value }}</td>
+                <td><a class="xref" href="#artifact-{{ o.artifact_id }}">{{ o.value }}</a></td>
                 <td>{{ o.source or '-' }}</td>
                 <td>{{ "%.0f%%" | format((o.confidence or 0) * 100) }}</td>
                 <td>{{ o.depth }}</td>
@@ -1279,6 +1295,41 @@
                 if (el) el.addEventListener('change', applyFilters);
             });
             applyFilters();
+        }
+
+        // Cross-references: a target inside a collapsed drill-down (or hidden by
+        // a filter) is unreachable by the browser's default anchor jump, so open
+        // its ancestors and clear the filters before scrolling to it.
+        function revealTarget(id) {
+            var target = document.getElementById(id);
+            if (!target) { return false; }
+            var node = target;
+            while (node && node !== document.body) {
+                if (node.tagName === 'DETAILS') { node.open = true; }
+                node.classList.remove('hidden');
+                if (node.classList.contains('collapsible')) { node.classList.add('active'); }
+                node = node.parentElement;
+            }
+            if (target.tagName === 'DETAILS') { target.open = true; }
+            target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            target.classList.remove('xref-hit');
+            void target.offsetWidth;
+            target.classList.add('xref-hit');
+            return true;
+        }
+
+        document.querySelectorAll('a.xref').forEach(function (link) {
+            link.addEventListener('click', function (event) {
+                var id = (link.getAttribute('href') || '').replace(/^#/, '');
+                if (id && revealTarget(id)) {
+                    event.preventDefault();
+                    history.replaceState(null, '', '#' + id);
+                }
+            });
+        });
+
+        if (window.location.hash.length > 1) {
+            revealTarget(window.location.hash.slice(1));
         }
     });
 </script>
