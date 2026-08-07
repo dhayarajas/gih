@@ -219,6 +219,30 @@ class TestToolFindingCorrelation:
         assert "Canon EOS 80D" in profile.device_info
         assert profile.tools_used == ["exiftool"]
 
+    def test_the_newer_finding_types_reach_the_profile(self, conn):
+        """A finding with no field of its own is still the identity's."""
+        inv_id = db.create_investigation(conn)
+
+        username = db.add_artifact(conn, inv_id, "username", "octocat", source="seed")
+        domain = db.add_artifact(conn, inv_id, "domain", "example.com", source="whois")
+        db.add_link(conn, inv_id, username, domain, "discovered_from")
+        for atype, value, source in (
+            ("name_server", "ns1.example.com", "whois"),
+            ("hostname", "www.example.com", "nmap"),
+            ("asn", "AS15133", "theharvester"),
+            ("device_serial", "SN-0042", "exiftool"),
+        ):
+            found = db.add_artifact(conn, inv_id, atype, value, source=source)
+            db.add_link(conn, inv_id, domain, found, "discovered_from")
+
+        profile = next(p for p in correlate_identities(conn, inv_id).identities
+                       if "octocat" in p.usernames)
+
+        assert "ns1.example.com" in profile.dns_records
+        assert "www.example.com" in profile.hosts
+        assert "SN-0042" in profile.device_info
+        assert "AS15133" in [f["value"] for f in profile.tool_findings]
+
 
 class TestExifToolTargets:
     """exiftool reads local files only; image artifacts may be remote URLs."""
@@ -332,3 +356,48 @@ class TestToolArguments:
 
         assert "-F" in calls[0] and "-p" not in calls[0]
         assert calls[1][calls[1].index("-p") + 1] == "22,443"
+
+
+class TestDamagedReports:
+    """A report that cannot be read is no worse than one never written."""
+
+    @staticmethod
+    def _writer(monkeypatch, integration, write, output):
+        """Run the tool as if it wrote ``write(command)`` and printed ``output``."""
+        def fake_run_tool(tool_name, command, timeout=None, cwd=None):
+            write(command)
+            return ToolResult(tool_name=tool_name, success=True, output=output)
+
+        monkeypatch.setattr(integration, "run_tool", fake_run_tool)
+        monkeypatch.setattr(tool_checker, "check_tool_availability", lambda name: True)
+
+    def test_truncated_nmap_xml_falls_back_to_the_table(self, monkeypatch):
+        from src.modules.external_tools import NmapIntegration
+
+        integration = NmapIntegration()
+        self._writer(
+            monkeypatch, integration,
+            lambda cmd: Path(cmd[cmd.index("-oX") + 1]).write_text("<nmaprun><host"),
+            "PORT   STATE SERVICE\n22/tcp open  ssh\n",
+        )
+
+        result = integration.scan_host("45.33.32.156")
+
+        assert [a["value"] for a in result.artifacts_discovered
+                if a["type"] == "open_port"] == ["45.33.32.156:22"]
+
+    def test_unreadable_whatweb_log_falls_back_to_the_summary(self, monkeypatch):
+        from src.modules.external_tools import WhatWebIntegration
+
+        integration = WhatWebIntegration()
+        self._writer(
+            monkeypatch, integration,
+            lambda cmd: Path(
+                next(a for a in cmd if a.startswith("--log-json=")).split("=", 1)[1]
+            ).write_text('{"target": "a"}\n{"target": "b"}\n'),
+            "http://example.com [200 OK] IP[93.184.216.34], HTTPServer[nginx]\n",
+        )
+
+        result = integration.fingerprint("example.com")
+
+        assert any(a["value"] == "93.184.216.34" for a in result.artifacts_discovered)

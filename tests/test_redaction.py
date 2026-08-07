@@ -178,3 +178,24 @@ class TestCrossInvestigation:
 
         assert hits
         assert all("ghost@example.com" != h["value"] for h in hits)
+
+    def test_a_redacted_report_still_finds_the_match(
+        self, conn, investigation, tmp_path
+    ):
+        """Matching runs on the stored values; only the output is masked.
+
+        Comparing already-masked values against the database matches nothing,
+        which empties the section instead of hiding the values in it.
+        """
+        other = db.create_investigation(conn, title="Other")
+        db.add_artifact(conn, other, "email", "ghost@example.com", source="holehe")
+
+        payload = json.loads(Path(generate_json_report(
+            conn, investigation, str(tmp_path / "r.json"), redact=True
+        )).read_text())
+
+        assert payload["cross_investigation"]
+        assert all(h["value"] != "ghost@example.com"
+                   for h in payload["cross_investigation"])
+        assert any(h["investigation_id"] == other
+                   for h in payload["cross_investigation"])

@@ -326,7 +326,12 @@ def parse_theharvester_json(report: str, domain: str) -> List[Dict[str, Any]]:
     for asn in data.get("asns") or []:
         add("asn", asn, 0.7, domain=domain)
 
-    return _capped(artifacts)
+    # One run answers two analyses -- contacts and hosts -- so each is capped
+    # on its own; a domain publishing fifteen addresses still reports its
+    # subdomains.
+    contacts = [a for a in artifacts if a["type"] in ("email", "fullname")]
+    hosts = [a for a in artifacts if a["type"] not in ("email", "fullname")]
+    return _capped(contacts) + _capped(hosts)
 
 
 def parse_subdomains(output: str, domain: str, tool_name: str,
@@ -812,7 +817,11 @@ def parse_shodan_host(output: str, ip_address: str) -> tuple[Dict[str, Any], Lis
             "source": "shodan", "confidence": 0.95,
         })
 
-    for hostname in str(parsed.get("hostnames") or "").replace(",", " ").split():
+    # A JSON answer lists the names; the printed one runs them together.
+    hostnames = parsed.get("hostnames") or []
+    if isinstance(hostnames, str):
+        hostnames = hostnames.replace(",", " ").split()
+    for hostname in [str(name).strip() for name in hostnames if str(name).strip()]:
         artifacts.append({
             "type": "hostname", "value": hostname, "source": "shodan",
             "confidence": 0.8, "metadata": {"address": ip_address},

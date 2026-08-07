@@ -133,7 +133,9 @@ TOOL_ARTIFACT_FIELDS = {
     "dns_ns": "dns_records",
     "dns_txt": "dns_records",
     "nameserver": "dns_records",
+    "name_server": "dns_records",
     "mail_server": "dns_records",
+    "hostname": "hosts",
     "location": "geolocations",
     "open_port": "open_ports",
     "host_info": "hosts",
@@ -142,6 +144,8 @@ TOOL_ARTIFACT_FIELDS = {
     "gps_coordinates": "geolocations",
     "camera_info": "device_info",
     "creation_date": "device_info",
+    "software": "device_info",
+    "device_serial": "device_info",
     # Breach rows belong to the selector they were found for, so they are
     # attributed like any other tool finding rather than left unattached.
     "leak_record": "leak_records",
@@ -641,9 +645,13 @@ def _attach_tool_findings(
                 })
             elif artifact_type in TOOL_ARTIFACT_FIELDS:
                 getattr(profile, TOOL_ARTIFACT_FIELDS[artifact_type]).append(value)
-            else:
+            elif artifact_type in IDENTITY_ARTIFACT_TYPES:
+                # Anchors are already on the profile through the graph.
                 continue
 
+            # A finding with no field of its own -- an ASN, a copyright line --
+            # still belongs to the identity it was reached from, so it is
+            # listed rather than dropped.
             profile.tool_findings.append({
                 "type": artifact_type,
                 "value": value,

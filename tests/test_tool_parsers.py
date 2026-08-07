@@ -266,6 +266,20 @@ class TestTheHarvester:
     def test_non_json_report_yields_nothing(self):
         assert tool_parsers.parse_theharvester_json("Emails found:\n", "example.com") == []
 
+    def test_a_crowded_address_book_does_not_hide_the_hosts(self):
+        """One run feeds two analyses, so the cap cannot be shared between them."""
+        report = json.dumps({
+            "emails": [f"user{n}@example.com" for n in range(40)],
+            "hosts": ["www.example.com", "mail.example.com"],
+        })
+        artifacts = tool_parsers.parse_theharvester_json(report, "example.com")
+
+        assert [a["value"] for a in artifacts if a["type"] == "subdomain"] == [
+            "www.example.com", "mail.example.com",
+        ]
+        assert len([a for a in artifacts if a["type"] == "email"]) == \
+            tool_parsers.MAX_ARTIFACTS_PER_TOOL
+
 
 class TestSubfinder:
 
@@ -421,6 +435,15 @@ class TestShodan:
 
         assert parsed["org"] == "Linode"
         assert len([a for a in artifacts if a["type"] == "open_port"]) == 2
+
+    def test_json_host_names_arrive_as_a_list(self):
+        """The JSON answer lists them; the printed one runs them together."""
+        report = json.dumps({"hostnames": ["scanme.nmap.org", "li982-156.example"]})
+        _, artifacts = tool_parsers.parse_shodan_host(report, "45.33.32.156")
+
+        assert [a["value"] for a in artifacts if a["type"] == "hostname"] == [
+            "scanme.nmap.org", "li982-156.example",
+        ]
 
     def test_empty_answer_yields_nothing(self):
         assert tool_parsers.parse_shodan_host("", "45.33.32.156") == ({}, [])
