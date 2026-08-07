@@ -143,3 +143,25 @@ class TestEquivalentDateKeys:
         captures = [e for e in events if e["kind"] == "capture"]
         assert len(captures) == 1
         assert captures[0]["when"] == "2019-06-01"
+
+    def test_an_unusable_preferred_key_does_not_hide_its_sibling(self):
+        events = build_timeline([{
+            "artifact_id": "ART-3", "artifact_type": "image", "value": "a.jpg",
+            "source": "exiftool", "discovered_at": "2026-01-01T00:00:00",
+            "metadata": json.dumps({"DateTimeOriginal": "unknown",
+                                    "CreateDate": "2019:06:01 10:00:00"}),
+        }])
+
+        captures = [e for e in events if e["kind"] == "capture"]
+        assert [e["when"] for e in captures] == ["2019-06-01T10:00:00"]
+
+    def test_two_records_each_with_a_breach_date_plot_twice(self):
+        events = build_timeline([{
+            "artifact_id": "ART-4", "artifact_type": "email", "value": "a@example.com",
+            "source": "leakosint", "discovered_at": "2026-01-01T00:00:00",
+            "metadata": json.dumps({"breaches": [{"breach_date": "2013-10-04"},
+                                                 {"breach_date": "2016-05-05"}]}),
+        }])
+
+        breaches = sorted(e["when"] for e in events if e["kind"] == "breach")
+        assert breaches == ["2013-10-04", "2016-05-05"]

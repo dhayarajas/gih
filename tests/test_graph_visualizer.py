@@ -58,6 +58,16 @@ class TestCollections:
     def test_a_zero_threshold_disables_collapsing(self):
         assert build_collections(_star(50), threshold=0) == {}
 
+    def test_a_bare_pair_survives_a_threshold_of_one(self):
+        G = nx.Graph()
+        G.add_node("a", artifact_type="email", value="a@example.com")
+        G.add_node("b", artifact_type="username", value="b")
+        G.add_edge("a", "b")
+
+        # Each node is the other's only neighbour, so collapsing both would
+        # remove the pair from the picture entirely.
+        assert build_collections(G, threshold=1) == {}
+
 
 @pytest.fixture
 def conn():

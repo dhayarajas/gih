@@ -154,6 +154,11 @@ def build_collections(G, threshold: int) -> dict:
 
     collections = {}
     for parent in G.nodes():
+        if G.degree(parent) < 2:
+            # A leaf cannot anchor a summary of its own neighbour: in a bare
+            # pair each node is the other's leaf, and collapsing both hides
+            # the pair completely.
+            continue
         leaves = {}
         for neighbour in G.neighbors(parent):
             if G.degree(neighbour) != 1:
