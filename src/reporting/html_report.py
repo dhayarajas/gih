@@ -846,6 +846,9 @@ def generate_html_report(
     # are redacted as they are built.
     citations = build_source_citations(conn, investigation_id, artifacts, redact)
 
+    # Cross-investigation matching compares values against the stored rows, so
+    # it needs the values as stored; its own output is masked as it is built.
+    stored_artifacts = artifacts
     artifacts, links, presences, correlation = redact_payload(
         artifacts, links, presences, correlation, redact
     )
@@ -894,7 +897,7 @@ def generate_html_report(
     evidence_chains = build_evidence_chains(artifacts, links)
     preserved_evidence = build_preserved_evidence(conn, investigation_id, redact)
     cross_hits = build_cross_investigation(
-        conn, investigation_id, artifacts, redact=redact
+        conn, investigation_id, stored_artifacts, redact=redact
     )
     delta = build_delta_report(conn, investigation_id, compare_id, redact)
 
@@ -1974,6 +1977,7 @@ def generate_json_report(
     presences = db.get_platform_presences(conn, investigation_id)
     correlation = correlate_identities(conn, investigation_id)
     citations = build_source_citations(conn, investigation_id, artifacts, redact)
+    stored_artifacts = artifacts
     artifacts, links, presences, correlation = redact_payload(
         artifacts, links, presences, correlation, redact
     )
@@ -2017,7 +2021,7 @@ def generate_json_report(
         "timeline": build_timeline(artifacts),
         "orphan_findings": orphans,
         "cross_investigation": build_cross_investigation(
-            conn, investigation_id, artifacts, redact=redact
+            conn, investigation_id, stored_artifacts, redact=redact
         ),
         "delta": build_delta_report(conn, investigation_id, compare_id, redact),
         "comments": comments,

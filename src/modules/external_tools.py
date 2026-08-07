@@ -288,16 +288,17 @@ class MaigretIntegration(ExternalToolsIntegration):
 
             report = _read_first_file(out_dir, f"report_{username}_ndjson.json")
 
-        if report is None:
-            # Without the report the printed tree is all there is; its "[+]"
-            # lines still name the accounts, just not what maigret extracted.
-            logger.warning("maigret report missing for %s; falling back to its output", username)
-            result.artifacts_discovered = tool_parsers.parse_sherlock(result.output, username)
-            for artifact in result.artifacts_discovered:
+        findings = tool_parsers.parse_maigret_ndjson(report, username) if report else []
+        if not findings:
+            # Without a readable report the printed tree is all there is; its
+            # "[+]" lines still name the accounts, just not what maigret
+            # extracted from them.
+            logger.warning("no maigret report for %s; falling back to its output", username)
+            findings = tool_parsers.parse_sherlock(result.output, username)
+            for artifact in findings:
                 artifact["source"] = "maigret"
                 artifact["confidence"] = 0.75
-        else:
-            result.artifacts_discovered = tool_parsers.parse_maigret_ndjson(report, username)
+        result.artifacts_discovered = findings
 
         result.parsed_data = {
             "username": username,
@@ -467,7 +468,12 @@ class TheHarvesterIntegration(ExternalToolsIntegration):
         )
 
     def _findings(self, domain: str, result: ToolResult) -> List[Dict[str, Any]]:
-        """Everything the run found, from the report when there is one."""
+        """Everything the run found, from the report when there is one.
+
+        Uncapped: one run feeds two analyses, and capping here would let a
+        domain with fifteen published addresses report no hosts at all. Each
+        analysis caps its own half.
+        """
         report = self._reports.get(domain)
         if report:
             parsed = tool_parsers.parse_theharvester_json(report, domain)
@@ -486,7 +492,7 @@ class TheHarvesterIntegration(ExternalToolsIntegration):
             result.artifacts_discovered = [
                 a for a in self._findings(domain, result)
                 if a["type"] in ("email", "fullname")
-            ]
+            ][:MAX_ARTIFACTS_PER_TOOL]
             logger.info(
                 "theHarvester found %d contacts for %s",
                 len(result.artifacts_discovered), domain,
@@ -503,7 +509,7 @@ class TheHarvesterIntegration(ExternalToolsIntegration):
             result.artifacts_discovered = [
                 a for a in self._findings(domain, result)
                 if a["type"] not in ("email", "fullname")
-            ]
+            ][:MAX_ARTIFACTS_PER_TOOL]
             logger.info(
                 "theHarvester found %d hosts for %s",
                 len(result.artifacts_discovered), domain,
@@ -574,15 +580,15 @@ class WhatWebIntegration(ExternalToolsIntegration):
 
             log = _read_first_file(out_dir, "whatweb.json")
 
-        if log:
-            result.parsed_data, result.artifacts_discovered = (
-                tool_parsers.parse_whatweb_json(log, target)
-            )
-        else:
-            logger.warning("whatweb JSON log missing for %s; reading its summary", target)
-            result.parsed_data, result.artifacts_discovered = (
-                tool_parsers.parse_whatweb_summary(result.output, target)
-            )
+        parsed, findings = (
+            tool_parsers.parse_whatweb_json(log, target) if log else ({}, [])
+        )
+        if not findings:
+            # whatweb writes one JSON document per scanned target, so a
+            # redirect chain produces a log the parser cannot read as a whole.
+            logger.warning("no whatweb JSON log for %s; reading its summary", target)
+            parsed, findings = tool_parsers.parse_whatweb_summary(result.output, target)
+        result.parsed_data, result.artifacts_discovered = parsed, findings
 
         logger.info(f"WhatWeb identified {len(result.artifacts_discovered)} findings for {target}")
         return result
@@ -673,13 +679,13 @@ class NmapIntegration(ExternalToolsIntegration):
 
             report = _read_first_file(out_dir, "scan.xml")
 
-        if report:
-            result.parsed_data, result.artifacts_discovered = (
-                tool_parsers.parse_nmap_xml(report, target)
-            )
-        else:
-            logger.warning("nmap XML missing for %s; reading its table", target)
-            result.artifacts_discovered = tool_parsers.parse_nmap_text(result.output, target)
+        parsed, findings = (
+            tool_parsers.parse_nmap_xml(report, target) if report else ({}, [])
+        )
+        if not findings:
+            logger.warning("no readable nmap XML for %s; reading its table", target)
+            findings = tool_parsers.parse_nmap_text(result.output, target)
+        result.parsed_data, result.artifacts_discovered = parsed, findings
 
         logger.info(f"Nmap found {len(result.artifacts_discovered)} findings on {target}")
         return result

@@ -5,6 +5,10 @@
 # ImageMatchPlugin). Builds dlib from source: needs cmake, a C++ toolchain and
 # ~3 GB of free disk. Without it, EXIF, hashing and reverse-search links still work.
 face_recognition>=1.3.0
+# face_recognition_models still imports pkg_resources, which setuptools 81
+# removed, so installing the extra on Python 3.13 fails without this cap.
+# Lift it once that package no longer needs pkg_resources.
+setuptools<81
 
 # Neo4j graph backend (config use_neo4j). The default NetworkX backend needs nothing.
 neo4j>=5.0.0
