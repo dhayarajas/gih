@@ -196,6 +196,10 @@
         .tool-chart-bar { background: #3182ce; height: 100%; border-radius: 3px; min-width: 2px; }
         .tool-chart-count { font-size: 0.85rem; color: #4a5568; text-align: right; font-variant-numeric: tabular-nums; }
         .silent-tools { font-size: 0.85rem; color: #718096; }
+        /* A tool that produced nothing is shown greyed out rather than hidden:
+           the reader still needs to know it was integrated but contributed no evidence. */
+        .tool-off { color: #a0aec0; text-decoration: line-through; }
+        tr.tool-row-off td { color: #a0aec0; }
 
         /* Evidence Chain */
         .evidence-chain { 
@@ -841,7 +845,8 @@
 
         {% if tool_metrics.silent_tools %}
         <p class="silent-tools">Integrated but silent in this run ({{ tool_metrics.silent_tools | length }} of {{ tool_metrics.integrated_count }}):
-           {{ tool_metrics.silent_tools | join(', ') }}. A tool is silent when it is not installed, was never dispatched for the artifact types seen here, or ran and found nothing.</p>
+           {% for tool in tool_metrics.silent_tools %}<span class="tool-off">{{ tool }}</span>{% if not loop.last %}, {% endif %}{% endfor %}.
+           A tool is silent when it is not installed, was never dispatched for the artifact types seen here, or ran and found nothing.</p>
         {% endif %}
     </div>
 
@@ -1059,8 +1064,8 @@
             <thead><tr><th>Tool</th><th>Available</th><th>State</th></tr></thead>
             <tbody>
             {% for row in tool_metrics.tool_status %}
-            <tr>
-                <td>{{ row.tool }}</td>
+            <tr{% if row.state != 'produced_output' %} class="tool-row-off"{% endif %}>
+                <td>{% if row.state == 'produced_output' %}{{ row.tool }}{% else %}<span class="tool-off">{{ row.tool }}</span>{% endif %}</td>
                 <td>{{ 'yes' if row.available else ('no' if row.available is sameas false else '?') }}</td>
                 <td class="status-{{ row.state }}">{{ row.state }}</td>
             </tr>
@@ -1068,10 +1073,10 @@
             </tbody>
         </table>
         {% if tool_metrics.not_installed %}
-        <p class="silent-tools">Not installed: {{ tool_metrics.not_installed | join(', ') }}</p>
+        <p class="silent-tools">Not installed: {% for tool in tool_metrics.not_installed %}<span class="tool-off">{{ tool }}</span>{% if not loop.last %}, {% endif %}{% endfor %}</p>
         {% endif %}
         {% if tool_metrics.silent_installed %}
-        <p class="silent-tools">Installed but silent/not dispatched: {{ tool_metrics.silent_installed | join(', ') }}</p>
+        <p class="silent-tools">Installed but silent/not dispatched: {% for tool in tool_metrics.silent_installed %}<span class="tool-off">{{ tool }}</span>{% if not loop.last %}, {% endif %}{% endfor %}</p>
         {% endif %}
     </div>
     {% endif %}

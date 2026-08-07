@@ -550,7 +550,8 @@ body {{
 .classification {{ background: var(--gih-accent) !important; color: #ffffff !important; }}
 h1, h2, h3, h4, h5, h6 {{ color: var(--gih-heading) !important; }}
 h2 {{ border-bottom-color: var(--gih-accent) !important; }}
-.section-blurb, .subsection-blurb, .meta, .summary-meta, .empty-note, .silent-tools {{
+.section-blurb, .subsection-blurb, .meta, .summary-meta, .empty-note, .silent-tools,
+.tool-off, tr.tool-row-off td {{
   color: var(--gih-muted) !important;
 }}
 .card, .stat-card, .report-banner, .filter-bar, .graph-container, details.drilldown {{
