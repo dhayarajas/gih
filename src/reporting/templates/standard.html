@@ -463,6 +463,10 @@
         .status-verified { color: #276749; font-weight: 600; }
         .status-modified { color: #c53030; font-weight: 600; }
         .status-missing { color: #975a16; font-weight: 600; }
+        /* Run-to-run diff */
+        table.delta-table td { vertical-align: top; }
+        .delta-before { color: #9b2c2c; text-decoration: line-through; }
+        .delta-after { color: #276749; font-weight: 600; }
         /* Score provenance */
         details.provenance { margin: 0 0 0.6rem; }
         details.provenance > summary { cursor: pointer; font-size: 0.82rem; color: #2b6cb0; }
@@ -1332,23 +1336,58 @@
     </div>
     {% endif %}
 
-    {% if 'delta' in sections and delta.enabled and (delta.added_count or delta.removed_count) %}
+    {% if 'delta' in sections and delta.enabled and (delta.added_count or delta.removed_count or delta.changed_count or delta.platforms_added or delta.platforms_removed) %}
     {% set ns.n = ns.n + 1 %}
-    <h2>{{ ns.n }}. Delta vs {{ delta.compare_id }}</h2>
-    <p class="section-blurb">Artifacts added or removed relative to a prior investigation.</p>
+    <h2>{{ ns.n }}. Changes since {{ delta.compare_id }}</h2>
+    <p class="section-blurb">What this run found that the previous one did not, what it no longer finds, and what moved in between. An artifact present in both runs can still have changed: a different tool may now report it, its confidence may have shifted, or its metadata may have been rewritten &mdash; often the finding itself. Baseline: {{ delta.compare_title or delta.compare_id }}{% if delta.compare_created_at %}, run {{ delta.compare_created_at[:19] }}{% endif %}.</p>
     <div class="card">
         <div class="stats-grid">
             <div class="stat-card"><div class="stat-value">{{ delta.added_count }}</div><div class="stat-label">Added</div></div>
             <div class="stat-card"><div class="stat-value">{{ delta.removed_count }}</div><div class="stat-label">Removed</div></div>
-            <div class="stat-card"><div class="stat-value">{{ delta.shared_count }}</div><div class="stat-label">Shared</div></div>
+            <div class="stat-card"><div class="stat-value">{{ delta.changed_count }}</div><div class="stat-label">Changed</div></div>
+            <div class="stat-card"><div class="stat-value">{{ delta.shared_count }}</div><div class="stat-label">Unchanged</div></div>
         </div>
         {% if delta.added %}
         <h3>Added</h3>
         <ul>{% for a in delta.added %}<li><span class="badge badge-{{ a.type }}">{{ a.type }}</span> {{ a.value }} ({{ a.source }})</li>{% endfor %}</ul>
         {% endif %}
         {% if delta.removed %}
-        <h3>Removed</h3>
+        <h3>No longer found</h3>
         <ul>{% for a in delta.removed %}<li><span class="badge badge-{{ a.type }}">{{ a.type }}</span> {{ a.value }} ({{ a.source }})</li>{% endfor %}</ul>
+        {% endif %}
+        {% if delta.changed %}
+        <h3>Changed</h3>
+        {% for item in delta.changed %}
+        <details class="drilldown">
+            <summary>
+                <span class="badge badge-{{ item.type }}">{{ item.type }}</span>
+                <span class="summary-value">{{ item.value }}</span>
+                <span class="summary-meta">{{ item.changes | length }} change(s)</span>
+            </summary>
+            <div class="drilldown-body">
+                <table class="kv-table delta-table">
+                    <thead><tr><th>Field</th><th>Previous run</th><th>This run</th></tr></thead>
+                    <tbody>
+                        {% for change in item.changes %}
+                        <tr>
+                            <td>{{ change.field }}</td>
+                            <td class="delta-before">{{ change.before }}</td>
+                            <td class="delta-after">{{ change.after }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                {% if item.artifact_id %}<p><a class="xref" href="#artifact-{{ item.artifact_id }}">Open this artifact</a></p>{% endif %}
+            </div>
+        </details>
+        {% endfor %}
+        {% endif %}
+        {% if delta.platforms_added or delta.platforms_removed %}
+        <h3>Accounts</h3>
+        <ul>
+            {% for p in delta.platforms_added %}<li><span class="delta-after">new</span> {{ p.platform }}{% if p.username %} &mdash; {{ p.username }}{% endif %}{% if p.url %} (<a href="{{ p.url }}">{{ p.url }}</a>){% endif %}</li>{% endfor %}
+            {% for p in delta.platforms_removed %}<li><span class="delta-before">gone</span> {{ p.platform }}{% if p.username %} &mdash; {{ p.username }}{% endif %}{% if p.url %} (<a href="{{ p.url }}">{{ p.url }}</a>){% endif %}</li>{% endfor %}
+        </ul>
         {% endif %}
     </div>
     {% endif %}

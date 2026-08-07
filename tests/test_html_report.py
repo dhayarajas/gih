@@ -510,7 +510,7 @@ class TestEnhancedStandardReport:
             conn, investigation, str(tmp_path / "delta.html"), compare_id=other
         )
         html = Path(path).read_text()
-        assert f"Delta vs {other}" in html
+        assert f"Changes since {other}" in html
         assert "Added" in html
 
     def test_csv_and_json_exports(self, conn, investigation, tmp_path):

@@ -626,33 +626,167 @@ def build_cross_investigation(conn, investigation_id: str, artifacts: list, limi
     return hits
 
 
+def find_previous_investigation(conn, investigation_id: str) -> Optional[str]:
+    """Most recent earlier investigation that started from the same seed(s).
+
+    Re-running a seed is the common case for a diff, and requiring the analyst
+    to look up the prior ID by hand is the reason the delta section is rarely
+    used. Seeds are matched exactly; an investigation with different seeds is
+    not a prior run of this one.
+    """
+    seeds = {
+        (a.get("artifact_type"), a.get("value"))
+        for a in db.get_artifacts(conn, investigation_id)
+        if (a.get("source") or "") == "seed"
+    }
+    if not seeds:
+        return None
+
+    current = db.get_investigation(conn, investigation_id) or {}
+    created_at = current.get("created_at") or ""
+
+    candidates: dict[str, set] = defaultdict(set)
+    try:
+        rows = conn.execute(
+            "SELECT a.investigation_id, a.artifact_type, a.value FROM artifacts a "
+            "JOIN investigations i ON i.investigation_id = a.investigation_id "
+            "WHERE a.source = 'seed' AND a.investigation_id != ? AND i.created_at < ? "
+            "ORDER BY i.created_at DESC",
+            (investigation_id, created_at),
+        ).fetchall()
+    except sqlite3.Error:
+        return None
+
+    order: list[str] = []
+    for row in rows:
+        inv_id = row[0]
+        if inv_id not in candidates:
+            order.append(inv_id)
+        candidates[inv_id].add((row[1], row[2]))
+
+    for inv_id in order:
+        if candidates[inv_id] == seeds:
+            return inv_id
+    return None
+
+
+# Artifact fields whose change between runs is worth reporting.
+_DELTA_FIELDS = ("source", "confidence", "depth")
+
+
 def build_delta_report(conn, investigation_id: str, compare_id: Optional[str]) -> dict:
-    """Compare two investigations: added / removed / shared artifacts."""
-    empty = {"compare_id": compare_id, "added": [], "removed": [], "shared": [], "enabled": False}
+    """Compare two runs: added, removed, and changed artifacts and accounts.
+
+    An artifact present in both runs is not necessarily unchanged — its
+    confidence, the tool that reported it, or its metadata may all have moved,
+    and that movement is often the finding. Pass compare_id="auto" to diff
+    against the previous run of the same seeds.
+    """
+    empty = {
+        "compare_id": compare_id, "added": [], "removed": [], "changed": [],
+        "platforms_added": [], "platforms_removed": [], "enabled": False,
+    }
     if not compare_id:
         return empty
+
+    if compare_id == "auto":
+        compare_id = find_previous_investigation(conn, investigation_id)
+        if not compare_id:
+            return {**empty, "compare_id": None,
+                    "error": "No earlier investigation with the same seeds"}
+
     other = db.get_investigation(conn, compare_id)
     if not other:
         return {**empty, "error": f"Investigation {compare_id} not found"}
 
     def _keyset(inv_id: str) -> dict[tuple, dict]:
-        arts = db.get_artifacts(conn, inv_id)
-        return {(a.get("artifact_type"), a.get("value")): a for a in arts}
+        return {
+            (a.get("artifact_type"), a.get("value")): a
+            for a in db.get_artifacts(conn, inv_id)
+        }
 
     current = _keyset(investigation_id)
     baseline = _keyset(compare_id)
-    added_keys = set(current) - set(baseline)
-    removed_keys = set(baseline) - set(current)
-    shared_keys = set(current) & set(baseline)
+    added_keys = sorted(set(current) - set(baseline))
+    removed_keys = sorted(set(baseline) - set(current))
+    shared_keys = sorted(set(current) & set(baseline))
+
+    changed = []
+    for key in shared_keys:
+        changes = _artifact_changes(baseline[key], current[key])
+        if changes:
+            changed.append({
+                "type": key[0],
+                "value": key[1],
+                "artifact_id": current[key].get("artifact_id"),
+                "changes": changes,
+            })
+
+    def _platforms(inv_id: str) -> dict[str, dict]:
+        return {
+            (p.get("profile_url") or f"{p.get('platform_name')}:{p.get('username')}"): p
+            for p in db.get_platform_presences(conn, inv_id)
+        }
+
+    current_platforms = _platforms(investigation_id)
+    baseline_platforms = _platforms(compare_id)
+
     return {
         "enabled": True,
         "compare_id": compare_id,
-        "added": [_delta_item(current[k]) for k in sorted(added_keys)[:50]],
-        "removed": [_delta_item(baseline[k]) for k in sorted(removed_keys)[:50]],
+        "compare_title": other.get("title"),
+        "compare_created_at": other.get("created_at"),
+        "added": [_delta_item(current[k]) for k in added_keys[:50]],
+        "removed": [_delta_item(baseline[k]) for k in removed_keys[:50]],
+        "changed": changed[:50],
+        "platforms_added": [
+            _platform_item(current_platforms[k])
+            for k in sorted(set(current_platforms) - set(baseline_platforms))[:50]
+        ],
+        "platforms_removed": [
+            _platform_item(baseline_platforms[k])
+            for k in sorted(set(baseline_platforms) - set(current_platforms))[:50]
+        ],
         "shared_count": len(shared_keys),
         "added_count": len(added_keys),
         "removed_count": len(removed_keys),
+        "changed_count": len(changed),
     }
+
+
+def _artifact_changes(before: dict, after: dict) -> list[dict]:
+    """Field- and metadata-level differences between two runs of one artifact."""
+    changes = []
+    for fieldname in _DELTA_FIELDS:
+        old, new = before.get(fieldname), after.get(fieldname)
+        if fieldname == "confidence":
+            old, new = round(old or 0, 3), round(new or 0, 3)
+        if old != new:
+            changes.append({
+                "field": fieldname,
+                "before": "-" if old in (None, "") else str(old),
+                "after": "-" if new in (None, "") else str(new),
+            })
+
+    old_meta = _parse_metadata_field(before.get("metadata"))
+    new_meta = _parse_metadata_field(after.get("metadata"))
+    for key in sorted(set(old_meta) | set(new_meta)):
+        old_value = old_meta.get(key)
+        new_value = new_meta.get(key)
+        if old_value == new_value:
+            continue
+        changes.append({
+            "field": f"metadata.{key}",
+            "before": "absent" if key not in old_meta else _short(old_value),
+            "after": "absent" if key not in new_meta else _short(new_value),
+        })
+    return changes
+
+
+def _short(value, limit: int = 80) -> str:
+    """Render a metadata value compactly enough for a diff row."""
+    text = json.dumps(value, sort_keys=True) if isinstance(value, (dict, list)) else str(value)
+    return text if len(text) <= limit else text[: limit - 1] + "…"
 
 
 def _delta_item(art: dict) -> dict:
@@ -661,6 +795,14 @@ def _delta_item(art: dict) -> dict:
         "value": art.get("value"),
         "source": art.get("source"),
         "confidence": art.get("confidence") or 0,
+    }
+
+
+def _platform_item(presence: dict) -> dict:
+    return {
+        "platform": presence.get("platform_name"),
+        "username": presence.get("username"),
+        "url": presence.get("profile_url"),
     }
 
 

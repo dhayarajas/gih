@@ -442,7 +442,9 @@ def investigate(
 @click.option("--template", "template_type", type=click.Choice(["standard", "executive", "technical", "legal"]), default="standard", help="HTML template (default: standard)")
 @click.option("--sections", default=None, help="Comma-separated sections for the standard template")
 @click.option("--redact", is_flag=True, help="Mask phones, emails, images, and profile URLs")
-@click.option("--compare", "compare_id", default=None, help="Prior investigation ID for delta section")
+@click.option("--compare", "compare_id", default=None,
+              help="Prior investigation ID for the changes section, or 'auto' for the "
+                   "previous run of the same seeds")
 @click.pass_context
 def report(ctx: click.Context, investigation_id: str, fmt: str, output: Optional[str],
            template_type: str, sections: Optional[str], redact: bool, compare_id: Optional[str]) -> None:
@@ -454,6 +456,7 @@ def report(ctx: click.Context, investigation_id: str, fmt: str, output: Optional
         ghost-hunter report --id INV-abc123 --format both -o ./reports/
         ghost-hunter report --id INV-abc123 --template standard --redact
         ghost-hunter report --id INV-abc123 --compare INV-old --format pdf
+        ghost-hunter report --id INV-abc123 --compare auto
     """
     conn = get_connection(ctx.obj.get("db_path"))
     try:
