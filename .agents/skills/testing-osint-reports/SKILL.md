@@ -153,3 +153,56 @@ property. Assert on those, not on an older `tool_finding_sections` API.
 None for the flow above. `shodan` requires an API key (`shodan init`) and the Google Dorks
 API path needs `GOOGLE_API_KEY` / `GOOGLE_CX`; without them those branches are skipped and
 should be reported as untested rather than passing.
+
+## Testing a keyed API tool (e.g. LeakOSINT) with no real token
+
+Tools reached over HTTP with a credential (`ToolInfo(api_based=True, api_key_envs=(...))` in
+`src/utils/tool_checker.py`) can be tested end-to-end **without** a real key. Do not ask for one;
+stub the transport instead. All such integrations obtain their session from
+`src.utils.http_client.get_http_session`, so wrapping that one function intercepts the keyed
+tool while leaving the rest of the investigation live.
+
+Recipe — a wrapper that runs the *real* CLI (`from src.cli import cli; cli()`) after patching:
+
+```python
+import os, sys
+os.environ.setdefault("LEAKOSINT_API_TOKEN", "FAKETOKEN-CANARY-9c1f4b7e")  # unique canary
+import src.utils.http_client as hc
+_real = hc.get_http_session
+class _W:
+    def __init__(s, ses): s._s = ses
+    def __getattr__(s, n): return getattr(s._s, n)
+    def post(s, url, *a, **kw):
+        if "leakosintapi.com" in str(url):
+            return StubResponse(PAYLOAD)      # or raise requests.exceptions.ReadTimeout(...)
+        return s._s.post(url, *a, **kw)
+hc.get_http_session = lambda: _W(_real())
+from src.cli import cli; cli()
+```
+Run it as `LEAK_MODE=records PYTHONPATH=. python3 /tmp/leakstub_cli.py --db /tmp/x.db investigate ...`.
+Patching the module attribute works because the integrations import the helper *inside* the
+function; modules that imported it at top level keep the real session, which is what you want.
+Drive the failure matrix from one env var: successful records, empty `List`, HTTP-200-with-error
+field, non-200, non-JSON (`.json()` raising `ValueError`), and a transport exception.
+Set `MIN_REQUEST_INTERVAL = 0` only in unit tests — through the CLI the 1 req/s throttle is fine.
+
+Assertions worth automating for such a tool:
+- token-absent run: `env -u <VAR1> -u <VAR2>` → tool row is `available=no / not_installed`,
+  struck through (`tool-row-off`, `status-not_installed`), and the tool's report section is absent
+  entirely (grep the section title, count == 0) rather than rendering empty.
+- failure modes: exit code 0, `grep -c Traceback` == 0, artifact count for the new type == 0, and
+  **no empty section** — grep for the section's card class (e.g. `class="card leak-card"`), not
+  just the title, because the CSS block contains the class name and inflates a naive grep.
+- credential non-disclosure: grep the unique canary across every report (html/json/csv), `logs/*`,
+  and `select value, metadata from artifacts` + `audit_trail.details`. Expect 0 everywhere.
+- with a fake token present, an API *failure* currently shows up only as
+  `silent_or_not_dispatched` in Tool Run Status — that state does not distinguish "errored" from
+  "never dispatched", so read the log to confirm which happened.
+
+Make one stubbed field value very long (200+ chars) and one empty: it exposes both the
+`overflow-wrap` handling and the `-` empty-value rendering, and it is what surfaces squeezed
+table columns in the inline executive/technical/legal templates (those use plain `<table>` with
+no fixed layout, so a long value can collapse the label column and wrap headers mid-word).
+
+Note: this box has **no `.venv`** — use plain `python3` with `PYTHONPATH=.`; the external tools
+are already on the system PATH.
