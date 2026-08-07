@@ -198,18 +198,29 @@ def parse_event_date(value) -> Optional[str]:
 
 
 def _preferred_date_keys(pairs) -> list:
-    """Drop metadata keys that merely repeat a moment another key already names."""
-    chosen: dict[int, tuple] = {}
-    passthrough = []
+    """Metadata date keys, minus those repeating a moment another key names.
+
+    Only a parsed date can be compared, so the raw values are parsed first: a
+    key holding something unusable must not suppress the sibling that holds
+    the real date, and two records each carrying their own breach_date are two
+    events, not one. Aliases naming the same day are one moment, and the name
+    earliest in _DATE_KEY_ALIASES speaks for it so the label stays
+    predictable.
+    """
+    chosen: dict[tuple, tuple] = {}
+    kept = []
     for key, raw in pairs:
         rank = _ALIAS_RANK.get(key.lower())
-        if rank is None:
-            passthrough.append((key, raw))
+        when = parse_event_date(raw)
+        if rank is None or when is None:
+            kept.append((key, raw))
             continue
         group, position = rank
-        if group not in chosen or position < chosen[group][0]:
-            chosen[group] = (position, key, raw)
-    return passthrough + [(key, raw) for _, key, raw in chosen.values()]
+        day = when[:10]
+        seen = chosen.get((group, day))
+        if seen is None or position < seen[0]:
+            chosen[(group, day)] = (position, key, raw)
+    return kept + [(key, raw) for _, key, raw in chosen.values()]
 
 
 def build_timeline(artifacts: list) -> list[dict]:
@@ -400,12 +411,14 @@ def _matching_run(runs: list[dict], artifact: dict) -> Optional[dict]:
     if not runs:
         return None
     value = artifact.get("value")
-    for run in runs:
+    discovered_at = artifact.get("discovered_at") or ""
+    # A run that finished after the finding was recorded cannot have produced
+    # it -- during expansion the same value is often the *target* of a later
+    # run, which consumed the finding rather than reporting it.
+    earlier = [r for r in runs if (r.get("captured_at") or "") <= discovered_at]
+    for run in earlier:
         if run.get("target") and run["target"] == value:
             return run
-
-    discovered_at = artifact.get("discovered_at") or ""
-    earlier = [r for r in runs if (r.get("captured_at") or "") <= discovered_at]
     return earlier[-1] if earlier else None
 
 

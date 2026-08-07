@@ -121,6 +121,26 @@ class TestCitations:
         artifacts = db.get_artifacts(conn, inv_id)
         assert build_source_citations(conn, inv_id, artifacts) == {}
 
+    def test_a_later_run_targeting_the_value_did_not_produce_it(self, conn):
+        inv_id = db.create_investigation(conn, title="Expansion")
+        db.add_artifact(conn, inv_id, "domain", "sub.example.com",
+                        source="subfinder", depth=1)
+        db.add_evidence(conn, _capture(
+            inv_id, "subfinder", target="example.com",
+            command="subfinder -d example.com",
+            captured_at="2020-01-01T09:00:00+00:00"))
+        # The next depth feeds the finding back in as a target; that run
+        # consumed the artifact rather than reporting it.
+        db.add_evidence(conn, _capture(
+            inv_id, "subfinder", target="sub.example.com",
+            command="subfinder -d sub.example.com",
+            captured_at="2099-01-01T09:00:00+00:00"))
+
+        artifacts = db.get_artifacts(conn, inv_id)
+        citation = build_source_citations(conn, inv_id, artifacts)[
+            artifacts[0]["artifact_id"]][0]
+        assert citation["command"] == "subfinder -d example.com"
+
     def test_redaction_drops_the_seed_bearing_fields_only(self, conn, investigation):
         artifacts = db.get_artifacts(conn, investigation)
         email = next(a for a in artifacts if a["artifact_type"] == "email")
