@@ -76,7 +76,15 @@ class LeakosintPlugin(OSINTPlugin):
         )
 
         if not result.success:
-            # A quota error or an outage must not fail the investigation.
+            # A quota error or an outage must not fail the investigation. The
+            # tool then reports as silent, so the reason is logged to keep an
+            # outage distinguishable from a genuine no-match.
+            logger.warning(
+                "LeakOSINT returned no records for %s (%s): %s",
+                artifact.value,
+                artifact.type,
+                result.error,
+            )
             return PluginResult(
                 plugin_name=self.name,
                 status=PluginStatus.FAILURE,

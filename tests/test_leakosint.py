@@ -70,12 +70,12 @@ class TestClient:
         captured: dict = {}
         _stub_post(monkeypatch, _Response(API_PAYLOAD), captured)
 
-        result = leakosint.search("ghost@example.com", limit=50, lang="en")
+        result = leakosint.search("ghost@example.com", limit=500, lang="en")
 
         assert result.success
         assert captured["payload"]["token"] == "test-token"
         assert captured["payload"]["request"] == "ghost@example.com"
-        assert captured["payload"]["limit"] == 50
+        assert captured["payload"]["limit"] == 500
         # "No results found" is the API's miss marker, not a database.
         assert result.databases == ["Collection#1", "Facebook 2019"]
         assert len(result.records) == 3
@@ -85,6 +85,23 @@ class TestClient:
             "ghost@example.com / hunter2",
             "ghost@example.com / letmein",
         }
+
+    @pytest.mark.parametrize("requested,sent", [(10, 100), (100, 100), (500, 500), (99999, 10000)])
+    def test_limit_is_clamped_to_the_accepted_range(self, monkeypatch, requested, sent):
+        """The API rejects an out-of-range limit and blocks the token for repeat offences."""
+        captured: dict = {}
+        _stub_post(monkeypatch, _Response(API_PAYLOAD), captured)
+        leakosint.search("ghost@example.com", limit=requested)
+        assert captured["payload"]["limit"] == sent
+
+    def test_non_200_error_keeps_the_body_explanation(self, monkeypatch):
+        _stub_post(
+            monkeypatch,
+            _Response({"error": "You don't have a premium."}, status_code=400),
+        )
+        result = leakosint.search("ghost@example.com")
+        assert result.success is False
+        assert result.error == "HTTP 400: You don't have a premium."
 
     def test_missing_token_is_not_an_error(self, monkeypatch):
         monkeypatch.delenv("LEAKOSINT_API_TOKEN", raising=False)
@@ -108,6 +125,25 @@ class TestClient:
         assert result.success is False
         assert result.records == []
         assert result.error
+
+    @pytest.mark.parametrize(
+        "response",
+        [
+            _Response({"Error code": "Invalid token"}),
+            _Response({"List": {}}, status_code=500),
+            _Response(None, status_code=200, text="<html>"),
+            _Response([], status_code=200),
+        ],
+    )
+    def test_every_failure_mode_is_logged(self, monkeypatch, caplog, response):
+        """A silent tool must still leave a reason in the log."""
+        _stub_post(monkeypatch, response)
+        with caplog.at_level("WARNING", logger="src.modules.leakosint"):
+            result = leakosint.search("ghost@example.com")
+
+        assert result.success is False
+        assert any("ghost@example.com" in record.getMessage() for record in caplog.records)
+        assert "test-token" not in caplog.text
 
     def test_transport_failure_degrades_quietly(self, monkeypatch):
         def boom():
@@ -143,13 +179,16 @@ class TestPlugin:
             Artifact(type="email", value="ghost@example.com", source="seed")
         ).status == PluginStatus.SKIPPED
 
-    def test_api_error_fails_without_raising(self, monkeypatch):
+    def test_api_error_fails_without_raising(self, monkeypatch, caplog):
         _stub_post(monkeypatch, _Response({"Error code": "Not enough money"}))
-        result = LeakosintPlugin(PluginConfig()).execute(
-            Artifact(type="email", value="ghost@example.com", source="seed")
-        )
+        with caplog.at_level("WARNING", logger="src.plugins.builtins.leakosint_plugin"):
+            result = LeakosintPlugin(PluginConfig()).execute(
+                Artifact(type="email", value="ghost@example.com", source="seed")
+            )
         assert result.status == PluginStatus.FAILURE
         assert result.artifacts == []
+        # The tool reports as silent, so the outage must be traceable in the log.
+        assert "Not enough money" in caplog.text
 
     def test_supported_selectors(self):
         assert set(LeakosintPlugin().get_supported_artifact_types()) == {

@@ -419,6 +419,16 @@ class TestToolMetrics:
         assert '<span class="tool-off">holehe</span>' not in status
         assert 'class="tool-row-off"' in status
 
+    def test_greying_a_row_does_not_grey_its_state(self, conn, investigation, tmp_path):
+        """The state cell must keep its red/amber/green colour.
+
+        A blanket `tr.tool-row-off td` rule outranks the `.status-*` colours and
+        makes a not-installed tool indistinguishable from a silent one.
+        """
+        html = render(conn, investigation, tmp_path)
+        assert 'tr.tool-row-off td:not([class^="status-"]) { color: #a0aec0; }' in html
+        assert "tr.tool-row-off td { color:" not in html
+
     def test_section_renders_bars_and_breakdown(self, conn, investigation, tmp_path):
         html = render(conn, investigation, tmp_path)
         assert "Tool Metrics" in html

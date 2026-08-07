@@ -2,6 +2,7 @@
 
 import tempfile
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -11,6 +12,7 @@ from src.correlation.scorer import (
     compute_identity_risk_score,
     classify_risk_level,
 )
+from src.reporting.report_data import build_orphan_findings
 from src.storage import database as db
 
 
@@ -147,3 +149,25 @@ class TestIdentityCorrelation:
         G = build_identity_graph(conn, inv_id)
         assert G.number_of_nodes() == 2
         assert G.number_of_edges() == 1
+
+    def test_leak_records_are_attributed_to_their_identity(self, conn):
+        """Breach rows belong to the selector they were found for.
+
+        Left unmapped they are reported as unattributed findings and each one
+        raises a "link or discard" recommendation.
+        """
+        inv_id = db.create_investigation(conn)
+        seed = db.add_artifact(conn, inv_id, "email", "test@example.com")
+        leak = db.add_artifact(
+            conn, inv_id, "leak_record", "test@example.com / hunter2",
+            source="plugin:LeakosintPlugin",
+        )
+        db.add_link(conn, inv_id, seed, leak, "discovered_from")
+
+        identity = correlate_identities(conn, inv_id).identities[0]
+
+        assert identity.leak_records == ["test@example.com / hunter2"]
+        assert "test@example.com / hunter2" in [f["value"] for f in identity.tool_findings]
+
+        orphans = build_orphan_findings(db.get_artifacts(conn, inv_id), SimpleNamespace(identities=[identity]))
+        assert [o["type"] for o in orphans] == []

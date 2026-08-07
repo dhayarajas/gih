@@ -19,6 +19,10 @@ logger = logging.getLogger(__name__)
 
 LEAKOSINT_URL = "https://leakosintapi.com/"
 DEFAULT_LIMIT = 100
+# The API rejects any limit outside this range outright, and repeated rejections
+# get the token temporarily blocked, so a configured value is clamped instead.
+MIN_LIMIT = 100
+MAX_LIMIT = 10000
 DEFAULT_LANG = "en"
 DEFAULT_TIMEOUT = 20
 # The API allows one request per second per token; a shared clock keeps the
@@ -175,7 +179,7 @@ def search(
     payload = {
         "token": token,
         "request": query.strip(),
-        "limit": limit,
+        "limit": max(MIN_LIMIT, min(MAX_LIMIT, limit)),
         "lang": lang,
         "type": "json",
     }
@@ -192,19 +196,23 @@ def search(
     try:
         data = response.json()
     except ValueError:
-        return LeakOsintResult(
-            query=query,
-            success=False,
-            error=f"non-JSON response (HTTP {response.status_code})",
-        )
+        error = f"non-JSON response (HTTP {response.status_code})"
+        logger.warning("LeakOSINT query for %s failed: %s", query, error)
+        return LeakOsintResult(query=query, success=False, error=error)
 
     if not isinstance(data, dict):
+        logger.warning(
+            "LeakOSINT query for %s failed: unexpected response shape (%s)", query, type(data).__name__
+        )
         return LeakOsintResult(query=query, success=False, error="unexpected response shape")
 
     if response.status_code != 200:
-        return LeakOsintResult(
-            query=query, success=False, error=f"HTTP {response.status_code}", raw=data
-        )
+        # A non-200 body still explains itself ("You don't have a premium", the
+        # rate-limit cooldown), which is far more useful than the status alone.
+        detail = data.get("error") or data.get("Error code")
+        error = f"HTTP {response.status_code}: {detail}" if detail else f"HTTP {response.status_code}"
+        logger.warning("LeakOSINT query for %s failed: %s", query, error)
+        return LeakOsintResult(query=query, success=False, error=error, raw=data)
 
     # The API answers 200 with an error field for quota, malformed queries, etc.
     api_error = data.get("Error code") or data.get("error")
