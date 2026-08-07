@@ -405,11 +405,45 @@ class ArtifactProcessResult:
     platform_presences: list[dict] = field(default_factory=list)
 
 
+class InvestigationAborted(RuntimeError):
+    """An investigation that stopped early, naming what was still stored.
+
+    Findings are written as they are made, so the caller can still report on
+    an investigation whose run did not reach the end.
+    """
+
+    def __init__(self, investigation_id: Optional[str], cause: BaseException):
+        super().__init__(str(cause))
+        self.investigation_id = investigation_id
+        self.cause = cause
+
+
 def run_investigation(
     conn: sqlite3.Connection,
     seeds: list[dict],
     config: Optional[InvestigationConfig] = None,
     title: Optional[str] = None,
+) -> InvestigationResult:
+    """Run an investigation, or raise ``InvestigationAborted`` naming it.
+
+    See ``_run_investigation`` for the pipeline itself.
+    """
+    started: dict[str, str] = {}
+    try:
+        return _run_investigation(conn, seeds, config, title, started)
+    except KeyboardInterrupt:
+        raise
+    except Exception as exc:
+        logger.exception("Investigation %s stopped early", started.get("id", "?"))
+        raise InvestigationAborted(started.get("id"), exc) from exc
+
+
+def _run_investigation(
+    conn: sqlite3.Connection,
+    seeds: list[dict],
+    config: Optional[InvestigationConfig] = None,
+    title: Optional[str] = None,
+    started: Optional[dict] = None,
 ) -> InvestigationResult:
     """
     Run an investigation starting from seed artifacts.
@@ -469,6 +503,8 @@ def run_investigation(
 
     # Create investigation
     inv_id = db.create_investigation(conn, title=title)
+    if started is not None:
+        started["id"] = inv_id
     result = InvestigationResult(investigation_id=inv_id, seed_artifacts=seeds)
     
     logger.info("Created investigation: %s", inv_id)
@@ -744,25 +780,29 @@ def run_investigation(
             logger.info("Neo4j correlation analysis completed successfully")
         except Exception as e:
             logger.error(f"Neo4j correlation failed, falling back to NetworkX: {e}")
-            correlation_analysis = correlation.analyze_correlation(all_artifacts, all_links)
+            correlation_analysis = _safe_correlation(all_artifacts, all_links)
     else:
         # Use NetworkX for graph correlation
-        correlation_analysis = correlation.analyze_correlation(all_artifacts, all_links)
+        correlation_analysis = _safe_correlation(all_artifacts, all_links)
     
     logger.info("Correlation analysis: %d connected components, largest component size: %d", 
                correlation_analysis.connected_components, correlation_analysis.largest_component_size)
     
-    # Store correlation analysis metadata
-    from datetime import timezone
-    now = datetime.now(timezone.utc).isoformat()
-    meta_id = f"META-{db.generate_id()}"
-    conn.execute(
-        "INSERT INTO investigation_metadata (metadata_id, investigation_id, key, value, created_at) "
-        "VALUES (?, ?, ?, ?, ?)",
-        (meta_id, inv_id, "correlation_analysis", correlation_analysis.to_json(), now)
-    )
-    conn.commit()
-    logger.debug("Stored correlation analysis metadata")
+    # Store correlation analysis metadata. Everything found is already stored,
+    # so a failure here costs the summary, not the investigation.
+    try:
+        from datetime import timezone
+        now = datetime.now(timezone.utc).isoformat()
+        meta_id = f"META-{db.generate_id()}"
+        conn.execute(
+            "INSERT INTO investigation_metadata (metadata_id, investigation_id, key, value, created_at) "
+            "VALUES (?, ?, ?, ?, ?)",
+            (meta_id, inv_id, "correlation_analysis", correlation_analysis.to_json(), now)
+        )
+        conn.commit()
+        logger.debug("Stored correlation analysis metadata")
+    except Exception as e:
+        logger.error("Could not store the correlation analysis: %s", e)
 
     # Collect risk indicators
     logger.debug("Collecting risk indicators from artifacts")
@@ -793,6 +833,25 @@ def run_investigation(
         time.monotonic() - finalize_start, time.monotonic() - start_time,
     )
     return result
+
+
+def _safe_correlation(
+    artifacts: list[dict],
+    links: list[dict],
+) -> correlation.CorrelationAnalysis:
+    """Graph metrics over what was found, or empty ones if they cannot be had.
+
+    Everything is already stored by this point, so a graph the analysis cannot
+    handle must cost the metrics rather than the whole run and its report.
+    """
+    try:
+        return correlation.analyze_correlation(artifacts, links)
+    except Exception as e:
+        logger.error("Correlation analysis failed: %s", e)
+        return correlation.CorrelationAnalysis(
+            artifacts_analyzed=len(artifacts),
+            links_found=len(links),
+        )
 
 
 def _process_artifacts_generator(
