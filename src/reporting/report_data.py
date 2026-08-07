@@ -1040,6 +1040,11 @@ def mask_value(value: str, artifact_type: str = "") -> str:
         return value
     value = str(value)
     atype = artifact_type or ""
+    if atype == LEAK_ARTIFACT_TYPE:
+        # A leaked row is sensitive in full: passwords and document numbers are
+        # not patterns anything here recognises, so only the database survives.
+        database = value.split(":", 1)[0].strip() or "Unknown database"
+        return f"{database}: [REDACTED]"
     if atype in REDACT_TYPES or _EMAIL_RE.fullmatch(value) or _PHONE_RE.fullmatch(value.strip()):
         if "@" in value:
             local, _, domain = value.partition("@")
