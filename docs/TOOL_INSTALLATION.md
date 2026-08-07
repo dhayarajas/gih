@@ -44,7 +44,7 @@ python -m src.cli investigate --check-tools
 
 ## Part A — Tools gih uses
 
-### 3. Integrated external tools (15)
+### 3. Integrated external tools (14)
 
 Each of these has a real output parser in `src/modules/external_tools.py` and is dispatched by `_process_external_tools`. A missing binary is never scheduled; the investigation continues without it.
 
@@ -59,12 +59,11 @@ Each of these has a real output parser in `src/modules/external_tools.py` and is
 | 7 | **sublist3r** | domain → subdomains | `pip install sublist3r` (Kali also packages it as `sublist3r`) | `sublist3r -h` |
 | 8 | **amass** | domain → subdomains (passive) | Kali: `sudo apt install amass` · elsewhere: `go install -v github.com/owasp-amass/amass/v4/...@master` | `amass -version` |
 | 9 | **whois** | domain → registrar, dates, registrant | `sudo apt install whois` | `whois example.com` |
-| 10 | **dig** | domain → A / MX / NS / TXT records | `sudo apt install dnsutils` | `dig example.com +short` |
-| 11 | **whatweb** | domain → web technologies, resolved IP | `sudo apt install whatweb` | `whatweb --version` |
-| 12 | **nmap** | IP → open ports and service versions | `sudo apt install nmap` | `nmap --version` |
-| 13 | **shodan** | IP → host intelligence *(API key required)* | `pip install shodan` then `shodan init <API_KEY>` | `shodan info` |
-| 14 | **exiftool** | image → GPS, camera, timestamps | `sudo apt install libimage-exiftool-perl` | `exiftool -ver` |
-| 15 | **wayback_machine** | domain → archived URLs | none — HTTP call to `web.archive.org` CDX API | reachable network |
+| 10 | **whatweb** | domain → web technologies, resolved IP | `sudo apt install whatweb` | `whatweb --version` |
+| 11 | **nmap** | IP → open ports and service versions | `sudo apt install nmap` | `nmap --version` |
+| 12 | **shodan** | IP → host intelligence *(API key required)* | `pip install shodan` then `shodan init <API_KEY>` | `shodan info` |
+| 13 | **exiftool** | image → GPS, camera, timestamps | `sudo apt install libimage-exiftool-perl` | `exiftool -ver` |
+| 14 | **wayback_machine** | domain → archived URLs | none — HTTP call to `web.archive.org` CDX API | reachable network |
 
 Notes worth knowing before relying on a row:
 
@@ -105,11 +104,11 @@ No key is ever written to a command line, a report, a log, or the database.
 | Google Custom Search | `google_api_key` + `google_cx` | falls back to scraping |
 | Etherscan, GeoNames | `plugins.*.api_key` | declared only — **no integration exists**, never scheduled |
 
-### 6. Declared but deliberately not invoked (20)
+### 6. Declared but deliberately not invoked (21)
 
-`ToolChecker` knows 36 tools; 15 are integrated and 1 (`leakosint`) runs through the plugin path. The rest are detected and reported by `--check-tools` but never dispatched, each with a reason recorded in `UNIMPLEMENTED_TOOLS`:
+`ToolChecker` knows 36 tools; 14 are integrated and 1 (`leakosint`) runs through the plugin path. The rest are detected and reported by `--check-tools` but never dispatched, each with a reason recorded in `UNIMPLEMENTED_TOOLS`:
 
-`social_analyzer`, `emailharvester`, `recon-ng`, `spiderfoot`, `ghunt`, `photon`, `metagoofil`, `etherscan`, `geonames`, `wappalyzer`, `masscan`, `nikto`, `sqlmap`, `curl`, `wget`, `nslookup`, `tor_browser`, `flagfox`, `user_agent_switcher`, `google_dorks` (handled in-process, not as a subprocess).
+`social_analyzer`, `emailharvester`, `recon-ng`, `spiderfoot`, `ghunt`, `photon`, `metagoofil`, `etherscan`, `geonames`, `wappalyzer`, `masscan`, `nikto`, `sqlmap`, `curl`, `wget`, `nslookup`, `dig` (DNS records describe the mail/web provider, not the seed), `tor_browser`, `flagfox`, `user_agent_switcher`, `google_dorks` (handled in-process, not as a subprocess).
 
 ### 7. One-command environment (recommended)
 
@@ -124,7 +123,7 @@ Equivalent bare-metal one-liner for a Debian/Ubuntu host:
 
 ```bash
 # in the Ubuntu/Debian repositories
-sudo apt update && sudo apt install -y nmap whois dnsutils whatweb libimage-exiftool-perl python3-pip golang-go
+sudo apt update && sudo apt install -y nmap whois whatweb libimage-exiftool-perl python3-pip golang-go
 
 # PyPI
 pip install sherlock-project maigret holehe sublist3r osrframework shodan
@@ -135,7 +134,7 @@ go install -v github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest
 go install -v github.com/owasp-amass/amass/v4/...@master
 ```
 
-On Ubuntu 22.04 `apt` carries `nmap`, `whois`, `dnsutils`, `whatweb` and `libimage-exiftool-perl` but **not** `amass`, `theharvester` or `sublist3r` — those three are packaged only on Kali, which is why the Docker image is the shorter route.
+On Ubuntu 22.04 `apt` carries `nmap`, `whois`, `whatweb` and `libimage-exiftool-perl` but **not** `amass`, `theharvester` or `sublist3r` — those three are packaged only on Kali, which is why the Docker image is the shorter route.
 
 ---
 

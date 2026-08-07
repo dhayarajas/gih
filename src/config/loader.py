@@ -240,12 +240,6 @@ class ConfigLoader:
                     "timeout": 30,
                     "max_retries": 2
                 },
-                "dig": {
-                    "enabled": False,
-                    "priority": 2,
-                    "timeout": 15,
-                    "max_retries": 2
-                },
                 "google_dorks": {
                     "enabled": True,
                     "priority": 2,

@@ -179,7 +179,6 @@ sequenceDiagram
     participant TH as "theHarvester (subprocess)"
     participant AM as "amass (subprocess)"
     participant WH as "whois (subprocess)"
-    participant DG as "dig (subprocess)"
     participant WB as "Wayback CDX API (HTTP)"
     participant DB as "storage/database"
 
@@ -210,12 +209,6 @@ sequenceDiagram
     opt "available"
         Ext->>WH: "run_tool_analysis('whois', 'domain_lookup', domain)"
         WH-->>Ext: "registrar, dates, contact emails"
-    end
-
-    Ext->>TC: "check_tool_availability('dig')"
-    opt "available"
-        Ext->>DG: "run_tool_analysis('dig', 'dns_lookup', domain)"
-        DG-->>Ext: "ip_address and DNS records"
     end
 
     Ext->>WB: "run_tool_analysis('wayback_machine', 'historical_urls', domain)"

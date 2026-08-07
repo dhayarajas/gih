@@ -80,12 +80,6 @@ plugins:
     timeout: 30
     max_retries: 2
   
-  dig:
-    enabled: true  # Enabled by default - skipped automatically if the tool is not installed
-    priority: 2
-    timeout: 15
-    max_retries: 2
-  
   amass:
     enabled: true  # Enabled by default - skipped automatically if the tool is not installed
     priority: 2

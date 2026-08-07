@@ -124,7 +124,7 @@ Package marker for Ghost Identity Hunter. Docstring only; no runtime logic.
 | `username` | `username_search` (+ profile image scrape) | sherlock, maigret, osrframework, google_dorks | matching builtins |
 | `fullname` | `image_match` + username variants | google_dorks | image_match (if registered) |
 | `image` | `image_search` | exiftool | exiftool |
-| `domain` / `subdomain` | — | whois, dig, subfinder, amass, whatweb, wayback, theHarvester | matching builtins |
+| `domain` / `subdomain` | — | whois, subfinder, amass, whatweb, wayback, theHarvester | matching builtins |
 | `ip_address` | — | nmap, shodan | matching builtins |
 | `platform_presence` | — | — | profile_image |
 
@@ -255,14 +255,14 @@ Package docstring only.
 
 **Purpose:** Unified subprocess/API integrations for installed OSINT CLIs and Wayback CDX.
 
-**Integrated tools:** Sherlock, Maigret, Holehe, OSRFramework, theHarvester, Subfinder, Sublist3r, WhatWeb, Shodan, Amass, Whois, Dig, Nmap, ExifTool, Wayback Machine.
+**Integrated tools:** Sherlock, Maigret, Holehe, OSRFramework, theHarvester, Subfinder, Sublist3r, WhatWeb, Shodan, Amass, Whois, Nmap, ExifTool, Wayback Machine.
 
 **How it works:**
 
 1. Each `*Integration` class builds a CLI (or HTTP for Wayback), runs under timeout inside `io_slot`, parses stdout/JSON into artifact dicts (capped at `MAX_ARTIFACTS_PER_TOOL=15`).
 2. `@skip_if_not_available` short-circuits missing tools.
 3. `run_tool_analysis(tool, analysis_type, target)` dispatches + memoizes on `(tool, analysis, target)` (cache cleared per investigation).
-4. Orchestrator selects analysis by artifact type (username → sherlock/maigret/…; domain → whois/dig/enum; ip → nmap/shodan; email → holehe; image → exiftool).
+4. Orchestrator selects analysis by artifact type (username → sherlock/maigret/…; domain → whois/enum; ip → nmap/shodan; email → holehe; image → exiftool).
 
 **Key maps:** `ANALYSIS_METHODS`, `TOOL_ARTIFACT_TYPES`, `UNIMPLEMENTED_TOOLS`, `get_tool_integrations`, `get_tool_coverage`.
 
@@ -348,7 +348,6 @@ Re-exports 20 plugin classes in `__all__`. Note: `ImageMatchPlugin` exists on di
 | `theharvester_plugin.py` | `TheHarvesterPlugin` | `domain` | theHarvester | `-b google` JSON/text parse | `email`, `domain` |
 | `shodan_plugin.py` | `ShodanPlugin` | `ip_address`, `domain` | Shodan | API key required; host/domain search | `host_info`, `open_port` / `service` |
 | `whois_plugin.py` | `WhoisPlugin` | `domain`, `ip_address` | `whois` | Line-scan registrant/org/email | `organization`, `email` |
-| `dig_plugin.py` | `DigPlugin` | `domain` | `dig` | A/MX/NS/TXT/CNAME `+short` | `ip_address`, `mail_server`, `nameserver` |
 | `profile_image_plugin.py` | `ProfileImagePlugin` | `platform_presence` | HTTP + BeautifulSoup | CSS/og:image/twitter:image heuristics | `image` |
 
 ### `IntegrationPlugin` wrappers (delegate to `external_tools`)

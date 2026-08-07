@@ -91,6 +91,23 @@ class TestToolCoverage:
             else:
                 assert info["reason"], name
 
+    def test_dns_resolution_is_not_dispatched(self):
+        """dig resolves the mail/web provider, not the seed.
+
+        For `-e user@gmail.com` its records describe Google's infrastructure and
+        get attributed to the person, so the tool is documented as unimplemented
+        rather than integrated.
+        """
+        coverage = get_tool_coverage()
+
+        assert coverage["dig"]["integrated"] is False
+        assert coverage["dig"]["reason"]
+        assert "dig" not in get_tool_integrations()
+        assert "dig" not in ANALYSIS_METHODS
+
+        orchestrator_source = Path("src/orchestrator.py").read_text()
+        assert '"dig"' not in orchestrator_source
+
     def test_integrations_expose_their_analysis_methods(self):
         for name, integration in get_tool_integrations().items():
             assert name in ANALYSIS_METHODS, name
@@ -237,12 +254,11 @@ class TestExifToolTargets:
 
 
 class TestIpArtifactTypeIsConsistent:
-    """dig's plugin and integration must agree on the type, or the same IP
+    """Every producer of an IP must agree on the type, or the same address
     becomes two nodes and the nmap findings hanging off one of them are
     orphaned from the identity that reaches the other."""
 
     def test_plugins_use_ip_address(self):
-        from src.plugins.builtins.dig_plugin import DigPlugin
         from src.plugins.builtins.shodan_plugin import ShodanPlugin
         from src.plugins.builtins.whois_plugin import WhoisPlugin
 
@@ -251,18 +267,13 @@ class TestIpArtifactTypeIsConsistent:
             assert "ip" not in supported, plugin.name
             assert "ip_address" in supported, plugin.name
 
-        source = Path("src/plugins/builtins/dig_plugin.py").read_text()
-        assert 'type="ip"' not in source
-        assert 'type="ip_address"' in source
-        assert DigPlugin().get_supported_artifact_types() == ["domain"]
-
     def test_open_ports_reach_the_identity_that_owns_the_ip(self, conn):
         """email -> domain -> ip_address -> open_port must land on the profile."""
         inv_id = db.create_investigation(conn)
 
         email = db.add_artifact(conn, inv_id, "email", "ada@example.com", source="seed")
         domain = db.add_artifact(conn, inv_id, "domain", "example.com", source="whois")
-        ip = db.add_artifact(conn, inv_id, "ip_address", "93.184.216.34", source="dig")
+        ip = db.add_artifact(conn, inv_id, "ip_address", "93.184.216.34", source="whatweb")
         port = db.add_artifact(
             conn, inv_id, "open_port", "93.184.216.34:22", source="nmap"
         )
@@ -291,45 +302,6 @@ class TestToolArguments:
 
         monkeypatch.setattr(integration, "run_tool", fake_run_tool)
         return calls
-
-    def test_dig_queries_each_record_type(self, monkeypatch):
-        from src.modules.external_tools import DigIntegration
-
-        integration = DigIntegration()
-        calls = self._capture(monkeypatch, integration)
-        monkeypatch.setattr(tool_checker, "check_tool_availability", lambda name: True)
-
-        integration.dns_lookup("example.com")
-        integration.mx_lookup("example.com")
-        integration.ns_lookup("example.com")
-        integration.txt_lookup("example.com")
-
-        assert [c[2] for c in calls] == ["A", "MX", "NS", "TXT"]
-
-    def test_dig_analysis_methods_cover_every_record_type(self):
-        assert set(ANALYSIS_METHODS["dig"]) == {
-            "dns_lookup",
-            "mx_lookup",
-            "ns_lookup",
-            "txt_lookup",
-        }
-
-    def test_non_a_records_keep_their_dns_type(self, monkeypatch):
-        from src.modules.external_tools import DigIntegration
-
-        integration = DigIntegration()
-        monkeypatch.setattr(tool_checker, "check_tool_availability", lambda name: True)
-        monkeypatch.setattr(
-            integration,
-            "run_tool",
-            lambda tool_name, command, timeout=None: ToolResult(
-                tool_name=tool_name, success=True, output="10 mail.example.com.\n"
-            ),
-        )
-
-        result = integration.mx_lookup("example.com")
-
-        assert [a["type"] for a in result.artifacts_discovered] == ["dns_mx"]
 
     def test_theharvester_runs_once_per_domain(self, monkeypatch):
         from src.modules.external_tools import TheHarvesterIntegration
