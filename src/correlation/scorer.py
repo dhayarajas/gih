@@ -146,7 +146,7 @@ def explain_identity_risk_score(risk_indicators: list[str]) -> dict:
     silently swallowing evidence.
     """
     if not risk_indicators:
-        return {"score": 0.0, "signals": [], "capped": False}
+        return {"score": 0.0, "raw_total": 0.0, "signals": [], "capped": False}
 
     signals = []
     for indicator in sorted(set(risk_indicators)):
