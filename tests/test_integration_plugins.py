@@ -9,9 +9,9 @@ from src.modules.external_tools import (
     ANALYSIS_METHODS,
     TOOL_ARTIFACT_TYPES,
     ToolResult,
-    _parse_usufy_profiles,
     get_tool_integrations,
 )
+from src.modules.tool_parsers import parse_usufy_profiles
 from src.plugins.base import Artifact, PluginStatus
 from src.plugins.builtins import (
     AmassPlugin,
@@ -218,7 +218,7 @@ class TestUsufyParser:
     """)
 
     def test_parses_profiles(self):
-        artifacts = _parse_usufy_profiles(self.PROFILES, "torvalds")
+        artifacts = parse_usufy_profiles(self.PROFILES, "torvalds")
 
         assert len(artifacts) == 1
         assert artifacts[0] == {
@@ -231,9 +231,9 @@ class TestUsufyParser:
         }
 
     def test_tolerates_unexpected_shapes(self):
-        assert _parse_usufy_profiles({}, "torvalds") == []
-        assert _parse_usufy_profiles([], "torvalds") == []
-        assert _parse_usufy_profiles(["not-a-dict"], "torvalds") == []
+        assert parse_usufy_profiles({}, "torvalds") == []
+        assert parse_usufy_profiles([], "torvalds") == []
+        assert parse_usufy_profiles(["not-a-dict"], "torvalds") == []
 
 
 class TestOsrframeworkIntegration:

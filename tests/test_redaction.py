@@ -90,6 +90,18 @@ class TestMetadataRedaction:
 
         assert clean == {"records": [{"home_address": "[REDACTED]"}]}
 
+    def test_a_self_written_biography_is_dropped(self):
+        """maigret returns the account's bio verbatim, names and all."""
+        clean = _redact_metadata({
+            "bio": "Ghost User, engineer in Chennai",
+            "verified_reason": "CEO of Example Corp",
+            "follower_count": "2339949",
+        })
+
+        assert clean["bio"] == "[REDACTED]"
+        assert clean["verified_reason"] == "[REDACTED]"
+        assert clean["follower_count"] == "2339949"
+
     def test_a_url_under_an_innocent_key_is_still_dropped(self):
         assert _redact_metadata({"evidence": "https://example.com/u/ghostuser"}) == {
             "evidence": "[REDACTED_URL]"

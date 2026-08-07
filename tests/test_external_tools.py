@@ -11,11 +11,13 @@ from src.modules.external_tools import (
     ANALYSIS_METHODS,
     ExifToolIntegration,
     ToolResult,
-    _parse_email_accounts,
-    _parse_found_accounts,
-    _parse_subdomains,
     get_tool_coverage,
     get_tool_integrations,
+)
+from src.modules.tool_parsers import (
+    parse_holehe_text,
+    parse_sherlock,
+    parse_subdomains,
 )
 from src.orchestrator import _artifact_metadata
 from src.storage import database as db
@@ -47,7 +49,7 @@ class TestAccountParsing:
     """Parsing of sherlock/maigret '[+] Platform: url' output."""
 
     def test_extracts_found_accounts(self):
-        artifacts = _parse_found_accounts(SHERLOCK_OUTPUT, "octocat", "sherlock", 0.8)
+        artifacts = parse_sherlock(SHERLOCK_OUTPUT, "octocat")
         values = [a["value"] for a in artifacts]
 
         assert values == ["https://www.7cups.com/@octocat", "https://github.com/octocat"]
@@ -57,7 +59,7 @@ class TestAccountParsing:
         assert artifacts[1]["username"] == "octocat"
 
     def test_ignores_not_found_lines(self):
-        artifacts = _parse_found_accounts("[-] Facebook: Not Found!", "octocat", "sherlock", 0.8)
+        artifacts = parse_sherlock("[-] Facebook: Not Found!", "octocat")
         assert artifacts == []
 
 
@@ -65,7 +67,7 @@ class TestSubdomainParsing:
     """Parsing of subfinder/sublist3r/amass/theHarvester output."""
 
     def test_extracts_unique_subdomains(self):
-        artifacts = _parse_subdomains(SUBFINDER_OUTPUT, "github.com", "subfinder")
+        artifacts = parse_subdomains(SUBFINDER_OUTPUT, "github.com", "subfinder")
         values = [a["value"] for a in artifacts]
 
         assert values == ["accelerator.github.com", "f.cloud.github.com"]
@@ -73,7 +75,7 @@ class TestSubdomainParsing:
         assert all(a["source"] == "subfinder" for a in artifacts)
 
     def test_ignores_percent_encoded_prefixes(self):
-        artifacts = _parse_subdomains("%2Fdocs.github.com", "github.com", "subfinder")
+        artifacts = parse_subdomains("%2Fdocs.github.com", "github.com", "subfinder")
         assert artifacts == []
 
 
@@ -149,7 +151,7 @@ class TestEmailAccountParsing:
     """Holehe hits stay distinct artifacts rather than collapsing on the email."""
 
     def test_each_platform_is_a_distinct_artifact(self):
-        artifacts = _parse_email_accounts(HOLEHE_OUTPUT, "octocat@github.com")
+        artifacts = parse_holehe_text(HOLEHE_OUTPUT, "octocat@github.com")
         values = [a["value"] for a in artifacts]
 
         assert values == [
