@@ -777,6 +777,7 @@ def generate_html_report(
         build_leak_findings,
         build_orphan_findings,
         build_preserved_evidence,
+        build_timeline,
         default_output_path,
         enrich_tool_status,
         load_comments,
@@ -808,7 +809,7 @@ def generate_html_report(
         risk_score = compute_identity_risk_score(identity.risk_indicators)
         risk_levels.append(classify_risk_level(risk_score))
 
-    timeline = _generate_timeline(artifacts)
+    timeline = build_timeline(artifacts)
     key_findings = _generate_key_findings(artifacts, links, presences, correlation)
     confidence_metrics = _generate_confidence_metrics(artifacts, links)
     risk_matrix = _generate_risk_matrix(correlation, risk_levels)
@@ -932,23 +933,6 @@ def generate_html_report(
 
     logger.info("HTML report saved to %s", output_file)
     return str(output_file)
-
-
-def _generate_timeline(artifacts: list) -> list:
-    """Generate investigation timeline from artifact discovery times."""
-    timeline = []
-    for artifact in artifacts:
-        timeline.append({
-            'time': artifact.get('discovered_at', ''),
-            'type': artifact.get('artifact_type', 'unknown'),
-            'value': artifact.get('value', ''),
-            'source': artifact.get('source', 'unknown'),
-            'depth': artifact.get('depth', 0)
-        })
-    
-    # Sort by discovery time
-    timeline.sort(key=lambda x: x['time'])
-    return timeline
 
 
 def _generate_key_findings(artifacts: list, links: list, presences: list, correlation) -> list:
@@ -1908,6 +1892,7 @@ def generate_json_report(
         build_leak_findings,
         build_orphan_findings,
         build_preserved_evidence,
+        build_timeline,
         default_output_path,
         enrich_tool_status,
         load_comments,
@@ -1956,6 +1941,7 @@ def generate_json_report(
         "platform_presences": presences,
         "evidence_chains": build_evidence_chains(artifacts, links),
         "preserved_evidence": build_preserved_evidence(conn, investigation_id, redact),
+        "timeline": build_timeline(artifacts),
         "orphan_findings": orphans,
         "cross_investigation": build_cross_investigation(conn, investigation_id, artifacts),
         "delta": build_delta_report(conn, investigation_id, compare_id),
