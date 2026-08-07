@@ -295,6 +295,13 @@ reporting:
     opacity: 0.1
     position: "center"  # center, top-left, top-right, bottom-left, bottom-right
 
+# Evidence Preservation Settings
+# Raw tool output is written verbatim to <directory>/<investigation_id>/<sha256>.txt
+# so findings can be re-verified against the material they came from.
+evidence:
+  enabled: true
+  directory: "~/.ghost_hunter/evidence"
+
 # Database Settings
 database:
   path: "./investigations.db"

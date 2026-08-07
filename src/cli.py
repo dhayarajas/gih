@@ -649,6 +649,54 @@ def correlate(ctx: click.Context, investigation_id: str) -> None:
         conn.close()
 
 
+@cli.command()
+@click.option("--id", "investigation_id", required=True, help="Investigation ID")
+@click.option("--show-path", is_flag=True, help="Print the stored file path of each capture")
+@click.pass_context
+def evidence(ctx: click.Context, investigation_id: str, show_path: bool) -> None:
+    """Verify the preserved raw output of an investigation's tool runs.
+
+    Each capture is re-hashed and compared against the digest recorded at
+    collection time. Exits non-zero if anything was altered or is missing.
+
+    Examples:
+        ghost-hunter evidence --id INV-abc123
+    """
+    from src.reporting.report_data import build_preserved_evidence
+
+    conn = get_connection(ctx.obj.get("db_path"))
+    try:
+        inv = get_investigation(conn, investigation_id)
+        if not inv:
+            click.echo(f"Error: Investigation '{investigation_id}' not found")
+            sys.exit(1)
+
+        summary = build_preserved_evidence(conn, investigation_id)
+        if not summary["enabled"]:
+            click.echo(f"No preserved evidence recorded for {investigation_id}")
+            return
+
+        click.echo(f"\nPreserved Evidence for {investigation_id}")
+        click.echo(f"{'=' * 50}")
+        for item in summary["items"]:
+            click.echo(
+                f"  [{item['status'].upper():8}] {item['captured_at'][:19]} "
+                f"{item['tool']:16} {item['byte_size']:>8} B  {item['sha256'][:16]}…"
+            )
+            if item.get("command"):
+                click.echo(f"             {item['command']}")
+            if show_path:
+                click.echo(f"             {item['stored_path']}")
+        click.echo(
+            f"\n  {summary['verified']} verified, {summary['modified']} modified, "
+            f"{summary['missing']} missing ({summary['total']} total)"
+        )
+        if not summary["intact"]:
+            sys.exit(1)
+    finally:
+        conn.close()
+
+
 @cli.group()
 def plugins():
     """Plugin management commands."""

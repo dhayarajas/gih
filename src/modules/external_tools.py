@@ -13,11 +13,13 @@ import os
 import re
 import tempfile
 import threading
+import time
 from typing import Dict, List, Optional, Any
 from dataclasses import dataclass, field
 from enum import Enum
 
 from src.config.loader import get_config
+from src.storage import evidence
 from src.utils.concurrency import io_slot
 from src.utils.tool_checker import (
     check_tool_availability,
@@ -107,7 +109,9 @@ class ExternalToolsIntegration:
         if timeout is None:
             timeout = _get_tool_timeout(tool_name)
         result = ToolResult(tool_name=tool_name, success=False, output="")
-        
+        exit_status = "unknown"
+        started = time.monotonic()
+
         try:
             logger.info(f"Running {tool_name}: {' '.join(command)}")
             
@@ -121,6 +125,7 @@ class ExternalToolsIntegration:
             
             result.success = process.returncode == 0
             result.output = process.stdout + process.stderr
+            exit_status = f"exit {process.returncode}"
             
             if process.returncode != 0:
                 result.error_message = f"Tool exited with code {process.returncode}"
@@ -130,16 +135,29 @@ class ExternalToolsIntegration:
             
         except subprocess.TimeoutExpired:
             result.error_message = f"Tool execution timed out after {timeout}s"
+            exit_status = "timeout"
             logger.error(f"{tool_name} timeout: {result.error_message}")
             
         except FileNotFoundError:
             result.error_message = f"Tool command not found: {command[0]}"
+            exit_status = "not_found"
             logger.error(f"{tool_name} not found: {result.error_message}")
             
         except Exception as e:
             result.error_message = f"Unexpected error: {str(e)}"
+            exit_status = "error"
             logger.error(f"{tool_name} error: {result.error_message}")
-        
+
+        result.execution_time = time.monotonic() - started
+        # The raw output is what a reviewer has to be able to re-read months
+        # later; the parsed artifacts alone cannot be re-derived or challenged.
+        evidence.record(
+            tool_name,
+            result.output or (result.error_message or ""),
+            command=" ".join(command),
+            duration_seconds=result.execution_time,
+            exit_status=exit_status,
+        )
         return result
     
     def parse_json_output(self, output: str) -> Dict[str, Any]:
@@ -821,7 +839,10 @@ class WaybackMachineIntegration(ExternalToolsIntegration):
         import requests
         
         result = ToolResult(tool_name="wayback_machine", success=False, output="")
-        
+        url = ""
+        exit_status = "unknown"
+        started = time.monotonic()
+
         try:
             # Use Wayback Machine CDX API
             url = (
@@ -832,9 +853,11 @@ class WaybackMachineIntegration(ExternalToolsIntegration):
             with io_slot():
                 response = requests.get(url, timeout=30)
             
+            exit_status = f"HTTP {response.status_code}"
+            result.output = response.text
+
             if response.status_code == 200:
                 result.success = True
-                result.output = response.text
                 
                 # Parse JSON response
                 data = response.json()
@@ -857,8 +880,22 @@ class WaybackMachineIntegration(ExternalToolsIntegration):
                 
         except Exception as e:
             result.error_message = f"Wayback Machine error: {str(e)}"
+            if exit_status == "unknown":
+                # A response that arrived and then failed to parse is still that
+                # response; only a request that never completed is an error.
+                exit_status = "error"
             logger.error(f"Wayback Machine error: {e}")
-        
+
+        result.execution_time = time.monotonic() - started
+        evidence.record(
+            "wayback_machine",
+            result.output or (result.error_message or ""),
+            operation="cdx_query",
+            target=domain,
+            command=f"GET {url}",
+            duration_seconds=result.execution_time,
+            exit_status=exit_status,
+        )
         return result
 
 
@@ -1010,7 +1047,8 @@ def run_tool_analysis(tool_name: str, analysis_type: str, target: str) -> ToolRe
         return ToolResult(tool_name=tool_name, success=False, error_message="Unknown analysis type")
     
     method = getattr(integration, ANALYSIS_METHODS[tool_name][analysis_type])
-    result = method(target)
+    with evidence.analysing(analysis_type, target):
+        result = method(target)
 
     if result is None:
         # skip_if_not_available short-circuited the call

@@ -516,6 +516,39 @@ LEGAL_TEMPLATE = """<!DOCTYPE html>
             </tbody>
         </table>
 
+        <h2>Chain of Custody</h2>
+        {% if preserved_evidence.enabled %}
+        <p>Preservation covers the external command-line tools and the web-archive query: the
+        verbatim output of each such run was written to disk at collection time and named after
+        the SHA-256 digest of its bytes. Findings from the built-in modules, which query APIs
+        directly, are not preserved and are not covered by the statements below. Every digest
+        below was recomputed when this report was produced: {{ preserved_evidence.verified }} of {{ preserved_evidence.total }}
+        capture(s) still match their recorded digest{% if not preserved_evidence.intact %},
+        {{ preserved_evidence.modified }} no longer match and {{ preserved_evidence.missing }}
+        could not be located{% endif %}.</p>
+        <table>
+            <thead>
+                <tr><th>Collected (UTC)</th><th>Tool</th><th>Collection Command</th><th>Result</th><th>Bytes</th><th>SHA-256</th><th>Integrity</th></tr>
+            </thead>
+            <tbody>
+                {% for item in preserved_evidence['items'] %}
+                <tr>
+                    <td>{{ item.captured_at[:19] }}</td>
+                    <td>{{ item.tool }}</td>
+                    <td style="font-family: monospace; font-size: 0.8rem;">{{ item.command or 'withheld' }}</td>
+                    <td>{{ item.exit_status or '-' }}</td>
+                    <td>{{ item.byte_size }}</td>
+                    <td style="font-family: monospace; font-size: 0.75rem;">{{ item.sha256 }}</td>
+                    <td>{{ item.status | upper }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p>No raw collection output was preserved for this investigation, so the findings below
+        cannot be re-verified against the material they were derived from.</p>
+        {% endif %}
+
         <h2>Data Sources</h2>
         <p>The following data sources were utilized in this investigation:</p>
         <ul>
@@ -743,6 +776,7 @@ def generate_html_report(
         build_evidence_chains,
         build_leak_findings,
         build_orphan_findings,
+        build_preserved_evidence,
         default_output_path,
         enrich_tool_status,
         load_comments,
@@ -798,6 +832,7 @@ def generate_html_report(
     audit_trail = db.get_audit_trail(conn, investigation_id)
     comments = load_comments(conn, investigation_id)
     evidence_chains = build_evidence_chains(artifacts, links)
+    preserved_evidence = build_preserved_evidence(conn, investigation_id, redact)
     cross_hits = build_cross_investigation(conn, investigation_id, artifacts)
     delta = build_delta_report(conn, investigation_id, compare_id)
 
@@ -862,6 +897,7 @@ def generate_html_report(
         tool_metrics=tool_metrics,
         identity_images=identity_images,
         evidence_chains=evidence_chains,
+        preserved_evidence=preserved_evidence,
         leak_findings=leak_findings,
         orphan_findings=orphan_findings,
         comments=comments,
@@ -1871,6 +1907,7 @@ def generate_json_report(
         build_evidence_chains,
         build_leak_findings,
         build_orphan_findings,
+        build_preserved_evidence,
         default_output_path,
         enrich_tool_status,
         load_comments,
@@ -1918,6 +1955,7 @@ def generate_json_report(
         "links": links,
         "platform_presences": presences,
         "evidence_chains": build_evidence_chains(artifacts, links),
+        "preserved_evidence": build_preserved_evidence(conn, investigation_id, redact),
         "orphan_findings": orphans,
         "cross_investigation": build_cross_investigation(conn, investigation_id, artifacts),
         "delta": build_delta_report(conn, investigation_id, compare_id),

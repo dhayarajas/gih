@@ -460,6 +460,16 @@
         .status-not_installed { color: #c53030; }
         .status-silent_or_not_dispatched { color: #975a16; }
         .status-produced_output { color: #276749; }
+        .status-verified { color: #276749; font-weight: 600; }
+        .status-modified { color: #c53030; font-weight: 600; }
+        .status-missing { color: #975a16; font-weight: 600; }
+        .evidence-table th { white-space: nowrap; }
+        .evidence-table td:first-child, .evidence-table td:nth-child(2) { white-space: nowrap; }
+        .evidence-command, .evidence-digest {
+            font-family: 'SF Mono', Menlo, Consolas, monospace;
+            font-size: 0.78rem;
+            overflow-wrap: anywhere;
+        }
         .redacted-banner {
             background: #fefcbf; border: 1px solid #f6e05e; color: #744210;
             padding: 0.75rem 1rem; border-radius: 6px; margin-bottom: 1rem; font-weight: 600;
@@ -1079,6 +1089,43 @@
             {% endfor %}
         </div>
         {% endfor %}
+    </div>
+    {% endif %}
+
+    {% if 'evidence' in sections and preserved_evidence.enabled %}
+    {% set ns.n = ns.n + 1 %}
+    <h2>{{ ns.n }}. Preserved Evidence</h2>
+    <p class="section-blurb">Verbatim output of every external tool run and web-archive query &mdash; the built-in modules query APIs directly and are not preserved &mdash; stored on disk under the SHA-256 of its bytes. Each digest below was recomputed when this report was generated, so a capture that has been altered or deleted since collection is reported as such rather than assumed intact.</p>
+    <div class="card">
+        <p>
+            <strong>{{ preserved_evidence.total }}</strong> capture(s),
+            {{ "%.1f" | format(preserved_evidence.total_bytes / 1024) }} KiB &mdash;
+            <span class="status-badge {{ 'status-verified' if preserved_evidence.intact else 'status-modified' }}">
+                {{ preserved_evidence.verified }} verified,
+                {{ preserved_evidence.modified }} modified,
+                {{ preserved_evidence.missing }} missing
+            </span>
+        </p>
+        <table class="evidence-table">
+            <thead>
+                <tr><th>Captured</th><th>Tool</th><th>Operation</th><th>Command</th><th>Runtime</th><th>Result</th><th>Size</th><th>SHA-256</th><th>Integrity</th></tr>
+            </thead>
+            <tbody>
+            {% for item in preserved_evidence['items'] %}
+            <tr>
+                <td>{{ item.captured_at[:19] }}</td>
+                <td>{{ item.tool }}</td>
+                <td>{{ item.operation or '-' }}</td>
+                <td class="evidence-command">{{ item.command or 'withheld' }}</td>
+                <td>{{ "%.2fs" | format(item.duration_seconds or 0) }}</td>
+                <td>{{ item.exit_status or '-' }}{% if item.truncated %} (truncated){% endif %}</td>
+                <td>{{ item.byte_size }} B</td>
+                <td class="evidence-digest" title="{{ item.sha256 }}">{{ item.sha256[:16] }}…</td>
+                <td><span class="status-badge status-{{ item.status }}">{{ item.status }}</span></td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
     </div>
     {% endif %}
 
