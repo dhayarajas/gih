@@ -82,7 +82,12 @@ from typing import Optional
 from jinja2 import Environment, BaseLoader
 
 from src.correlation.linker import correlate_identities
-from src.correlation.scorer import compute_identity_risk_score, classify_risk_level
+from src.correlation.scorer import (
+    BASE_SCORES,
+    classify_risk_level,
+    compute_identity_risk_score,
+    explain_identity_risk_score,
+)
 from src.modules.external_tools import TOOL_ARTIFACT_TYPES
 from src.storage import database as db
 
@@ -729,11 +734,40 @@ def _build_artifact_views(artifacts: list, links: list, correlation) -> list:
                 for key, value in sorted(metadata.items(), key=lambda item: str(item[0]))
             ],
             'connections': connections,
+            'confidence_basis': _confidence_basis(artifact, connections),
             'identity_profile_id': identity.get('profile_id'),
             'identity_label': identity.get('label'),
         })
 
     return views
+
+
+def _confidence_basis(artifact: dict, connections: list) -> list:
+    """Explain where an artifact's confidence number came from.
+
+    An artifact's score is assigned by whichever tool reported it, then read
+    alongside the links that corroborate it. Stating both stops the number
+    reading as a single computed measure of truth.
+    """
+    basis = [{
+        'label': 'Assigned at discovery',
+        'value': f"{(artifact.get('confidence') or 0) * 100:.0f}%",
+        'detail': f"reported by {artifact.get('source') or 'an unknown source'} "
+                  f"at depth {artifact.get('depth', 0)}",
+    }]
+
+    for link in connections:
+        link_type = link.get('link_type') or '-'
+        base = BASE_SCORES.get(link_type)
+        basis.append({
+            'label': f"{link.get('direction', 'link').title()} {link_type}",
+            'value': f"{(link.get('confidence') or 0) * 100:.0f}%",
+            'detail': (f"{link.get('other_type')} {link.get('other_value')}"
+                       + (f" \u2014 base weight {base} for this link type"
+                          if base is not None else "")),
+        })
+
+    return basis
 
 
 def _build_identity_artifacts(artifact_views: list, correlation) -> dict:
@@ -805,9 +839,18 @@ def generate_html_report(
     )
 
     risk_levels = []
+    confidence_provenance = []
     for identity in correlation.identities:
-        risk_score = compute_identity_risk_score(identity.risk_indicators)
-        risk_levels.append(classify_risk_level(risk_score))
+        risk = explain_identity_risk_score(identity.risk_indicators)
+        risk_levels.append(classify_risk_level(risk["score"]))
+        confidence_provenance.append({
+            "profile_id": identity.profile_id,
+            "confidence": identity.confidence,
+            "signals": getattr(identity, "confidence_signals", []),
+            "note": getattr(identity, "confidence_note", ""),
+            "risk": risk,
+            "risk_level": risk_levels[-1],
+        })
 
     timeline = build_timeline(artifacts)
     key_findings = _generate_key_findings(artifacts, links, presences, correlation)
@@ -880,6 +923,7 @@ def generate_html_report(
         presences=presences,
         correlation=correlation,
         risk_levels=risk_levels,
+        confidence_provenance=confidence_provenance,
         timeline=timeline,
         key_findings=key_findings,
         confidence_metrics=confidence_metrics,

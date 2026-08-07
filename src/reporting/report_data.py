@@ -949,6 +949,9 @@ table, .collapsible, .collapsible-content, .drilldown-body, details.drilldown > 
 }}
 .chain-step {{ background: {banner_bg} !important; color: {body_color} !important; }}
 .timeline-when, .timeline-kind, .timeline-controls label {{ color: {body_color} !important; }}
+details.provenance, .provenance-body {{ color: {body_color} !important; }}
+details.provenance > summary {{ color: {link_color} !important; }}
+table.provenance-table td:last-child {{ color: var(--gih-muted) !important; }}
 .timeline-detail {{ color: var(--gih-muted) !important; }}
 .timeline-controls select {{
   background: {surface_bg} !important;

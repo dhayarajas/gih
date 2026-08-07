@@ -293,6 +293,9 @@ class IdentityProfile:
     risk_indicators: list[str] = field(default_factory=list)
     confidence: float = 0.0
     artifact_count: int = 0
+    # Signals behind `confidence`; see explain_confidence()
+    confidence_signals: list[dict] = field(default_factory=list)
+    confidence_note: str = ""
 
     # Findings contributed by external OSINT tools, attached to this identity
     domains: list[str] = field(default_factory=list)
@@ -336,6 +339,8 @@ class IdentityProfile:
             "platforms": self.platforms,
             "risk_indicators": self.risk_indicators,
             "confidence": self.confidence,
+            "confidence_signals": self.confidence_signals,
+            "confidence_note": self.confidence_note,
             "artifact_count": self.artifact_count,
             "domains": self.domains,
             "subdomains": self.subdomains,
@@ -529,8 +534,12 @@ def correlate_identities(conn: sqlite3.Connection, investigation_id: str) -> Cor
 
         profile.artifact_count = len(component)
 
-        # Compute confidence based on cross-type linking
-        profile.confidence = _compute_confidence(G, component)
+        # Compute confidence based on cross-type linking, keeping the signals
+        # so the report can show why the score is what it is
+        explanation = explain_confidence(G, component)
+        profile.confidence = explanation["score"]
+        profile.confidence_signals = explanation["signals"]
+        profile.confidence_note = explanation["note"]
 
         # Collect risk indicators from artifact metadata
         profile.risk_indicators = _collect_risk_indicators(conn, component)
@@ -555,7 +564,9 @@ def correlate_identities(conn: sqlite3.Connection, investigation_id: str) -> Cor
         noise_profile = IdentityProfile(
             profile_id="IDENTITY-NOISE",
             usernames=sorted(set(noise_artifacts)),
-            confidence=0.1
+            confidence=0.1,
+            confidence_note=("Fixed score for artifacts that matched no identity "
+                             "anchor; they are listed for review, not attributed."),
         )
         noise_profile.artifact_count = len(noise_artifacts)
         noise_profile.risk_indicators = ["noise_artifacts"]
@@ -700,51 +711,73 @@ def _account_username(artifact: dict, value: str) -> str:
     return value
 
 
-def _compute_confidence(G: nx.Graph, component: set) -> float:
+def explain_confidence(G: nx.Graph, component: set) -> dict:
     """
-    Compute confidence score for an identity profile.
+    Compute an identity's confidence score and the signals that produced it.
 
-    Higher confidence when:
-    - More diverse artifact types are linked together
-    - More cross-type edges exist
-    - Higher average edge confidence
+    A bare percentage is not reviewable: an analyst cannot tell whether 60%
+    means three artifact types weakly linked or two types linked by an exact
+    match. The score is unchanged; each signal is reported with its measured
+    value, its weight and what it contributed.
     """
     if len(component) <= 1:
-        return 0.3
+        return {
+            "score": 0.3,
+            "signals": [],
+            "note": ("Floor score for a single unlinked artifact: nothing "
+                     "corroborates it, so no signal is measurable."),
+        }
 
     subgraph = G.subgraph(component)
 
-    # Count unique artifact types
-    types = set()
-    for node in component:
-        types.add(G.nodes[node].get("artifact_type", "unknown"))
+    types = {G.nodes[node].get("artifact_type", "unknown") for node in component}
+    # Max 4 identity types: phone, email, username, image
+    type_diversity = min(len(types) / 4.0, 1.0)
 
-    type_diversity = min(len(types) / 4.0, 1.0)  # Max 4 types: phone, email, username, image
-
-    # Count cross-type edges
-    cross_edges = 0
     total_edges = subgraph.number_of_edges()
-    for u, v in subgraph.edges():
-        if G.nodes[u].get("artifact_type") != G.nodes[v].get("artifact_type"):
-            cross_edges += 1
-
+    cross_edges = sum(
+        1 for u, v in subgraph.edges()
+        if G.nodes[u].get("artifact_type") != G.nodes[v].get("artifact_type")
+    )
     cross_ratio = cross_edges / max(total_edges, 1)
 
-    # Average edge confidence
     edge_confidences = [
-        subgraph.edges[u, v].get("confidence", 0.5)
-        for u, v in subgraph.edges()
+        subgraph.edges[u, v].get("confidence", 0.5) for u, v in subgraph.edges()
     ]
     avg_confidence = sum(edge_confidences) / max(len(edge_confidences), 1)
 
-    # Weighted combination
-    confidence = (
-        0.4 * type_diversity +
-        0.3 * cross_ratio +
-        0.3 * avg_confidence
-    )
+    signals = [
+        {
+            "name": "Artifact type diversity",
+            "weight": 0.4,
+            "value": round(type_diversity, 3),
+            "detail": (f"{len(types)} of 4 identity types present "
+                       f"({', '.join(sorted(types))})"),
+        },
+        {
+            "name": "Cross-type links",
+            "weight": 0.3,
+            "value": round(cross_ratio, 3),
+            "detail": (f"{cross_edges} of {total_edges} link(s) join two "
+                       f"different artifact types"),
+        },
+        {
+            "name": "Mean link confidence",
+            "weight": 0.3,
+            "value": round(avg_confidence, 3),
+            "detail": f"averaged over {len(edge_confidences)} link(s)",
+        },
+    ]
+    for signal in signals:
+        signal["contribution"] = round(signal["weight"] * signal["value"], 3)
 
-    return round(min(confidence, 1.0), 3)
+    score = round(min(sum(s["contribution"] for s in signals), 1.0), 3)
+    return {"score": score, "signals": signals, "note": ""}
+
+
+def _compute_confidence(G: nx.Graph, component: set) -> float:
+    """Confidence score for an identity profile; see explain_confidence."""
+    return explain_confidence(G, component)["score"]
 
 
 def _collect_risk_indicators(conn: sqlite3.Connection, component: set) -> list[str]:
