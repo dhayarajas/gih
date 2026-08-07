@@ -463,6 +463,13 @@
         .status-verified { color: #276749; font-weight: 600; }
         .status-modified { color: #c53030; font-weight: 600; }
         .status-missing { color: #975a16; font-weight: 600; }
+        /* Score provenance */
+        details.provenance { margin: 0 0 0.6rem; }
+        details.provenance > summary { cursor: pointer; font-size: 0.82rem; color: #2b6cb0; }
+        .provenance-body { padding: 0.4rem 0 0.2rem; }
+        table.provenance-table { font-size: 0.8rem; }
+        table.provenance-table th { white-space: nowrap; }
+        table.provenance-table td:last-child { color: #4a5568; }
         /* Timeline */
         .timeline-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 0.75rem; margin-bottom: 0.75rem; font-size: 0.85rem; }
         .timeline-controls select { padding: 0.3rem 0.5rem; border: 1px solid #cbd5e0; border-radius: 4px; background: #ffffff; color: #1a202c; }
@@ -650,9 +657,52 @@
             </div>
             <div style="flex: 1; min-width: 0; overflow-wrap: anywhere;">
                 <p><strong>Profile ID:</strong> {{ identity.profile_id }}</p>
+                {% set prov = confidence_provenance[loop.index0] if confidence_provenance | length > loop.index0 else none %}
                 <p><strong>Confidence:</strong> {{ "%.1f%%" | format(identity.confidence * 100) }}</p>
+                {% if prov %}
+                <details class="provenance">
+                    <summary>Why this score?</summary>
+                    <div class="provenance-body">
+                        {% if prov.signals %}
+                        <table class="kv-table provenance-table">
+                            <thead><tr><th>Signal</th><th>Measured</th><th>Weight</th><th>Contributes</th><th>Basis</th></tr></thead>
+                            <tbody>
+                                {% for signal in prov.signals %}
+                                <tr>
+                                    <td>{{ signal.name }}</td>
+                                    <td>{{ "%.2f" | format(signal.value) }}</td>
+                                    <td>&times; {{ signal.weight }}</td>
+                                    <td>{{ "%.3f" | format(signal.contribution) }}</td>
+                                    <td>{{ signal.detail }}</td>
+                                </tr>
+                                {% endfor %}
+                                <tr><td><strong>Total</strong></td><td colspan="2"></td><td><strong>{{ "%.3f" | format(identity.confidence) }}</strong></td><td></td></tr>
+                            </tbody>
+                        </table>
+                        {% else %}
+                        <p class="empty-note">{{ prov.note or 'No signals recorded for this score.' }}</p>
+                        {% endif %}
+                    </div>
+                </details>
+                {% endif %}
                 <p><strong>Artifacts:</strong> {{ identity.artifacts | length }}</p>
                 <p><strong>Risk Indicators:</strong> {{ identity.risk_indicators | join(', ') if identity.risk_indicators else 'None' }}</p>
+                {% if prov and prov.risk.signals %}
+                <details class="provenance">
+                    <summary>Risk {{ "%.2f" | format(prov.risk.score) }} ({{ prov.risk_level | upper }}) &mdash; how it adds up</summary>
+                    <div class="provenance-body">
+                        <table class="kv-table provenance-table">
+                            <thead><tr><th>Indicator</th><th>Weight</th><th>Basis</th></tr></thead>
+                            <tbody>
+                                {% for signal in prov.risk.signals %}
+                                <tr><td>{{ signal.indicator }}</td><td>{{ signal.weight }}</td><td>{{ signal.detail }}</td></tr>
+                                {% endfor %}
+                                <tr><td><strong>Total</strong></td><td><strong>{{ "%.2f" | format(prov.risk.raw_total) }}</strong></td><td>{% if prov.risk.capped %}capped at 1.00{% endif %}</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </details>
+                {% endif %}
                 {% if identity.phones %}
                 <p><strong>Phone Numbers:</strong> {{ identity.phones | join(', ') }}</p>
                 {% endif %}
@@ -1032,6 +1082,18 @@
                         <tr><td>Attributed identity</td><td>{% if a.identity_profile_id %}<a class="xref" href="#identity-{{ a.identity_profile_id }}">{{ a.identity_label }}</a>{% else %}Not attributed{% endif %}</td></tr>
                     </tbody>
                 </table>
+
+                {% if a.confidence_basis %}
+                <h5>Confidence Basis</h5>
+                <table class="kv-table provenance-table">
+                    <thead><tr><th>Signal</th><th>Confidence</th><th>Basis</th></tr></thead>
+                    <tbody>
+                        {% for signal in a.confidence_basis %}
+                        <tr><td>{{ signal.label }}</td><td>{{ signal.value }}</td><td>{{ signal.detail }}</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                {% endif %}
 
                 <h5>Metadata</h5>
                 {% if a.metadata_items %}

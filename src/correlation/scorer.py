@@ -117,47 +117,74 @@ def compute_link_confidence(
     return round(min(score, 1.0), 3)
 
 
+# Risk weights per indicator type
+RISK_WEIGHTS = {
+    "disposable_email_domain": 0.3,
+    "disposable_email": 0.3,
+    "voip_number": 0.25,
+    "voip_carrier_detected": 0.25,
+    "voip_phone": 0.25,
+    "disposable_number_service": 0.4,
+    "privacy_email_provider": 0.15,
+    "invalid_email_format": 0.2,
+    "invalid_number": 0.2,
+    "invalid_number_format": 0.2,
+    "no_exif_metadata": 0.1,
+    "contains_gps_coordinates": 0.05,  # Not risky, just informational
+    "possible_stock_photo": 0.35,
+    "found_in_breaches": 0.2,
+}
+
+
+def explain_identity_risk_score(risk_indicators: list[str]) -> dict:
+    """
+    Compute the risk score and report what each indicator contributed.
+
+    Two identities can reach the same score by very different routes — one
+    disposable-number service, or four minor indicators — and the response to
+    each differs. The breakdown also makes the 1.0 cap visible instead of
+    silently swallowing evidence.
+    """
+    if not risk_indicators:
+        return {"score": 0.0, "signals": [], "capped": False}
+
+    signals = []
+    for indicator in sorted(set(risk_indicators)):
+        # Dynamic indicators like "found_in_7_breaches" scale with the count
+        if indicator.startswith("found_in_") and indicator.endswith("_breaches"):
+            try:
+                count = int(indicator.split("_")[2])
+                weight = min(count * 0.05, 0.3)
+                detail = f"{count} breach(es) × 0.05, capped at 0.30"
+            except (ValueError, IndexError):
+                weight = 0.2
+                detail = "breach count unparseable; default weight"
+        else:
+            weight = RISK_WEIGHTS.get(indicator, 0.1)
+            detail = ("listed weight" if indicator in RISK_WEIGHTS
+                      else "unrecognised indicator; default weight")
+        signals.append({
+            "indicator": indicator,
+            "weight": round(weight, 3),
+            "detail": detail,
+        })
+
+    raw = sum(s["weight"] for s in signals)
+    return {
+        "score": round(min(raw, 1.0), 3),
+        "raw_total": round(raw, 3),
+        "signals": signals,
+        "capped": raw > 1.0,
+    }
+
+
 def compute_identity_risk_score(risk_indicators: list[str]) -> float:
     """
     Compute overall risk score for an identity based on accumulated risk indicators.
 
     Returns 0.0 (no risk) to 1.0 (maximum risk).
     """
-    if not risk_indicators:
-        return 0.0
-
-    # Risk weights per indicator type
-    weights = {
-        "disposable_email_domain": 0.3,
-        "disposable_email": 0.3,
-        "voip_number": 0.25,
-        "voip_carrier_detected": 0.25,
-        "voip_phone": 0.25,
-        "disposable_number_service": 0.4,
-        "privacy_email_provider": 0.15,
-        "invalid_email_format": 0.2,
-        "invalid_number": 0.2,
-        "invalid_number_format": 0.2,
-        "no_exif_metadata": 0.1,
-        "contains_gps_coordinates": 0.05,  # Not risky, just informational
-        "possible_stock_photo": 0.35,
-        "found_in_breaches": 0.2,
-    }
-
-    # Compute weighted risk (cap at 1.0)
-    risk = 0.0
-    for indicator in set(risk_indicators):
-        # Check for dynamic indicators like "found_in_N_breaches"
-        if indicator.startswith("found_in_") and indicator.endswith("_breaches"):
-            try:
-                count = int(indicator.split("_")[2])
-                risk += min(count * 0.05, 0.3)
-            except (ValueError, IndexError):
-                risk += 0.2
-        else:
-            risk += weights.get(indicator, 0.1)
-
-    return round(min(risk, 1.0), 3)
+    return explain_identity_risk_score(risk_indicators)["score"]
 
 
 def classify_risk_level(risk_score: float) -> str:
