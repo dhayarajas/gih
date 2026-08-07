@@ -1258,14 +1258,6 @@ def _process_external_tools(
         elif artifact_type in ("domain", "subdomain"):
             if check_tool_availability("whois"):
                 tasks.append(("whois", _tool_task("whois", "domain_lookup", "Whois")))
-            if check_tool_availability("dig"):
-                tasks.append(("dig", _tool_task("dig", "dns_lookup", "Dig (A)")))
-                # Mail, nameserver and TXT records only add attribution value
-                # for the seed-level domain, not for every discovered subdomain.
-                if run_enumeration_tools:
-                    tasks.append(("dig_mx", _tool_task("dig", "mx_lookup", "Dig (MX)")))
-                    tasks.append(("dig_ns", _tool_task("dig", "ns_lookup", "Dig (NS)")))
-                    tasks.append(("dig_txt", _tool_task("dig", "txt_lookup", "Dig (TXT)")))
             if check_tool_availability("whatweb"):
                 tasks.append(("whatweb", _tool_task("whatweb", "tech_fingerprint", "WhatWeb")))
 

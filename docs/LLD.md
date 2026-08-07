@@ -186,7 +186,7 @@ def _process_external_tools(conn, inv_id, artifact, config) -> list[dict]:
 Returns immediately when `config.check_external_tools` is false. Otherwise, by artifact type:
 
 - `username` — `sherlock` (`username_search`) if `check_tool_availability("sherlock")`; then Google Dorks if `check_google_dorks_availability(config.google_api_key)` (which always returns `True`, so dorking runs regardless of `config.use_google_dorks`).
-- `domain` — `theharvester` (`email_harvest` then `subdomain_harvest`), `amass` (`subdomain_enum`), `whois` (`domain_lookup`), `dig` (`dns_lookup`), each behind `check_tool_availability`; then `wayback_machine` (`historical_urls`) unconditionally, since it is an HTTP API rather than a binary.
+- `domain` — `theharvester` (`email_harvest` then `subdomain_harvest`), `amass` (`subdomain_enum`), `whois` (`domain_lookup`), each behind `check_tool_availability`; then `wayback_machine` (`historical_urls`) unconditionally, since it is an HTTP API rather than a binary.
 - `ip_address` — `shodan` (`host_search`), `nmap` (`host_scan`).
 - `image` — `exiftool` (`metadata_extract`).
 - `email` — no subprocess; synthesises a `domain` artifact from the address with `link_type="domain_of_email"` and confidence `0.7`, which is what feeds the domain branch on the next BFS hop.
@@ -344,7 +344,6 @@ Execution of a single plugin:
 | `SherlockPlugin` | `Sherlock` | `username` | `check_tool_availability("sherlock")` | `sherlock --output /dev/stdout --format json` subprocess |
 | `TheHarvesterPlugin` | `theHarvester` | `domain` | `check_tool_availability("theharvester")` | `theHarvester` subprocess |
 | `WhoisPlugin` | `Whois` | `domain`, `ip_address` | `check_tool_availability("whois")` | `whois` subprocess |
-| `DigPlugin` | `Dig` | `domain` | `check_tool_availability("dig")` | `dig` subprocess |
 | `ShodanPlugin` | `Shodan` | `ip_address`, `domain` | `check_tool_availability("shodan")` | `shodan` CLI subprocess |
 | `ProfileImagePlugin` | `profile_image` | `platform_presence` | `bs4` importable | HTML scraping for avatar URLs |
 | `ImageMatchPlugin` | `image_match` | `fullname` | `face_recognition` importable | `image_match.search_and_match_identity` |
@@ -372,7 +371,7 @@ class NmapPlugin(IntegrationPlugin):
     artifact_types: ClassVar[list[str]] = ["ip_address"]
 ```
 
-`IntegrationPlugin.execute` calls `run_tool_analysis(tool_name, analysis_type, artifact.value)` and maps each entry of `ToolResult.artifacts_discovered` onto an `Artifact`, moving parser-specific keys (`platform`, `service`, `record_type`, ...) into `Artifact.metadata`. The subprocess call, timeout, availability guard and output parser therefore live only in `src/modules/external_tools.py`; the earlier hand-written plugins (Sherlock, Whois, Dig, Shodan, theHarvester) keep their own duplicate copies and can drift from the integration's behaviour.
+`IntegrationPlugin.execute` calls `run_tool_analysis(tool_name, analysis_type, artifact.value)` and maps each entry of `ToolResult.artifacts_discovered` onto an `Artifact`, moving parser-specific keys (`platform`, `service`, `record_type`, ...) into `Artifact.metadata`. The subprocess call, timeout, availability guard and output parser therefore live only in `src/modules/external_tools.py`; the earlier hand-written plugins (Sherlock, Whois, Shodan, theHarvester) keep their own duplicate copies and can drift from the integration's behaviour.
 
 `is_available()` delegates to `check_tool_availability(tool_name)` unless the subclass sets `requires_executable = False` (Wayback, which is an HTTP API). `check_wiring()` raises `ValueError` when a subclass names an `analysis_type` that `ANALYSIS_METHODS` does not define for its tool; `tests/test_integration_plugins.py` applies it to every plugin so a mis-wired plugin fails the suite instead of silently returning nothing at runtime.
 
@@ -397,7 +396,6 @@ class NmapPlugin(IntegrationPlugin):
     "shodan": _shodan,
     "amass": _amass,
     "whois": _whois,
-    "dig": _dig,
     "nmap": _nmap,
     "exiftool": _exiftool,
     "wayback_machine": _wayback,
@@ -411,7 +409,6 @@ class NmapPlugin(IntegrationPlugin):
 | `shodan` | `search_host` | `shodan host <ip>` | host/service facts |
 | `amass` | `enumerate_subdomains` | `amass enum -passive -d <domain>` | `domain` |
 | `whois` | `lookup_domain` | `whois <domain>` | registrar, dates, `email` |
-| `dig` | `dns_lookup` | `dig <domain> <type> +short` | `ip_address`, DNS records |
 | `nmap` | `scan_host` | `nmap` with a common-ports profile | open ports/services |
 | `exiftool` | `extract_metadata` | `exiftool -json <file>` | EXIF metadata, `location` |
 | `wayback_machine` | `get_historical_urls` | HTTP GET to the Wayback CDX API (no binary) | historical `url` entries |

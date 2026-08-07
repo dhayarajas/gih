@@ -314,11 +314,11 @@ class TestRediscoveryLinking:
         def fake_process(inv_id, item, config, plugin_manager=None):
             discovered = []
             if item["type"] == "domain":
-                # dig rediscovers the IP that was also given as a seed
+                # whatweb rediscovers the IP that was also given as a seed
                 discovered = [{
                     "type": "ip_address",
                     "value": "45.33.32.156",
-                    "source": "dig",
+                    "source": "whatweb",
                     "confidence": 0.9,
                 }]
             return ArtifactProcessResult(artifact=item, discovered=discovered)

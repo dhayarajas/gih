@@ -14,7 +14,7 @@ Generate the live version of this table at any time with:
 python -m src.cli investigate --check-tools
 ```
 
-## Integrated tools (15)
+## Integrated tools (14)
 
 Every tool below has an integration with a real output parser and is invoked by
 `_process_external_tools`. Which of them actually run depends on what is installed;
@@ -32,7 +32,6 @@ Every tool below has an integration with a real output parser and is invoked by
 | sublist3r | domain (depth 0) | `subdomain` | `subdomains` |
 | amass | domain (depth 0) | `subdomain` | `subdomains` |
 | whois | domain, subdomain | `domain_info` | `domains` |
-| dig | domain, subdomain | `ip_address` (from A records), `dns_mx`, `dns_ns`, `dns_txt` | `ip_addresses`, `dns_records` |
 | whatweb | domain, subdomain | `ip_address`, `web_technology` | `ip_addresses`, `web_technologies` |
 | nmap | ip_address (depth < 2) | `open_port` | `open_ports` |
 | shodan | ip_address (depth < 2) | `host_info`, `open_port` | `hosts`, `open_ports` |
@@ -80,7 +79,6 @@ Every integrated tool now has a plugin:
 | `Sublist3rPlugin` | sublist3r | `domain` |
 | `AmassPlugin` | amass | `domain` |
 | `WhoisPlugin` | whois | `domain`, `ip_address` |
-| `DigPlugin` | dig | `domain` |
 | `WhatWebPlugin` | whatweb | `domain`, `subdomain` |
 | `NmapPlugin` | nmap | `ip_address` |
 | `ShodanPlugin` | shodan | `ip_address`, `domain` |
@@ -91,7 +89,7 @@ Every integrated tool now has a plugin:
 The plugins added for maigret, holehe, subfinder, sublist3r, amass, whatweb, nmap,
 exiftool, wayback_machine and osrframework subclass `IntegrationPlugin`, which delegates
 to `run_tool_analysis` instead of re-implementing the subprocess call and the parser --
-the older hand-written plugins (sherlock, whois, dig, shodan, theharvester) each carry
+the older hand-written plugins (sherlock, whois, shodan, theharvester) each carry
 their own copy, which is why their output can differ from the integration's.
 `IntegrationPlugin.check_wiring()` fails a plugin that names an analysis the integration
 does not implement; `tests/test_integration_plugins.py` runs it over every plugin.
@@ -100,7 +98,7 @@ Note that `PluginManager` looks plugins up in `config.yaml` by class name
 (`MaigretPlugin`), while the config keys are tool names (`maigret`), so the `enabled`
 flags there do not currently gate plugin execution.
 
-## Declared but not integrated (21)
+## Declared but not integrated (22)
 
 The first two rows are integrated, just not through `_process_external_tools`.
 
@@ -111,7 +109,8 @@ The first two rows are integrated, just not through `_process_external_tools`.
 | social_analyzer | No stable CLI contract; node/python variants differ and output is not machine-parseable |
 | emailharvester | Superseded by theHarvester, which is integrated and covers the same sources |
 | wappalyzer | Superseded by whatweb, which is integrated and detects the same technologies |
-| nslookup | Superseded by dig, which is integrated |
+| nslookup | DNS resolution is not dispatched: a mail domain resolves the provider, not the seed |
+| dig | Resolves the mail/web provider rather than the seed itself, so its records misattribute the target |
 | masscan | Requires raw-socket (root) privileges; nmap covers the same port-scan role |
 | recon-ng | Interactive framework requiring per-module API keys and a workspace; not batch-invocable |
 | spiderfoot | Server/daemon oriented, requires its own database and web UI to collect results |
@@ -130,7 +129,7 @@ The first two rows are integrated, just not through `_process_external_tools`.
 
 ## Validation run
 
-Numbers below come from a host with sherlock, maigret, osrframework, holehe, whois, dig,
+Numbers below come from a host with sherlock, maigret, osrframework, holehe, whois,
 nmap, exiftool, subfinder, sublist3r, amass and whatweb installed (shodan and
 theHarvester absent).
 

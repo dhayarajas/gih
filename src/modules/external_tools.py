@@ -203,7 +203,8 @@ UNIMPLEMENTED_TOOLS: Dict[str, str] = {
     "user_agent_switcher": "Browser extension, not a data source",
     "curl": "Generic transport used by other integrations rather than a data source",
     "wget": "Generic transport used by other integrations rather than a data source",
-    "nslookup": "Superseded by dig, which is integrated",
+    "nslookup": "DNS resolution is not dispatched: a mail domain resolves the provider, not the seed",
+    "dig": "Resolves the mail/web provider rather than the seed itself, so its records misattribute the target",
     "google_dorks": "Implemented in src.modules.google_dorks and invoked directly for username artifacts",
     "leakosint": "Implemented in src.modules.leakosint and dispatched through the plugin system",
 }
@@ -713,50 +714,6 @@ class WhoisIntegration(ExternalToolsIntegration):
         return result
 
 
-class DigIntegration(ExternalToolsIntegration):
-    """Integration for DNS dig tool."""
-    
-    @skip_if_not_available("dig")
-    def mx_lookup(self, domain: str) -> ToolResult:
-        """Look up the domain's MX records."""
-        return self.dns_lookup(domain, "MX")
-
-    @skip_if_not_available("dig")
-    def ns_lookup(self, domain: str) -> ToolResult:
-        """Look up the domain's NS records."""
-        return self.dns_lookup(domain, "NS")
-
-    @skip_if_not_available("dig")
-    def txt_lookup(self, domain: str) -> ToolResult:
-        """Look up the domain's TXT records."""
-        return self.dns_lookup(domain, "TXT")
-
-    @skip_if_not_available("dig")
-    def dns_lookup(self, domain: str, record_type: str = "A") -> ToolResult:
-        """Perform DNS lookup using dig."""
-        command = ["dig", domain, record_type, "+short"]
-        result = self.run_tool("dig", command)
-        
-        if result.success:
-            # Extract DNS records from output
-            records = [line.strip() for line in result.output.split('\n') if line.strip()]
-            
-            for record in records[:MAX_ARTIFACTS_PER_TOOL]:
-                # A records are surfaced as IP addresses so downstream host tools can use them
-                is_ip = record_type.upper() == "A" and re.fullmatch(r"\d{1,3}(?:\.\d{1,3}){3}", record)
-                result.artifacts_discovered.append({
-                    "type": "ip_address" if is_ip else f"dns_{record_type.lower()}",
-                    "value": record,
-                    "domain": domain,
-                    "source": "dig",
-                    "confidence": 0.95
-                })
-            
-            logger.info(f"Dig found {len(result.artifacts_discovered)} {record_type} records for {domain}")
-        
-        return result
-
-
 class NmapIntegration(ExternalToolsIntegration):
     """Integration for Nmap network scanner."""
     
@@ -917,7 +874,6 @@ _whatweb = WhatWebIntegration()
 _shodan = ShodanIntegration()
 _amass = AmassIntegration()
 _whois = WhoisIntegration()
-_dig = DigIntegration()
 _nmap = NmapIntegration()
 _exiftool = ExifToolIntegration()
 _wayback = WaybackMachineIntegration()
@@ -937,7 +893,6 @@ def get_tool_integrations() -> Dict[str, ExternalToolsIntegration]:
         "shodan": _shodan,
         "amass": _amass,
         "whois": _whois,
-        "dig": _dig,
         "nmap": _nmap,
         "exiftool": _exiftool,
         "wayback_machine": _wayback,
@@ -960,12 +915,6 @@ ANALYSIS_METHODS: Dict[str, Dict[str, str]] = {
     "shodan": {"host_search": "search_host"},
     "amass": {"subdomain_enum": "enumerate_subdomains"},
     "whois": {"domain_lookup": "lookup_domain"},
-    "dig": {
-        "dns_lookup": "dns_lookup",
-        "mx_lookup": "mx_lookup",
-        "ns_lookup": "ns_lookup",
-        "txt_lookup": "txt_lookup",
-    },
     "nmap": {"host_scan": "scan_host"},
     "exiftool": {"metadata_extract": "extract_metadata"},
     "wayback_machine": {"historical_urls": "get_historical_urls"},
@@ -984,7 +933,6 @@ TOOL_ARTIFACT_TYPES: Dict[str, List[str]] = {
     "shodan": ["host_info", "open_port"],
     "amass": ["subdomain"],
     "whois": ["domain_info"],
-    "dig": ["ip_address", "dns_mx", "dns_ns", "dns_txt"],
     "nmap": ["open_port"],
     "exiftool": ["gps_coordinates", "camera_info", "creation_date"],
     "wayback_machine": ["historical_url"],

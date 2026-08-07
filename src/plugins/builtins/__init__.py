@@ -12,7 +12,6 @@ from .sherlock_plugin import SherlockPlugin
 from .theharvester_plugin import TheHarvesterPlugin
 from .shodan_plugin import ShodanPlugin
 from .whois_plugin import WhoisPlugin
-from .dig_plugin import DigPlugin
 from .google_dorks_plugin import GoogleDorksPlugin
 from .profile_image_plugin import ProfileImagePlugin
 from .maigret_plugin import MaigretPlugin
@@ -34,7 +33,6 @@ __all__ = [
     'TheHarvesterPlugin',
     'ShodanPlugin',
     'WhoisPlugin',
-    'DigPlugin',
     'GoogleDorksPlugin',
     'ProfileImagePlugin',
     'MaigretPlugin',
