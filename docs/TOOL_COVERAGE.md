@@ -1,6 +1,6 @@
 # External OSINT Tool Coverage
 
-`ToolChecker` declares 35 tools. This document records, for each of them, whether it is
+`ToolChecker` declares 36 tools. This document records, for each of them, whether it is
 detected, whether it has an integration with a real output parser in
 `src/modules/external_tools.py`, whether `_process_external_tools` invokes it, and which
 artifact types it contributes to correlation.
@@ -53,6 +53,11 @@ Notes:
 - `wayback_machine` is an HTTP API, so it has no local executable and is reported as
   available whenever the network is reachable. Its CDX query regularly takes 9-31s
   against a 30s timeout, so `historical_url` findings are missing from many runs.
+- `leakosint` is an HTTP API that requires a paid token, so `ToolChecker` reports it as
+  unavailable until `plugins.leakosint.api_key` or `LEAKOSINT_API_TOKEN` is set. Its
+  `leak_record` artifacts lead the report (section 1, "Breach Records") whenever the
+  query returns rows; with no token configured nothing is dispatched and no section is
+  rendered.
 - `nmap` findings are attached to the identity that reaches the scanned IP through
   `artifact_links`. An investigation seeded *only* with `--ip` forms no identity at all
   (an IP address is not an identity anchor), so its `open_port` findings appear in the
@@ -81,6 +86,7 @@ Every integrated tool now has a plugin:
 | `ShodanPlugin` | shodan | `ip_address`, `domain` |
 | `ExifToolPlugin` | exiftool | `image` |
 | `WaybackMachinePlugin` | wayback_machine | `domain` |
+| `LeakosintPlugin` | leakosint | `email`, `phone`, `username`, `fullname` |
 
 The plugins added for maigret, holehe, subfinder, sublist3r, amass, whatweb, nmap,
 exiftool, wayback_machine and osrframework subclass `IntegrationPlugin`, which delegates
@@ -94,11 +100,14 @@ Note that `PluginManager` looks plugins up in `config.yaml` by class name
 (`MaigretPlugin`), while the config keys are tool names (`maigret`), so the `enabled`
 flags there do not currently gate plugin execution.
 
-## Declared but not integrated (20)
+## Declared but not integrated (21)
+
+The first two rows are integrated, just not through `_process_external_tools`.
 
 | Tool | Reason |
 |------|--------|
 | google_dorks | Implemented separately in `src/modules/google_dorks.py`, invoked for username artifacts |
+| leakosint | Implemented separately in `src/modules/leakosint.py`, dispatched by `LeakosintPlugin` |
 | social_analyzer | No stable CLI contract; node/python variants differ and output is not machine-parseable |
 | emailharvester | Superseded by theHarvester, which is integrated and covers the same sources |
 | wappalyzer | Superseded by whatweb, which is integrated and detects the same technologies |

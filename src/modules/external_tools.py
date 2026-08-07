@@ -205,6 +205,7 @@ UNIMPLEMENTED_TOOLS: Dict[str, str] = {
     "wget": "Generic transport used by other integrations rather than a data source",
     "nslookup": "Superseded by dig, which is integrated",
     "google_dorks": "Implemented in src.modules.google_dorks and invoked directly for username artifacts",
+    "leakosint": "Implemented in src.modules.leakosint and dispatched through the plugin system",
 }
 
 
@@ -987,6 +988,7 @@ TOOL_ARTIFACT_TYPES: Dict[str, List[str]] = {
     "nmap": ["open_port"],
     "exiftool": ["gps_coordinates", "camera_info", "creation_date"],
     "wayback_machine": ["historical_url"],
+    "leakosint": ["leak_record"],
 }
 
 

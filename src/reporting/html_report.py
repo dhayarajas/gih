@@ -126,6 +126,8 @@ EXECUTIVE_TEMPLATE = """<!DOCTYPE html>
         th { background: #34495e; color: white; }
         .badge { padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.8rem; font-weight: bold; }
         .badge-risk { background: #e74c3c; color: white; }
+        .tool-off { color: #9aa0a6; text-decoration: line-through; }
+        .leak-box { background: #fdecea; color: #6b1d16; padding: 1.5rem; border-radius: 8px; margin: 1rem 0; border-left: 5px solid #c0392b; }
     </style>
 </head>
 <body>
@@ -135,6 +137,20 @@ EXECUTIVE_TEMPLATE = """<!DOCTYPE html>
         <p><strong>Title:</strong> {{ investigation.title or 'Untitled Investigation' }}</p>
         <p><strong>Status:</strong> {{ (investigation.status or 'Unknown') | title }}</p>
         <p><strong>Generated:</strong> {{ generated_at }}</p>
+
+        {% if leak_findings.record_count %}
+        <div class="leak-box">
+            <h2>Breach Records</h2>
+            <p>{{ leak_findings.record_count }} leaked record{{ '' if leak_findings.record_count == 1 else 's' }}
+               across {{ leak_findings.database_count }} database{{ '' if leak_findings.database_count == 1 else 's' }}
+               matched this investigation's selectors. Per-record detail is in the standard and technical reports.</p>
+            <ul>
+                {% for database in leak_findings.databases %}
+                <li>{{ database.database }}: {{ database.records | length }} record{{ '' if database.records | length == 1 else 's' }}</li>
+                {% endfor %}
+            </ul>
+        </div>
+        {% endif %}
 
         <div class="summary-box">
             <h2>Key Findings</h2>
@@ -268,6 +284,28 @@ TECHNICAL_TEMPLATE = """<!DOCTYPE html>
         <p><strong>Investigation ID:</strong> {{ investigation.investigation_id }}</p>
         <p><strong>Generated:</strong> {{ generated_at }}</p>
         
+        {% if leak_findings.record_count %}
+        <h2>Breach Records</h2>
+        {% for database in leak_findings.databases %}
+        <div class="card">
+            <h3>{{ database.database }} &mdash; {{ database.records | length }} record{{ '' if database.records | length == 1 else 's' }}</h3>
+            {% if database.info %}<p>{{ database.info }}</p>{% endif %}
+            <table>
+                <thead>
+                    <tr><th>Field</th><th>Value</th></tr>
+                </thead>
+                <tbody>
+                    {% for record in database.records %}
+                    {% for field in record.fields %}
+                    <tr><td>{{ field.key }}</td><td>{{ field.value }}</td></tr>
+                    {% endfor %}
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% endfor %}
+        {% endif %}
+
         <h2>Artifacts</h2>
         <div class="card">
             <table>
@@ -423,6 +461,9 @@ LEGAL_TEMPLATE = """<!DOCTYPE html>
                 <tr><td>Digital Artifacts</td><td>{{ artifacts | length }}</td><td>OSINT Collection</td></tr>
                 <tr><td>Identity Links</td><td>{{ links | length }}</td><td>Correlation Analysis</td></tr>
                 <tr><td>Platform Presences</td><td>{{ presences | length }}</td><td>Social Media Analysis</td></tr>
+                {% if leak_findings.record_count %}
+                <tr><td>Breach Records</td><td>{{ leak_findings.record_count }}</td><td>Leaked Database Search ({{ leak_findings.database_count }} database{{ '' if leak_findings.database_count == 1 else 's' }})</td></tr>
+                {% endif %}
             </tbody>
         </table>
 
@@ -700,6 +741,7 @@ def generate_html_report(
         build_cross_investigation,
         build_delta_report,
         build_evidence_chains,
+        build_leak_findings,
         build_orphan_findings,
         default_output_path,
         enrich_tool_status,
@@ -742,6 +784,7 @@ def generate_html_report(
         graph_html = _generate_embedded_graph(conn, investigation_id)
 
     tool_metrics = enrich_tool_status(_generate_tool_metrics(artifacts, correlation))
+    leak_findings = build_leak_findings(artifacts, redact=redact)
     orphan_findings = build_orphan_findings(artifacts, correlation)
     recommendations: list = []
 
@@ -819,6 +862,7 @@ def generate_html_report(
         tool_metrics=tool_metrics,
         identity_images=identity_images,
         evidence_chains=evidence_chains,
+        leak_findings=leak_findings,
         orphan_findings=orphan_findings,
         comments=comments,
         cross_hits=cross_hits,
@@ -1683,6 +1727,7 @@ _TOOL_LABELS = {
     "external_tool": "External tool",
     "phone_osint": "Phone OSINT",
     "wayback_machine": "Wayback Machine",
+    "leakosint": "LeakOSINT",
 }
 
 
@@ -1824,6 +1869,7 @@ def generate_json_report(
         build_cross_investigation,
         build_delta_report,
         build_evidence_chains,
+        build_leak_findings,
         build_orphan_findings,
         default_output_path,
         enrich_tool_status,
@@ -1847,6 +1893,7 @@ def generate_json_report(
 
     tool_metrics = enrich_tool_status(_generate_tool_metrics(artifacts, correlation))
     orphans = build_orphan_findings(artifacts, correlation)
+    leak_findings = build_leak_findings(artifacts, redact=redact)
 
     report = {
         "meta": {
@@ -1862,7 +1909,9 @@ def generate_json_report(
             "total_platforms": len(presences),
             "identity_count": len(correlation.identities),
             "orphan_count": len(orphans),
+            "leak_record_count": leak_findings["record_count"],
         },
+        "leak_findings": leak_findings,
         "tool_metrics": tool_metrics,
         "identities": [i.to_dict() for i in correlation.identities],
         "artifacts": artifacts,
