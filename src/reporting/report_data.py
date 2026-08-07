@@ -49,6 +49,10 @@ _PERSONAL_KEY_PARTS = (
     "longitude", "coordinate", "location", "password", "passwd", "document",
     "passport", "birth", "gender", "handle", "nick", "login", "account",
     "profile", "user", "name", "country", "region",
+    # Free text a person wrote about themselves: maigret's site extractors
+    # return it verbatim, and it routinely spells out the name, the employer
+    # or the town that the rest of the report is masking.
+    "bio", "about_me", "signature", "verified_reason",
 )
 _PERSONAL_KEY_WORDS = frozenset({
     "url", "uri", "link", "href", "ip", "dob", "ssn", "nid", "gps", "geo",

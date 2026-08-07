@@ -19,6 +19,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 
 from src.config.loader import get_config
+from src.modules import tool_parsers
 from src.storage import evidence
 from src.utils.concurrency import io_slot
 from src.utils.tool_checker import (
@@ -92,7 +93,8 @@ class ExternalToolsIntegration:
     def __init__(self):
         self.results_cache: Dict[str, ToolResult] = {}
     
-    def run_tool(self, tool_name: str, command: List[str], timeout: Optional[int] = None) -> ToolResult:
+    def run_tool(self, tool_name: str, command: List[str], timeout: Optional[int] = None,
+                 cwd: Optional[str] = None) -> ToolResult:
         """
         Execute an external OSINT tool and capture output.
         
@@ -102,6 +104,8 @@ class ExternalToolsIntegration:
             timeout: Execution timeout in seconds. When ``None`` (the default),
                 the configured ``<tool_name>.timeout`` from config.yaml is used,
                 falling back to ``DEFAULT_TOOL_TIMEOUT``.
+            cwd: Working directory for the subprocess, for the tools that write
+                their report beside themselves rather than where told.
             
         Returns:
             ToolResult with execution output and status
@@ -120,7 +124,8 @@ class ExternalToolsIntegration:
                     command,
                     capture_output=True,
                     text=True,
-                    timeout=timeout
+                    timeout=timeout,
+                    cwd=cwd,
                 )
             
             result.success = process.returncode == 0
@@ -193,9 +198,8 @@ class ExternalToolsIntegration:
         return artifacts
 
 
-# Maximum number of artifacts a single tool run contributes to an investigation.
-# Keeps BFS expansion (and report size) bounded on high-volume tools.
-MAX_ARTIFACTS_PER_TOOL = 15
+# Re-exported so the integrations and their parsers share one bound.
+MAX_ARTIFACTS_PER_TOOL = tool_parsers.MAX_ARTIFACTS_PER_TOOL
 
 # Matches the "[+] Platform: https://..." lines emitted by sherlock and maigret.
 FOUND_ACCOUNT_PATTERN = re.compile(r"^\[\+\]\s*(?P<platform>[^:]+?):\s*(?P<url>https?://\S+)\s*$")
@@ -228,37 +232,6 @@ UNIMPLEMENTED_TOOLS: Dict[str, str] = {
 }
 
 
-def _parse_found_accounts(output: str, username: str, tool_name: str, confidence: float) -> List[Dict[str, Any]]:
-    """Parse '[+] Platform: url' lines shared by sherlock and maigret."""
-    artifacts = []
-    seen = set()
-
-    for line in output.splitlines():
-        match = FOUND_ACCOUNT_PATTERN.match(line.strip())
-        if not match:
-            continue
-
-        platform = match.group("platform").strip()
-        url = match.group("url").strip()
-        if url in seen:
-            continue
-        seen.add(url)
-
-        artifacts.append({
-            "type": "username_presence",
-            "value": url,
-            "platform": platform,
-            "username": username,
-            "source": tool_name,
-            "confidence": confidence,
-        })
-
-        if len(artifacts) >= MAX_ARTIFACTS_PER_TOOL:
-            break
-
-    return artifacts
-
-
 class SherlockIntegration(ExternalToolsIntegration):
     """Integration for Sherlock username search tool."""
     
@@ -275,9 +248,7 @@ class SherlockIntegration(ExternalToolsIntegration):
         result = self.run_tool("sherlock", command)
         
         if result.success:
-            result.artifacts_discovered = _parse_found_accounts(
-                result.output, username, "sherlock", confidence=0.8
-            )
+            result.artifacts_discovered = tool_parsers.parse_sherlock(result.output, username)
             result.parsed_data = {
                 "username": username,
                 "platforms": {a["platform"]: a["value"] for a in result.artifacts_discovered},
@@ -292,60 +263,81 @@ class MaigretIntegration(ExternalToolsIntegration):
 
     @skip_if_not_available("maigret")
     def search_username(self, username: str) -> ToolResult:
-        """Search for username across the top Maigret sites."""
-        command = [
-            "maigret", username,
-            "--top-sites", "150",
-            "--timeout", "5",
-            "--no-progressbar",
-            "--no-color",
-            "--no-recursion",
-        ]
-        result = self.run_tool("maigret", command)
+        """Search for username across the top Maigret sites.
 
-        if result.success:
-            result.artifacts_discovered = _parse_found_accounts(
-                result.output, username, "maigret", confidence=0.75
-            )
-            result.parsed_data = {
-                "username": username,
-                "platforms": {a["platform"]: a["value"] for a in result.artifacts_discovered},
-            }
-            logger.info(f"Maigret found {len(result.artifacts_discovered)} platforms for {username}")
+        maigret prints a tree and writes a report; only the report carries the
+        detail its site extractors pulled out of each claimed account, so the
+        run asks for a newline-delimited JSON report and reads that. The
+        printed tree remains the evidence of what happened.
+        """
+        with tempfile.TemporaryDirectory(prefix="maigret-") as out_dir:
+            command = [
+                "maigret", username,
+                "--top-sites", "150",
+                "--timeout", "5",
+                "--no-progressbar",
+                "--no-color",
+                "--no-recursion",
+                "-J", "ndjson",
+                "-fo", out_dir,
+            ]
+            result = self.run_tool("maigret", command)
+
+            if not result.success:
+                return result
+
+            report = _read_first_file(out_dir, f"report_{username}_ndjson.json")
+
+        if report is None:
+            # Without the report the printed tree is all there is; its "[+]"
+            # lines still name the accounts, just not what maigret extracted.
+            logger.warning("maigret report missing for %s; falling back to its output", username)
+            result.artifacts_discovered = tool_parsers.parse_sherlock(result.output, username)
+            for artifact in result.artifacts_discovered:
+                artifact["source"] = "maigret"
+                artifact["confidence"] = 0.75
+        else:
+            result.artifacts_discovered = tool_parsers.parse_maigret_ndjson(report, username)
+
+        result.parsed_data = {
+            "username": username,
+            "platforms": {
+                a["platform"]: a["value"] for a in result.artifacts_discovered
+                if a["type"] == "username_presence"
+            },
+        }
+        logger.info(
+            "Maigret found %d findings for %s",
+            len(result.artifacts_discovered), username,
+        )
 
         return result
 
 
-def _parse_email_accounts(output: str, email: str) -> List[Dict[str, Any]]:
-    """Parse the '[+] service.tld' lines holehe emits for used accounts."""
-    artifacts = []
-    seen = set()
+def _read_first_file(directory: str, preferred: str = "") -> Optional[str]:
+    """Read a tool's report out of the directory it was told to write to.
 
-    for line in output.splitlines():
-        line = line.strip()
-        if not line.startswith("[+]"):
+    Tools name their report after the target and their own conventions, so the
+    expected name is tried first and any single file in the directory second.
+    """
+    candidates = []
+    if preferred:
+        candidates.append(os.path.join(directory, preferred))
+    try:
+        candidates.extend(sorted(
+            os.path.join(directory, name) for name in os.listdir(directory)
+        ))
+    except OSError:
+        return None
+
+    for path in candidates:
+        try:
+            if os.path.isfile(path):
+                with open(path, "r", encoding="utf-8", errors="replace") as handle:
+                    return handle.read()
+        except OSError:
             continue
-
-        platform = line[3:].strip()
-        if not platform or " " in platform or platform in seen:
-            continue
-        seen.add(platform)
-
-        artifacts.append({
-            # Platform-qualified so each account is a distinct artifact; a bare
-            # email would collapse every hit into a single graph node.
-            "type": "email_presence",
-            "value": f"{platform}:{email}",
-            "platform": platform,
-            "username": email,
-            "source": "holehe",
-            "confidence": 0.8,
-        })
-
-        if len(artifacts) >= MAX_ARTIFACTS_PER_TOOL:
-            break
-
-    return artifacts
+    return None
 
 
 class HoleheIntegration(ExternalToolsIntegration):
@@ -353,14 +345,34 @@ class HoleheIntegration(ExternalToolsIntegration):
 
     @skip_if_not_available("holehe")
     def check_email(self, email: str) -> ToolResult:
-        """Discover which services an email address is registered on."""
-        command = ["holehe", email, "--only-used", "--no-color"]
-        result = self.run_tool("holehe", command)
+        """Discover which services an email address is registered on.
 
-        if result.success:
-            result.artifacts_discovered.extend(_parse_email_accounts(result.output, email))
-            logger.info(f"Holehe found {len(result.artifacts_discovered)} accounts for {email}")
+        The CSV report is asked for because a site may return a masked
+        recovery address or phone number alongside the yes/no, and the
+        terminal output shows only the yes.
+        """
+        with tempfile.TemporaryDirectory(prefix="holehe-") as out_dir:
+            command = ["holehe", email, "--only-used", "--no-color", "--no-clear", "-C"]
+            result = self.run_tool("holehe", command, cwd=out_dir)
 
+            if not result.success:
+                return result
+
+            report = _read_first_file(out_dir)
+
+        if report:
+            result.artifacts_discovered = tool_parsers.parse_holehe_csv(report, email)
+        else:
+            logger.warning("holehe CSV report missing for %s; reading its output", email)
+            result.artifacts_discovered = tool_parsers.parse_holehe_text(result.output, email)
+
+        result.parsed_data = {
+            "email": email,
+            "platforms": [a["platform"] for a in result.artifacts_discovered],
+        }
+        logger.info(
+            "Holehe found %d accounts for %s", len(result.artifacts_discovered), email,
+        )
         return result
 
 
@@ -398,7 +410,7 @@ class OsrframeworkIntegration(ExternalToolsIntegration):
                 result.error_message = f"Could not read usufy output: {exc}"
                 return result
 
-        result.artifacts_discovered = _parse_usufy_profiles(profiles, username)
+        result.artifacts_discovered = tool_parsers.parse_usufy_profiles(profiles, username)
         result.parsed_data = {"username": username, "profiles": profiles}
         logger.info(
             "OSRFramework found %d profiles for %s",
@@ -407,45 +419,6 @@ class OsrframeworkIntegration(ExternalToolsIntegration):
 
         return result
 
-
-def _parse_usufy_profiles(profiles: Any, username: str) -> List[Dict[str, Any]]:
-    """Turn usufy's i3visio entity list into username_presence artifacts.
-
-    Each profile carries its URI, alias and platform as sibling attributes
-    tagged with a "com.i3visio.*" type rather than as named fields.
-    """
-    artifacts = []
-    seen = set()
-
-    if not isinstance(profiles, list):
-        return artifacts
-
-    for profile in profiles:
-        attributes = profile.get("attributes", []) if isinstance(profile, dict) else []
-        values = {
-            attribute.get("type"): attribute.get("value")
-            for attribute in attributes
-            if isinstance(attribute, dict)
-        }
-
-        url = values.get("com.i3visio.URI")
-        if not url or url in seen:
-            continue
-        seen.add(url)
-
-        artifacts.append({
-            "type": "username_presence",
-            "value": url,
-            "platform": values.get("com.i3visio.Platform", "unknown"),
-            "username": values.get("com.i3visio.Alias", username),
-            "source": "osrframework",
-            "confidence": 0.7,
-        })
-
-        if len(artifacts) >= MAX_ARTIFACTS_PER_TOOL:
-            break
-
-    return artifacts
 
 
 class TheHarvesterIntegration(ExternalToolsIntegration):
@@ -457,17 +430,28 @@ class TheHarvesterIntegration(ExternalToolsIntegration):
         # two analyses share a single subprocess per domain instead of issuing
         # the identical command twice.
         self._runs: Dict[str, ToolResult] = {}
+        self._reports: Dict[str, Optional[str]] = {}
         self._runs_lock = threading.Lock()
 
     def _harvest(self, domain: str) -> ToolResult:
-        """Run theHarvester once per domain and memoize its raw output."""
+        """Run theHarvester once per domain, keeping its output and report.
+
+        -f makes theHarvester write a JSON report naming what each finding is;
+        the printed summary separates emails, hosts, people and ASNs into
+        sections that a regex sweeping the whole text cannot tell apart.
+        """
         with self._runs_lock:
             cached = self._runs.get(domain)
             if cached is not None:
                 return cached
 
-            command = ["theHarvester", "-d", domain, "-b", "duckduckgo"]
-            result = self.run_tool("theharvester", command)
+            with tempfile.TemporaryDirectory(prefix="theharvester-") as out_dir:
+                report_path = os.path.join(out_dir, "report")
+                command = ["theHarvester", "-d", domain, "-b", "duckduckgo",
+                           "-f", report_path]
+                result = self.run_tool("theharvester", command)
+                self._reports[domain] = _read_first_file(out_dir, "report.json")
+
             self._runs[domain] = result
             return result
 
@@ -482,44 +466,49 @@ class TheHarvesterIntegration(ExternalToolsIntegration):
             execution_time=shared.execution_time,
         )
 
+    def _findings(self, domain: str, result: ToolResult) -> List[Dict[str, Any]]:
+        """Everything the run found, from the report when there is one."""
+        report = self._reports.get(domain)
+        if report:
+            parsed = tool_parsers.parse_theharvester_json(report, domain)
+            if parsed:
+                return parsed
+            logger.debug("theHarvester report for %s held no findings", domain)
+        return (tool_parsers.parse_emails(result.output, domain, "theharvester")
+                + tool_parsers.parse_subdomains(result.output, domain, "theharvester"))
+
     @skip_if_not_available("theharvester")
     def harvest_email(self, domain: str) -> ToolResult:
-        """Harvest emails from domain using theHarvester."""
+        """Harvest emails and the people behind them using theHarvester."""
         result = self._fresh_result(domain)
-        
+
         if result.success:
-            # Extract email addresses from output
-            email_pattern = r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}'
-            harvested = self.extract_artifacts_from_text(
-                result.output,
-                {"email": email_pattern}
+            result.artifacts_discovered = [
+                a for a in self._findings(domain, result)
+                if a["type"] in ("email", "fullname")
+            ]
+            logger.info(
+                "theHarvester found %d contacts for %s",
+                len(result.artifacts_discovered), domain,
             )
-            
-            # Remove duplicates
-            seen_emails = set()
-            unique_artifacts = []
-            for artifact in harvested:
-                if artifact["value"] not in seen_emails:
-                    seen_emails.add(artifact["value"])
-                    artifact["source"] = "theharvester"
-                    artifact["confidence"] = 0.8
-                    unique_artifacts.append(artifact)
-            
-            result.artifacts_discovered = unique_artifacts[:MAX_ARTIFACTS_PER_TOOL]
-            logger.info(f"theHarvester found {len(result.artifacts_discovered)} emails for {domain}")
-        
+
         return result
-    
+
     @skip_if_not_available("theharvester")
     def harvest_subdomains(self, domain: str) -> ToolResult:
-        """Harvest subdomains using theHarvester."""
+        """Harvest subdomains, their addresses and ASNs using theHarvester."""
         result = self._fresh_result(domain)
-        
+
         if result.success:
-            result.artifacts_discovered = _parse_subdomains(result.output, domain, "theharvester")
-            
-            logger.info(f"theHarvester found {len(result.artifacts_discovered)} subdomains for {domain}")
-        
+            result.artifacts_discovered = [
+                a for a in self._findings(domain, result)
+                if a["type"] not in ("email", "fullname")
+            ]
+            logger.info(
+                "theHarvester found %d hosts for %s",
+                len(result.artifacts_discovered), domain,
+            )
+
         return result
 
 
@@ -528,12 +517,19 @@ class SubfinderIntegration(ExternalToolsIntegration):
 
     @skip_if_not_available("subfinder")
     def enumerate_subdomains(self, domain: str) -> ToolResult:
-        """Enumerate subdomains using subfinder."""
-        command = ["subfinder", "-d", domain, "-silent", "-timeout", "10"]
+        """Enumerate subdomains using subfinder.
+
+        -json names the passive source behind each name, which is how a reader
+        judges a subdomain only one aggregator has ever seen.
+        """
+        command = ["subfinder", "-d", domain, "-silent", "-json", "-timeout", "10"]
         result = self.run_tool("subfinder", command)
 
         if result.success:
-            result.artifacts_discovered = _parse_subdomains(result.output, domain, "subfinder")
+            result.artifacts_discovered = (
+                tool_parsers.parse_subfinder_json(result.output, domain)
+                or tool_parsers.parse_subdomains(result.output, domain, "subfinder")
+            )
             logger.info(f"Subfinder found {len(result.artifacts_discovered)} subdomains for {domain}")
 
         return result
@@ -549,7 +545,8 @@ class Sublist3rIntegration(ExternalToolsIntegration):
         result = self.run_tool("sublist3r", command)
 
         if result.success:
-            result.artifacts_discovered = _parse_subdomains(result.output, domain, "sublist3r")
+            result.artifacts_discovered = tool_parsers.parse_subdomains(
+                result.output, domain, "sublist3r")
             logger.info(f"Sublist3r found {len(result.artifacts_discovered)} subdomains for {domain}")
 
         return result
@@ -560,42 +557,34 @@ class WhatWebIntegration(ExternalToolsIntegration):
 
     @skip_if_not_available("whatweb")
     def fingerprint(self, target: str) -> ToolResult:
-        """Fingerprint the web technologies served by a domain or host."""
-        command = ["whatweb", "--color=never", "--no-errors", "-a", "1", target]
-        result = self.run_tool("whatweb", command)
+        """Fingerprint the web technologies served by a domain or host.
 
-        if result.success:
-            technologies = set()
-            addresses = set()
+        The JSON log keeps the plugin, its value and its module apart, so the
+        page title, the country and the HTTP status stay distinguishable from
+        the technology list instead of being flattened into one bracket soup.
+        """
+        with tempfile.TemporaryDirectory(prefix="whatweb-") as out_dir:
+            log_path = os.path.join(out_dir, "whatweb.json")
+            command = ["whatweb", "--color=never", "--no-errors", "-a", "1",
+                       f"--log-json={log_path}", target]
+            result = self.run_tool("whatweb", command)
 
-            for plugin, detail in re.findall(r"([A-Za-z0-9_-]+)\[([^\]]*)\]", result.output):
-                if plugin == "IP":
-                    addresses.add(detail)
-                elif plugin in ("Country", "RedirectLocation", "Cookies", "HttpOnly"):
-                    continue
-                else:
-                    technologies.add(f"{plugin}[{detail}]" if detail else plugin)
+            if not result.success:
+                return result
 
-            for address in addresses:
-                result.artifacts_discovered.append({
-                    "type": "ip_address",
-                    "value": address,
-                    "source": "whatweb",
-                    "confidence": 0.85,
-                })
+            log = _read_first_file(out_dir, "whatweb.json")
 
-            for technology in sorted(technologies)[:MAX_ARTIFACTS_PER_TOOL]:
-                result.artifacts_discovered.append({
-                    "type": "web_technology",
-                    "value": technology,
-                    "target": target,
-                    "source": "whatweb",
-                    "confidence": 0.8,
-                })
+        if log:
+            result.parsed_data, result.artifacts_discovered = (
+                tool_parsers.parse_whatweb_json(log, target)
+            )
+        else:
+            logger.warning("whatweb JSON log missing for %s; reading its summary", target)
+            result.parsed_data, result.artifacts_discovered = (
+                tool_parsers.parse_whatweb_summary(result.output, target)
+            )
 
-            result.parsed_data = {"technologies": sorted(technologies), "addresses": sorted(addresses)}
-            logger.info(f"WhatWeb identified {len(result.artifacts_discovered)} findings for {target}")
-
+        logger.info(f"WhatWeb identified {len(result.artifacts_discovered)} findings for {target}")
         return result
 
 
@@ -607,75 +596,17 @@ class ShodanIntegration(ExternalToolsIntegration):
         """Search for host information on Shodan."""
         command = ["shodan", "host", ip_address]
         result = self.run_tool("shodan", command)
-        
+
         if result.success:
-            result.parsed_data = self.parse_json_output(result.output)
-            ports = result.parsed_data.get("ports", []) if result.parsed_data else []
+            result.parsed_data, result.artifacts_discovered = (
+                tool_parsers.parse_shodan_host(result.output, ip_address)
+            )
+            logger.info(
+                "Shodan found info for %s: %d artifacts",
+                ip_address, len(result.artifacts_discovered),
+            )
 
-            if not result.parsed_data:
-                # The CLI prints a human-readable summary rather than JSON
-                summary = {}
-                for key, pattern in (
-                    ("organization", r"Organization:\s*(.+)"),
-                    ("country", r"Country:\s*(.+)"),
-                    ("city", r"City:\s*(.+)"),
-                    ("operating_system", r"Operating System:\s*(.+)"),
-                ):
-                    match = re.search(pattern, result.output)
-                    if match:
-                        summary[key] = match.group(1).strip()
-                result.parsed_data = summary
-                ports = re.findall(r"^(\d+)/(?:tcp|udp)", result.output, re.MULTILINE)
-
-            if result.parsed_data or ports:
-                result.artifacts_discovered.append({
-                    "type": "host_info",
-                    "value": ip_address,
-                    "data": result.parsed_data,
-                    "source": "shodan",
-                    "confidence": 0.9
-                })
-
-                for port in ports:
-                    result.artifacts_discovered.append({
-                        "type": "open_port",
-                        "value": f"{ip_address}:{port}",
-                        "source": "shodan",
-                        "confidence": 0.95
-                    })
-                
-                logger.info(f"Shodan found info for {ip_address}: {len(result.artifacts_discovered)} artifacts")
-        
         return result
-
-
-def _parse_subdomains(output: str, domain: str, tool_name: str) -> List[Dict[str, Any]]:
-    """Extract unique subdomains of ``domain`` from tool output."""
-    pattern = re.compile(
-        r"(?<![\w.%-])((?:[a-zA-Z0-9_-]+\.)+" + re.escape(domain) + r")(?![\w-])",
-        re.IGNORECASE,
-    )
-    artifacts = []
-    seen = set()
-
-    for match in pattern.findall(output):
-        subdomain = match.lower().strip(".")
-        if subdomain in seen or subdomain == domain.lower():
-            continue
-        seen.add(subdomain)
-
-        artifacts.append({
-            "type": "subdomain",
-            "value": subdomain,
-            "domain": domain,
-            "source": tool_name,
-            "confidence": 0.85,
-        })
-
-        if len(artifacts) >= MAX_ARTIFACTS_PER_TOOL:
-            break
-
-    return artifacts
 
 
 class AmassIntegration(ExternalToolsIntegration):
@@ -688,7 +619,8 @@ class AmassIntegration(ExternalToolsIntegration):
         result = self.run_tool("amass", command)
         
         if result.success:
-            result.artifacts_discovered = _parse_subdomains(result.output, domain, "amass")
+            result.artifacts_discovered = tool_parsers.parse_subdomains(
+                result.output, domain, "amass")
             logger.info(f"Amass found {len(result.artifacts_discovered)} subdomains for {domain}")
         
         return result
@@ -702,33 +634,16 @@ class WhoisIntegration(ExternalToolsIntegration):
         """Perform whois lookup for domain."""
         command = ["whois", domain]
         result = self.run_tool("whois", command)
-        
+
         if result.success:
-            # Extract key information from whois output
-            patterns = {
-                "registrar": r'Registrar:\s*(.+)',
-                "creation_date": r'Creation Date:\s*(.+)',
-                "expiration_date": r'Expiration Date:\s*(.+)',
-                "name_server": r'Name Server:\s*(.+)',
-                "registrant_email": r'Registrant Email:\s*(.+)',
-            }
-            
-            for field, pattern in patterns.items():
-                matches = re.findall(pattern, result.output, re.IGNORECASE)
-                if matches:
-                    result.parsed_data[field] = matches[0].strip()
-            
-            # Create artifact with domain information
-            result.artifacts_discovered.append({
-                "type": "domain_info",
-                "value": domain,
-                "data": result.parsed_data,
-                "source": "whois",
-                "confidence": 0.95
-            })
-            
-            logger.info(f"Whois lookup completed for {domain}")
-        
+            result.parsed_data, result.artifacts_discovered = (
+                tool_parsers.parse_whois(result.output, domain)
+            )
+            logger.info(
+                "Whois lookup found %d fields for %s",
+                len(result.parsed_data), domain,
+            )
+
         return result
 
 
@@ -746,31 +661,27 @@ class NmapIntegration(ExternalToolsIntegration):
         if ports is None:
             ports = _get_nmap_ports()
 
-        if ports == "common":
-            command = ["nmap", "-Pn", "-F", "-sV", "--version-light", target]
+        selection = ["-F"] if ports == "common" else ["-p", ports]
+        with tempfile.TemporaryDirectory(prefix="nmap-") as out_dir:
+            xml_path = os.path.join(out_dir, "scan.xml")
+            command = (["nmap", "-Pn"] + selection
+                       + ["-sV", "--version-light", "-oX", xml_path, target])
+            result = self.run_tool("nmap", command)
+
+            if not result.success:
+                return result
+
+            report = _read_first_file(out_dir, "scan.xml")
+
+        if report:
+            result.parsed_data, result.artifacts_discovered = (
+                tool_parsers.parse_nmap_xml(report, target)
+            )
         else:
-            command = ["nmap", "-Pn", "-p", ports, "-sV", "--version-light", target]
-        
-        result = self.run_tool("nmap", command)
-        
-        if result.success:
-            # Parse Nmap output for open ports and services
-            port_pattern = r'(\d+)/(tcp|udp)\s+open\s+(\S+)\s+(.+)'
-            matches = re.findall(port_pattern, result.output)
-            
-            for port, protocol, service, version in matches:
-                result.artifacts_discovered.append({
-                    "type": "open_port",
-                    "value": f"{target}:{port}",
-                    "protocol": protocol,
-                    "service": service,
-                    "version": version,
-                    "source": "nmap",
-                    "confidence": 0.9
-                })
-            
-            logger.info(f"Nmap found {len(result.artifacts_discovered)} open ports on {target}")
-        
+            logger.warning("nmap XML missing for %s; reading its table", target)
+            result.artifacts_discovered = tool_parsers.parse_nmap_text(result.output, target)
+
+        logger.info(f"Nmap found {len(result.artifacts_discovered)} findings on {target}")
         return result
 
 
@@ -792,42 +703,16 @@ class ExifToolIntegration(ExternalToolsIntegration):
 
         command = ["exiftool", "-json", file_path]
         result = self.run_tool("exiftool", command)
-        
+
         if result.success:
-            result.parsed_data = self.parse_json_output(result.output)
-            
-            if result.parsed_data and isinstance(result.parsed_data, list):
-                metadata = result.parsed_data[0] if result.parsed_data else {}
-                
-                # Extract GPS coordinates if available
-                if "GPSLatitude" in metadata and "GPSLongitude" in metadata:
-                    result.artifacts_discovered.append({
-                        "type": "gps_coordinates",
-                        "value": f"{metadata['GPSLatitude']}, {metadata['GPSLongitude']}",
-                        "source": "exiftool",
-                        "confidence": 0.9
-                    })
-                
-                # Extract camera information
-                if "Make" in metadata or "Model" in metadata:
-                    result.artifacts_discovered.append({
-                        "type": "camera_info",
-                        "value": f"{metadata.get('Make', '')} {metadata.get('Model', '')}",
-                        "source": "exiftool",
-                        "confidence": 0.9
-                    })
-                
-                # Extract creation date
-                if "CreateDate" in metadata:
-                    result.artifacts_discovered.append({
-                        "type": "creation_date",
-                        "value": metadata["CreateDate"],
-                        "source": "exiftool",
-                        "confidence": 0.9
-                    })
-                
-                logger.info(f"ExifTool extracted {len(result.artifacts_discovered)} artifacts from {file_path}")
-        
+            result.parsed_data, result.artifacts_discovered = (
+                tool_parsers.parse_exiftool_json(result.output, file_path)
+            )
+            logger.info(
+                "ExifTool extracted %d artifacts from %s",
+                len(result.artifacts_discovered), file_path,
+            )
+
         return result
 
 
@@ -859,22 +744,14 @@ class WaybackMachineIntegration(ExternalToolsIntegration):
             if response.status_code == 200:
                 result.success = True
                 
-                # Parse JSON response
-                data = response.json()
-                if len(data) > 1:  # First row is headers
-                    for row in data[1:]:
-                        timestamp, original_url, status, mime_type = row
-                        result.artifacts_discovered.append({
-                            "type": "historical_url",
-                            "value": original_url,
-                            "timestamp": timestamp,
-                            "status_code": status,
-                            "mime_type": mime_type,
-                            "source": "wayback_machine",
-                            "confidence": 0.8
-                        })
-                    
-                    logger.info(f"Wayback Machine found {len(result.artifacts_discovered)} historical URLs for {domain}")
+                result.artifacts_discovered = tool_parsers.parse_wayback_cdx(
+                    response.json(), domain
+                )
+                if result.artifacts_discovered:
+                    logger.info(
+                        "Wayback Machine found %d historical URLs for %s",
+                        len(result.artifacts_discovered), domain,
+                    )
             else:
                 result.error_message = f"API request failed: {response.status_code}"
                 
@@ -960,18 +837,22 @@ ANALYSIS_METHODS: Dict[str, Dict[str, str]] = {
 # Artifact types each integrated tool contributes to an investigation.
 TOOL_ARTIFACT_TYPES: Dict[str, List[str]] = {
     "sherlock": ["username_presence"],
-    "maigret": ["username_presence"],
+    # maigret's site extractors return the account holder's details, not only
+    # the account.
+    "maigret": ["username_presence", "fullname", "image_url", "location",
+                "email", "phone"],
     "holehe": ["email_presence"],
     "osrframework": ["username_presence"],
-    "theharvester": ["email", "subdomain"],
+    "theharvester": ["email", "subdomain", "ip_address", "url", "fullname", "asn"],
     "subfinder": ["subdomain"],
     "sublist3r": ["subdomain"],
-    "whatweb": ["ip_address", "web_technology"],
-    "shodan": ["host_info", "open_port"],
+    "whatweb": ["ip_address", "web_technology", "email"],
+    "shodan": ["host_info", "open_port", "hostname"],
     "amass": ["subdomain"],
-    "whois": ["domain_info"],
-    "nmap": ["open_port"],
-    "exiftool": ["gps_coordinates", "camera_info", "creation_date"],
+    "whois": ["domain_info", "email", "fullname", "name_server"],
+    "nmap": ["open_port", "hostname"],
+    "exiftool": ["gps_coordinates", "camera_info", "creation_date", "fullname",
+                 "software", "device_serial", "copyright", "note"],
     "wayback_machine": ["historical_url"],
     "leakosint": ["leak_record"],
 }
