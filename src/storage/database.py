@@ -187,6 +187,7 @@ def _init_schema(conn: sqlite3.Connection) -> None:
             operation TEXT,
             target TEXT,
             command TEXT,
+            tool_version TEXT,
             captured_at TEXT NOT NULL,
             duration_seconds REAL,
             exit_status TEXT,
@@ -200,7 +201,18 @@ def _init_schema(conn: sqlite3.Connection) -> None:
         CREATE INDEX IF NOT EXISTS idx_evidence_investigation
             ON evidence(investigation_id, captured_at);
     """)
+    _add_missing_columns(conn, "evidence", {"tool_version": "TEXT"})
     conn.commit()
+
+
+def _add_missing_columns(
+    conn: sqlite3.Connection, table: str, columns: dict[str, str]
+) -> None:
+    """Add columns a newer schema expects to a database created by an older one."""
+    existing = {row["name"] for row in conn.execute(f"PRAGMA table_info({table})")}
+    for name, decl in columns.items():
+        if name not in existing:
+            conn.execute(f"ALTER TABLE {table} ADD COLUMN {name} {decl}")
 
 
 def generate_id() -> str:
@@ -459,11 +471,12 @@ def add_evidence(conn: sqlite3.Connection, capture) -> str:
     evidence_id = f"EVD-{generate_id()}"
     conn.execute(
         "INSERT INTO evidence "
-        "(evidence_id, investigation_id, tool, operation, target, command, captured_at, "
-        "duration_seconds, exit_status, sha256, byte_size, stored_path, truncated) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        "(evidence_id, investigation_id, tool, operation, target, command, tool_version, "
+        "captured_at, duration_seconds, exit_status, sha256, byte_size, stored_path, truncated) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         (evidence_id, capture.investigation_id, capture.tool, capture.operation,
-         capture.target, capture.command, capture.captured_at, capture.duration_seconds,
+         capture.target, capture.command, getattr(capture, "tool_version", None),
+         capture.captured_at, capture.duration_seconds,
          capture.exit_status, capture.sha256, capture.byte_size, capture.stored_path,
          1 if capture.truncated else 0),
     )

@@ -310,6 +310,105 @@ def build_preserved_evidence(
     }
 
 
+_URL_METADATA_KEYS = ("profile_url", "url", "source_url", "permalink", "archive_url")
+
+
+def build_source_citations(
+    conn: sqlite3.Connection,
+    investigation_id: str,
+    artifacts: list,
+    redact: bool = False,
+) -> dict[str, list[dict]]:
+    """Cite, per artifact, the run that produced it: command, version, timing.
+
+    A reader who cannot see the command, the tool version and when it ran
+    cannot reproduce a finding or judge whether it has gone stale. Captures
+    are matched to an artifact by the tool named in its ``source``, preferring
+    a run whose target is the artifact's own value and otherwise the last run
+    of that tool to finish before the artifact was recorded -- the run that
+    could have produced it. Unmatched artifacts get no citation rather than a
+    guessed one.
+
+    Under redaction the command, target and URL are dropped: each embeds the
+    seed value, while the tool, version, timing and digest do not.
+    """
+    try:
+        rows = db.get_evidence(conn, investigation_id)
+    except sqlite3.Error:
+        return {}
+
+    by_tool: dict[str, list[dict]] = defaultdict(list)
+    for row in rows:
+        by_tool[(row.get("tool") or "").lower()].append(row)
+    for runs in by_tool.values():
+        runs.sort(key=lambda r: r.get("captured_at") or "")
+
+    citations: dict[str, list[dict]] = {}
+    for artifact in artifacts:
+        found = []
+        run = _matching_run(by_tool.get((artifact.get("source") or "").lower(), []), artifact)
+        if run:
+            found.append(_tool_citation(run, redact))
+        found.extend(_url_citations(artifact, redact))
+        if found:
+            citations[artifact["artifact_id"]] = found
+    return citations
+
+
+def _matching_run(runs: list[dict], artifact: dict) -> Optional[dict]:
+    """The capture that best accounts for an artifact, or None."""
+    if not runs:
+        return None
+    value = artifact.get("value")
+    for run in runs:
+        if run.get("target") and run["target"] == value:
+            return run
+
+    discovered_at = artifact.get("discovered_at") or ""
+    earlier = [r for r in runs if (r.get("captured_at") or "") <= discovered_at]
+    return earlier[-1] if earlier else None
+
+
+def _tool_citation(run: dict, redact: bool) -> dict:
+    return {
+        "kind": "tool",
+        "tool": run.get("tool"),
+        "tool_version": _version_only(run.get("tool"), run.get("tool_version")),
+        "command": None if redact else run.get("command"),
+        "target": None if redact else run.get("target"),
+        "captured_at": run.get("captured_at"),
+        "duration_seconds": run.get("duration_seconds"),
+        "exit_status": run.get("exit_status"),
+        "sha256": run.get("sha256"),
+    }
+
+
+def _version_only(tool: Optional[str], version: Optional[str]) -> Optional[str]:
+    """Drop the tool's own name from its version banner ("holehe 1.61" -> "1.61")."""
+    if not version or not tool:
+        return version
+    stripped = version.strip()
+    if stripped.lower().startswith(tool.lower()):
+        stripped = stripped[len(tool):].lstrip(" v:,-")
+    return stripped or version
+
+
+def _url_citations(artifact: dict, redact: bool) -> list[dict]:
+    """URLs the artifact itself names as its origin."""
+    if redact:
+        return []
+    metadata = _parse_metadata_field(artifact.get("metadata"))
+    cited: list[dict] = []
+    for key in _URL_METADATA_KEYS:
+        url = metadata.get(key)
+        if not isinstance(url, str) or not url.startswith(("http://", "https://")):
+            continue
+        if any(item["url"] == url for item in cited):
+            continue
+        cited.append({"kind": "url", "url": url, "field": key})
+    return cited
+
+
 def build_evidence_chains(artifacts: list, links: list, max_chains: int = 40) -> list[dict]:
     """Build seed -> discovery paths using link evidence."""
     by_id = {a["artifact_id"]: a for a in artifacts}
@@ -1052,6 +1151,9 @@ table, .collapsible, .collapsible-content, .drilldown-body, details.drilldown > 
 .chain-step {{ background: {banner_bg} !important; color: {body_color} !important; }}
 .timeline-when, .timeline-kind, .timeline-controls label {{ color: {body_color} !important; }}
 details.provenance, .provenance-body {{ color: {body_color} !important; }}
+code.citation-command {{ background: {banner_bg} !important; color: {body_color} !important; }}
+.citation-version {{ color: {body_color} !important; }}
+.citation-meta {{ color: var(--gih-muted) !important; }}
 details.provenance > summary {{ color: {link_color} !important; }}
 table.provenance-table td:last-child {{ color: var(--gih-muted) !important; }}
 .timeline-detail {{ color: var(--gih-muted) !important; }}

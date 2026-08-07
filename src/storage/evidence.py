@@ -43,6 +43,7 @@ class EvidenceCapture:
     operation: Optional[str]
     target: Optional[str]
     command: Optional[str]
+    tool_version: Optional[str]
     captured_at: str
     duration_seconds: float
     exit_status: str
@@ -82,6 +83,20 @@ class analysing:
 
     def __exit__(self, *exc_info) -> None:
         _local.scope = self._previous
+
+
+def tool_version(tool: str) -> Optional[str]:
+    """Version string of the tool that produced a capture, if it reports one.
+
+    A citation without a version cannot be reproduced: two releases of the same
+    scanner disagree. The lookup is memoized by the tool checker, so the
+    ``--version`` subprocess runs at most once per process.
+    """
+    try:
+        from src.utils.tool_checker import get_tool_checker
+        return get_tool_checker().check_tool(tool).version
+    except Exception:
+        return None
 
 
 def evidence_root() -> Path:
@@ -178,6 +193,7 @@ def record(
         operation=operation,
         target=target,
         command=command,
+        tool_version=tool_version(tool),
         captured_at=datetime.now(timezone.utc).isoformat(),
         duration_seconds=round(duration_seconds, 3),
         exit_status=exit_status,

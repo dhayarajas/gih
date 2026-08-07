@@ -677,7 +677,8 @@ def _metadata_table(value) -> Optional[dict]:
     return {'columns': columns, 'rows': rows}
 
 
-def _build_artifact_views(artifacts: list, links: list, correlation) -> list:
+def _build_artifact_views(artifacts: list, links: list, correlation,
+                          citations: Optional[dict] = None) -> list:
     """
     Build per-artifact drill-down views for the HTML template.
 
@@ -733,6 +734,7 @@ def _build_artifact_views(artifacts: list, links: list, correlation) -> list:
             ],
             'connections': connections,
             'confidence_basis': _confidence_basis(artifact, connections),
+            'citations': (citations or {}).get(artifact_id, []),
             'identity_profile_id': identity.get('profile_id'),
             'identity_label': identity.get('label'),
         })
@@ -809,6 +811,7 @@ def generate_html_report(
         build_leak_findings,
         build_orphan_findings,
         build_preserved_evidence,
+        build_source_citations,
         build_timeline,
         default_output_path,
         enrich_tool_status,
@@ -883,7 +886,8 @@ def generate_html_report(
     identity_images = _generate_identity_images(correlation, presences, artifacts)
 
     # Build drill-down views (parsed metadata, connected links, identity attribution)
-    artifact_views = _build_artifact_views(artifacts, links, correlation)
+    citations = build_source_citations(conn, investigation_id, artifacts, redact)
+    artifact_views = _build_artifact_views(artifacts, links, correlation, citations)
     identity_artifacts = _build_identity_artifacts(artifact_views, correlation)
 
     branding = dict(reporting_cfg["branding"])
@@ -1934,6 +1938,7 @@ def generate_json_report(
         build_leak_findings,
         build_orphan_findings,
         build_preserved_evidence,
+        build_source_citations,
         build_timeline,
         default_output_path,
         enrich_tool_status,
@@ -1983,6 +1988,7 @@ def generate_json_report(
         "platform_presences": presences,
         "evidence_chains": build_evidence_chains(artifacts, links),
         "preserved_evidence": build_preserved_evidence(conn, investigation_id, redact),
+        "source_citations": build_source_citations(conn, investigation_id, artifacts, redact),
         "timeline": build_timeline(artifacts),
         "orphan_findings": orphans,
         "cross_investigation": build_cross_investigation(conn, investigation_id, artifacts),
