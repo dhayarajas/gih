@@ -68,6 +68,7 @@ VERSION:
 
 import json
 import logging
+import math
 import sqlite3
 from pathlib import Path
 from typing import Optional
@@ -169,6 +170,39 @@ def build_collections(G, threshold: int) -> dict:
     return collections
 
 
+def _circular_positions(G, collections: dict, collapsed: set) -> dict:
+    """Place what is actually on screen around the ring.
+
+    Positioning the underlying graph would leave a gap at every collapsed
+    member's slot and no coordinate at all for the collection nodes, which the
+    circular layout cannot relax into place because physics is off. The ring is
+    therefore laid out over the visible nodes, and each collapsed member is
+    parked just outside its collection so it appears there when expanded.
+    """
+    ring_graph = nx.Graph()
+    ring_graph.add_nodes_from([n for n in G.nodes() if n not in collapsed])
+    ring_graph.add_nodes_from(sorted(collections))
+    positions = {k: (float(v[0]), float(v[1]))
+                 for k, v in nx.circular_layout(ring_graph, scale=600).items()}
+
+    for collection_id, data in collections.items():
+        origin_x, origin_y = positions.get(collection_id, (0.0, 0.0))
+        members = data["members"]
+        for index, member in enumerate(members):
+            angle = 2 * math.pi * index / max(len(members), 1)
+            positions[member] = (origin_x + 90 * math.cos(angle),
+                                 origin_y + 90 * math.sin(angle))
+    return positions
+
+
+def _position_of(node_id: str, positions: dict) -> dict:
+    """vis.js coordinate kwargs for a node, or none when the layout is free."""
+    if node_id not in positions:
+        return {}
+    x, y = positions[node_id]
+    return {"x": x, "y": y}
+
+
 def _layout_options(layout: str) -> str:
     """Return the vis.js options block for a layout name."""
     common_nodes = '"nodes": {"font": {"size": 12, "face": "monospace", "color": "#ffffff"}}'
@@ -250,7 +284,11 @@ def _interaction_script(collections: dict) -> str:
       if (gihExpand(id)) {{ return; }}
       var message = {{source: "gih-graph", artifactId: id}};
       if (window.parent && window.parent !== window) {{
-          window.parent.postMessage(message, "*");
+          // Over http(s) the report and the graph share an origin, so the
+          // message is addressed to it; a file:// page has an opaque origin
+          // that only the wildcard can name.
+          var target = window.location.protocol === "file:" ? "*" : window.location.origin;
+          window.parent.postMessage(message, target);
       }} else {{
           window.location.hash = "artifact-" + id;
       }}
@@ -308,7 +346,7 @@ def generate_interactive_graph(
     )
     net.set_options(_layout_options(layout))
 
-    positions = nx.circular_layout(G, scale=600) if layout == "circular" else {}
+    positions = _circular_positions(G, collections, collapsed) if layout == "circular" else {}
 
     # Add nodes
     for node_id in G.nodes():
@@ -332,10 +370,7 @@ def generate_interactive_graph(
             f"Click to open this artifact in the report"
         )
 
-        extra = {}
-        if node_id in positions:
-            extra["x"] = float(positions[node_id][0])
-            extra["y"] = float(positions[node_id][1])
+        extra = _position_of(node_id, positions)
 
         net.add_node(
             node_id,
@@ -361,6 +396,7 @@ def generate_interactive_graph(
             size=TYPE_SIZES.get(data["artifact_type"], 20) + 12,
             shape="database",
             borderWidth=3,
+            **_position_of(collection_id, positions),
         )
 
     # Add edges
