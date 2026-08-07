@@ -1,9 +1,10 @@
 """Tests for preservation and verification of raw tool output."""
 
 import hashlib
+import stat
 import tempfile
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 import pytest
 
@@ -54,6 +55,12 @@ class TestCapture:
         assert capture.truncated is True
         assert capture.byte_size <= evidence.MAX_CAPTURE_BYTES + len(evidence.TRUNCATION_NOTICE) + 16
         assert "capture truncated" in Path(capture.stored_path).read_text()
+
+    def test_captures_are_readable_by_their_owner_only(self, conn, capturing, tmp_path):
+        capture = evidence.record("whois", "Registrant: someone real\n")
+
+        assert stat.S_IMODE(Path(capture.stored_path).stat().st_mode) == 0o600
+        assert stat.S_IMODE((tmp_path / capturing).stat().st_mode) == 0o700
 
     def test_capture_outside_an_investigation_is_a_no_op(self):
         evidence.end()
@@ -138,6 +145,19 @@ class TestToolIntegration:
         assert rows[0]["command"] == "echo hello evidence"
         assert rows[0]["exit_status"] == "exit 0"
         assert Path(rows[0]["stored_path"]).read_text() == result.output
+
+    def test_a_response_that_arrived_is_not_recorded_as_a_failed_request(
+        self, conn, capturing
+    ):
+        from src.modules.external_tools import WaybackMachineIntegration
+
+        response = Mock(status_code=200, text="[not json")
+        response.json.side_effect = ValueError("no JSON object could be decoded")
+        with patch("requests.get", return_value=response):
+            WaybackMachineIntegration().get_historical_urls("example.com")
+
+        evidence.flush(conn)
+        assert db.get_evidence(conn, capturing)[0]["exit_status"] == "HTTP 200"
 
     def test_a_failed_tool_run_is_preserved_too(self, conn, capturing):
         from src.modules.external_tools import ExternalToolsIntegration

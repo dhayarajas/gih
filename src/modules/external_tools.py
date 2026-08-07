@@ -880,7 +880,10 @@ class WaybackMachineIntegration(ExternalToolsIntegration):
                 
         except Exception as e:
             result.error_message = f"Wayback Machine error: {str(e)}"
-            exit_status = "error"
+            if exit_status == "unknown":
+                # A response that arrived and then failed to parse is still that
+                # response; only a request that never completed is an error.
+                exit_status = "error"
             logger.error(f"Wayback Machine error: {e}")
 
         result.execution_time = time.monotonic() - started
