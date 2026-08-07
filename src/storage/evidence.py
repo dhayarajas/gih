@@ -33,6 +33,12 @@ DEFAULT_EVIDENCE_DIR = Path.home() / ".ghost_hunter" / "evidence"
 MAX_CAPTURE_BYTES = 2 * 1024 * 1024
 TRUNCATION_NOTICE = "\n\n[capture truncated at {limit} bytes]\n"
 
+# A capture holds the rawest material in the case -- whois registrants, page
+# bodies, breach-adjacent output -- so it is readable by its owner only, rather
+# than by whatever the process umask happens to allow.
+DIR_MODE = 0o700
+FILE_MODE = 0o600
+
 
 @dataclass
 class EvidenceCapture:
@@ -99,6 +105,14 @@ def tool_version(tool: str) -> Optional[str]:
         return None
 
 
+def _restrict(path: Path, mode: int) -> None:
+    """Narrow a capture path to its owner; harmless where chmod does nothing."""
+    try:
+        path.chmod(mode)
+    except (OSError, NotImplementedError) as exc:
+        logger.debug("Could not restrict permissions on %s: %s", path, exc)
+
+
 def evidence_root() -> Path:
     """Resolve the capture directory from config, falling back to the default."""
     try:
@@ -131,6 +145,7 @@ def begin(investigation_id: str) -> None:
         root = evidence_root() / investigation_id
         try:
             root.mkdir(parents=True, exist_ok=True)
+            _restrict(root, DIR_MODE)
         except OSError as exc:
             logger.warning("Evidence directory %s unusable, captures disabled: %s", root, exc)
             return
@@ -183,6 +198,7 @@ def record(
             # Identical output from a re-run is the same evidence; the digest
             # already proves that, so the file is written once.
             path.write_bytes(payload)
+            _restrict(path, FILE_MODE)
     except OSError as exc:
         logger.warning("Could not preserve %s output: %s", tool, exc)
         return None

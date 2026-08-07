@@ -115,3 +115,31 @@ class TestTimeline:
 
         kinds = {e["kind"] for e in payload["timeline"]}
         assert {"breach", "registration", "archive", "capture", "discovery"} <= kinds
+
+
+class TestEquivalentDateKeys:
+    def test_the_date_a_breach_was_indexed_is_not_shown_as_the_exposure(self):
+        events = build_timeline([{
+            "artifact_id": "ART-1", "artifact_type": "breach", "value": "Adobe",
+            "source": "hibp", "discovered_at": "2026-01-01T00:00:00",
+            "metadata": json.dumps({"breach_date": "2013-10-04",
+                                    "added_date": "2013-12-04"}),
+        }])
+
+        kinds = {e["kind"]: e["when"] for e in events if e["kind"] != "discovery"}
+        assert kinds == {"breach": "2013-10-04", "indexed": "2013-12-04"}
+        assert next(e for e in events if e["kind"] == "indexed")["kind_label"] \
+            == "Breach published to a breach index"
+
+    def test_a_photo_carrying_two_spellings_of_one_moment_plots_once(self):
+        events = build_timeline([{
+            "artifact_id": "ART-2", "artifact_type": "image", "value": "a.jpg",
+            "source": "exiftool", "discovered_at": "2026-01-01T00:00:00",
+            "metadata": json.dumps({"DateTimeOriginal": "2019:06:01 10:00:00",
+                                    "CreateDate": "2019:06:01 10:00:00",
+                                    "date_taken": "2019-06-01"}),
+        }])
+
+        captures = [e for e in events if e["kind"] == "capture"]
+        assert len(captures) == 1
+        assert captures[0]["when"] == "2019-06-01"

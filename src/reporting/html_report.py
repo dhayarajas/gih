@@ -523,9 +523,11 @@ LEGAL_TEMPLATE = """<!DOCTYPE html>
 
         <h2>Chain of Custody</h2>
         {% if preserved_evidence.enabled %}
-        <p>The verbatim output of each collection step was written to disk at collection time and
-        named after the SHA-256 digest of its bytes. Every digest below was recomputed when this
-        report was produced: {{ preserved_evidence.verified }} of {{ preserved_evidence.total }}
+        <p>Preservation covers the external command-line tools and the web-archive query: the
+        verbatim output of each such run was written to disk at collection time and named after
+        the SHA-256 digest of its bytes. Findings from the built-in modules, which query APIs
+        directly, are not preserved and are not covered by the statements below. Every digest
+        below was recomputed when this report was produced: {{ preserved_evidence.verified }} of {{ preserved_evidence.total }}
         capture(s) still match their recorded digest{% if not preserved_evidence.intact %},
         {{ preserved_evidence.modified }} no longer match and {{ preserved_evidence.missing }}
         could not be located{% endif %}.</p>
@@ -879,7 +881,7 @@ def generate_html_report(
     evidence_chains = build_evidence_chains(artifacts, links)
     preserved_evidence = build_preserved_evidence(conn, investigation_id, redact)
     cross_hits = build_cross_investigation(conn, investigation_id, artifacts)
-    delta = build_delta_report(conn, investigation_id, compare_id)
+    delta = build_delta_report(conn, investigation_id, compare_id, redact)
 
 
     # Ranked, renderable profile pictures per identity
@@ -1992,7 +1994,7 @@ def generate_json_report(
         "timeline": build_timeline(artifacts),
         "orphan_findings": orphans,
         "cross_investigation": build_cross_investigation(conn, investigation_id, artifacts),
-        "delta": build_delta_report(conn, investigation_id, compare_id),
+        "delta": build_delta_report(conn, investigation_id, compare_id, redact),
         "comments": load_comments(conn, investigation_id),
         "audit_trail": db.get_audit_trail(conn, investigation_id),
         "graph": {

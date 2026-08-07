@@ -487,6 +487,7 @@
         .timeline-event { position: relative; display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.5rem; padding: 0.4rem 0 0.4rem 0.75rem; font-size: 0.85rem; }
         .timeline-event::before { content: ''; position: absolute; left: -1.42rem; top: 0.85rem; width: 9px; height: 9px; border-radius: 50%; background: #718096; }
         .timeline-event.kind-breach::before { background: #c53030; }
+        .timeline-event.kind-indexed::before { background: #dd6b20; }
         .timeline-event.kind-registration::before { background: #2f855a; }
         .timeline-event.kind-capture::before { background: #6b46c1; }
         .timeline-event.kind-archive::before { background: #2b6cb0; }
@@ -1055,7 +1056,7 @@
     <p class="section-blurb">Visual network diagram showing connections between artifacts and identities, helping identify clusters, central nodes, and relationship patterns for understanding social connections and potential attack vectors. Click a node to open its entry in the Discovered Artifacts section; a node labelled with a count stands for that many collapsed same-type artifacts and expands when clicked.</p>
     <div class="card">
         <div class="graph-container">
-            <iframe class="graph-frame" title="Identity relationship graph" sandbox="allow-scripts allow-same-origin allow-popups" src="{{ graph_iframe_src }}"></iframe>
+            <iframe id="gih-graph-frame" class="graph-frame" title="Identity relationship graph" sandbox="allow-scripts allow-same-origin allow-popups" src="{{ graph_iframe_src }}"></iframe>
         </div>
     </div>
 
@@ -1215,7 +1216,7 @@
     {% if 'evidence' in sections and preserved_evidence.enabled %}
     {% set ns.n = ns.n + 1 %}
     <h2>{{ ns.n }}. Preserved Evidence</h2>
-    <p class="section-blurb">Verbatim output of every tool run, stored on disk under the SHA-256 of its bytes. Each digest below was recomputed when this report was generated, so a capture that has been altered or deleted since collection is reported as such rather than assumed intact.</p>
+    <p class="section-blurb">Verbatim output of every external tool run and web-archive query &mdash; the built-in modules query APIs directly and are not preserved &mdash; stored on disk under the SHA-256 of its bytes. Each digest below was recomputed when this report was generated, so a capture that has been altered or deleted since collection is reported as such rather than assumed intact.</p>
     <div class="card">
         <p>
             <strong>{{ preserved_evidence.total }}</strong> capture(s),
@@ -1379,7 +1380,7 @@
             <div class="stat-card"><div class="stat-value">{{ delta.added_count }}</div><div class="stat-label">Added</div></div>
             <div class="stat-card"><div class="stat-value">{{ delta.removed_count }}</div><div class="stat-label">Removed</div></div>
             <div class="stat-card"><div class="stat-value">{{ delta.changed_count }}</div><div class="stat-label">Changed</div></div>
-            <div class="stat-card"><div class="stat-value">{{ delta.shared_count }}</div><div class="stat-label">Unchanged</div></div>
+            <div class="stat-card"><div class="stat-value">{{ delta.unchanged_count }}</div><div class="stat-label">Unchanged</div></div>
         </div>
         {% if delta.added %}
         <h3>Added</h3>
@@ -1554,8 +1555,13 @@
         // The graph runs in a file:// iframe, which cannot touch this document,
         // so it asks for a node's detail section by message instead.
         window.addEventListener('message', function (event) {
+            // Only the graph this report embedded may drive navigation: any
+            // other frame or opener can claim the same payload.
+            var frame = document.getElementById('gih-graph-frame');
+            if (!frame || event.source !== frame.contentWindow) { return; }
             var data = event.data || {};
-            if (data.source === 'gih-graph' && data.artifactId) {
+            if (data.source === 'gih-graph' && typeof data.artifactId === 'string'
+                    && /^[A-Za-z0-9_-]+$/.test(data.artifactId)) {
                 revealTarget('artifact-' + data.artifactId);
             }
         });
