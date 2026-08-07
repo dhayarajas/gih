@@ -71,7 +71,7 @@ from src.modules.external_tools import get_tool_coverage
 from src.orchestrator import run_investigation, InvestigationConfig
 from src.correlation.linker import correlate_identities
 from src.correlation.scorer import compute_identity_risk_score, classify_risk_level
-from src.graph.visualizer import generate_interactive_graph, get_graph_stats
+from src.graph.visualizer import LAYOUTS, generate_interactive_graph, get_graph_stats
 from src.reporting.html_report import generate_html_report, generate_json_report
 from src.storage.database import get_connection, list_investigations, get_investigation
 from src.plugins.manager import PluginRegistry, PluginManager
@@ -534,13 +534,23 @@ def report(ctx: click.Context, investigation_id: str, fmt: str, output: Optional
 @cli.command()
 @click.option("--id", "investigation_id", required=True, help="Investigation ID")
 @click.option("--output", "-o", default=None, help="Output HTML file path")
+@click.option("--layout", type=click.Choice(LAYOUTS), default=None,
+              help="Node layout (default: graph.layout in config)")
+@click.option("--collection-threshold", type=int, default=None,
+              help="Collapse same-type leaf neighbours into one node at this count; 0 disables")
 @click.pass_context
-def graph(ctx: click.Context, investigation_id: str, output: Optional[str]) -> None:
+def graph(ctx: click.Context, investigation_id: str, output: Optional[str],
+          layout: Optional[str], collection_threshold: Optional[int]) -> None:
     """Generate an interactive identity graph visualization.
+
+    Clicking a node opens that artifact in the report; clicking a collection
+    node expands the artifacts it stands for.
 
     Examples:
         ghost-hunter graph --id INV-abc123
         ghost-hunter graph --id INV-abc123 -o ./graph.html
+        ghost-hunter graph --id INV-abc123 --layout hierarchical
+        ghost-hunter graph --id INV-abc123 --collection-threshold 0
     """
     conn = get_connection(ctx.obj.get("db_path"))
     try:
@@ -550,7 +560,10 @@ def graph(ctx: click.Context, investigation_id: str, output: Optional[str]) -> N
             sys.exit(1)
 
         # Generate graph
-        path = generate_interactive_graph(conn, investigation_id, output)
+        path = generate_interactive_graph(
+            conn, investigation_id, output,
+            layout=layout, collection_threshold=collection_threshold,
+        )
         if path:
             click.echo(f"Interactive graph: {path}")
         else:
