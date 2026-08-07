@@ -5,6 +5,7 @@ This module provides functionality to detect if external OSINT tools
 are installed on the system and gracefully handle missing dependencies.
 """
 
+import os
 import shutil
 import subprocess
 import logging
@@ -34,10 +35,30 @@ class ToolInfo:
     version: Optional[str] = None
     error_message: Optional[str] = None
     api_based: bool = False  # Reached over HTTP, so no local command is required
+    # Environment variables the HTTP API's credential may be stored in; when set,
+    # the tool counts as available only once one of them (or the configured
+    # api_key) holds a value.
+    api_key_envs: tuple = ()
     # Whether availability has already been resolved this process run. Used to
     # memoize check_tool so the `<tool> --version` subprocess runs at most once
     # per tool (it is otherwise invoked per-artifact per-tool inside the BFS loop).
     checked: bool = False
+
+
+def _api_credential_present(tool_name: str, env_names: tuple) -> bool:
+    """Whether an API-based tool's credential is configured.
+
+    Checked in the same order the integrations resolve it: the tool's
+    ``plugins.<tool>.api_key`` entry first, then the environment variables.
+    """
+    try:
+        from src.config.loader import get_config
+        configured = ((get_config().get("plugins", {}) or {}).get(tool_name) or {}).get("api_key")
+        if configured and str(configured).strip():
+            return True
+    except Exception as exc:
+        logger.debug("API key config lookup failed for %s: %s", tool_name, exc)
+    return any(os.environ.get(name, "").strip() for name in env_names)
 
 
 class ToolChecker:
@@ -96,6 +117,12 @@ class ToolChecker:
             
             # Blockchain and Crypto Tools
             ToolInfo(name="etherscan", command="etherscan", description="Blockchain investigation tool"),
+
+            # Breach Data Tools
+            ToolInfo(name="leakosint", command="leakosint",
+                     description="Leaked-database record search (LeakOSINT API)",
+                     api_based=True,
+                     api_key_envs=("LEAKOSINT_API_TOKEN", "LEAKOSINT_API_KEY")),
             
             # Search and Dorking Tools
             ToolInfo(name="google_dorks", command="google_dorks", description="Google Dorks for advanced username discovery", api_based=True),
@@ -154,7 +181,14 @@ class ToolChecker:
     def _resolve_tool(self, tool: ToolInfo) -> ToolInfo:
         """Resolve a tool's availability and version (no caching logic)."""
         try:
-            if tool.api_based:
+            if tool.api_based and tool.api_key_envs:
+                if _api_credential_present(tool.name, tool.api_key_envs):
+                    tool.status = ToolStatus.AVAILABLE
+                    tool.version = "HTTP API"
+                else:
+                    tool.status = ToolStatus.NOT_INSTALLED
+                    tool.error_message = f"{tool.api_key_envs[0]} not configured"
+            elif tool.api_based:
                 tool.status = ToolStatus.AVAILABLE
                 tool.version = "HTTP API"
             # Check if command exists

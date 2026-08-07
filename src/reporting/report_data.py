@@ -16,6 +16,7 @@ from src.storage import database as db
 logger = logging.getLogger(__name__)
 
 DEFAULT_SECTIONS = (
+    "leaks",
     "identities",
     "summary",
     "tools",
@@ -146,6 +147,75 @@ def _format_chain(by_id: dict, path: list[str], evidence: list[dict]) -> dict:
         steps.append(step)
     narrative = " -> ".join(f"{s['type']}:{s['value']}" for s in steps)
     return {"steps": steps, "narrative": narrative, "length": len(steps)}
+
+
+LEAK_ARTIFACT_TYPE = "leak_record"
+# Fields worth surfacing first inside a leaked record; anything else follows in
+# the order the API returned it.
+_LEAK_FIELD_ORDER = (
+    "FullName", "Name", "NickName", "Email", "Phone", "Password", "Passwordv2",
+    "Address", "BirthDate", "Document",
+)
+
+
+def build_leak_findings(artifacts: list, redact: bool = False) -> dict:
+    """Group LeakOSINT breach records by the database they came from.
+
+    Returned separately from the generic artifact table because a leak hit is
+    the strongest identity evidence an investigation can get: the report leads
+    with it. Absent records the result is empty and the section is skipped.
+    """
+    def _sort_key(item: tuple) -> tuple:
+        key = item[0]
+        return (_LEAK_FIELD_ORDER.index(key) if key in _LEAK_FIELD_ORDER else len(_LEAK_FIELD_ORDER), key)
+
+    groups: dict[str, dict] = {}
+    for art in artifacts:
+        if (art.get("artifact_type") or "") != LEAK_ARTIFACT_TYPE:
+            continue
+        raw_meta = art.get("metadata")
+        if isinstance(raw_meta, str):
+            try:
+                meta = json.loads(raw_meta)
+            except (ValueError, TypeError):
+                meta = {}
+        else:
+            meta = raw_meta or {}
+        if not isinstance(meta, dict):
+            meta = {}
+
+        database = str(meta.get("database") or "Unknown database")
+        group = groups.setdefault(
+            database,
+            {"database": database, "info": str(meta.get("info") or ""), "queries": [], "records": []},
+        )
+        query = meta.get("query")
+        if query and query not in group["queries"]:
+            group["queries"].append(query)
+
+        fields = meta.get("fields") if isinstance(meta.get("fields"), dict) else {}
+        group["records"].append({
+            "artifact_id": art.get("artifact_id"),
+            "value": art.get("value"),
+            "confidence": art.get("confidence") or 0,
+            "query": query,
+            "query_type": meta.get("query_type"),
+            "fields": [
+                {
+                    "key": str(key).replace("_", " "),
+                    "value": "[REDACTED]" if redact else ("-" if value in (None, "") else str(value)),
+                }
+                for key, value in sorted(fields.items(), key=_sort_key)
+            ],
+        })
+
+    databases = sorted(groups.values(), key=lambda g: (-len(g["records"]), g["database"]))
+    return {
+        "databases": databases,
+        "database_count": len(databases),
+        "record_count": sum(len(g["records"]) for g in databases),
+        "queries": sorted({q for g in databases for q in g["queries"]}),
+    }
 
 
 def build_orphan_findings(artifacts: list, correlation) -> list[dict]:
@@ -416,6 +486,28 @@ def load_comments(conn, investigation_id: str) -> list[dict]:
         return []
 
 
+def _redact_leak_artifact(artifact: dict) -> None:
+    """Mask a leaked record in place, keeping only its database and field names."""
+    meta = artifact.get("metadata")
+    if isinstance(meta, str):
+        try:
+            meta = json.loads(meta)
+        except (ValueError, TypeError):
+            meta = None
+    if not isinstance(meta, dict):
+        artifact["value"] = "[REDACTED]"
+        artifact["metadata"] = None
+        return
+
+    database = str(meta.get("database") or "Unknown database")
+    fields = meta.get("fields") if isinstance(meta.get("fields"), dict) else {}
+    meta["fields"] = dict.fromkeys(fields, "[REDACTED]")
+    if meta.get("query"):
+        meta["query"] = "[REDACTED]"
+    artifact["value"] = f"{database}: [REDACTED]"
+    artifact["metadata"] = json.dumps(meta)
+
+
 def redact_payload(
     artifacts: list,
     links: list,
@@ -442,6 +534,12 @@ def redact_payload(
 
     arts = deepcopy(artifacts)
     for a in arts:
+        if (a.get("artifact_type") or "") == LEAK_ARTIFACT_TYPE:
+            # A leaked row is sensitive in full -- passwords and documents are
+            # not patterns _mask recognizes -- so only the database name and the
+            # field names survive, in the value and the drill-down alike.
+            _redact_leak_artifact(a)
+            continue
         a["value"] = _mask(str(a.get("value") or ""), a.get("artifact_type") or "")
 
     pres = deepcopy(presences)
@@ -577,7 +675,7 @@ table, .collapsible, .collapsible-content, .drilldown-body, details.drilldown > 
 }}
 .collapsible-header, .collapsible-header h4, .drilldown-body h5, .tool-chart-name,
 .tool-chart-count, .kv-table td, .kv-table td:first-child, .report-banner strong,
-.filter-bar label, .avatar-caption, .summary-value {{
+.filter-bar label, .avatar-caption, .summary-value, .leak-field, .leak-field-key, .leak-info {{
   color: {body_color} !important;
 }}
 .collapsible-header, .collapsible-header:hover, details.drilldown > summary:hover,
@@ -593,6 +691,7 @@ table, .collapsible, .collapsible-content, .drilldown-body, details.drilldown > 
 .status-not_installed {{ color: {status_bad} !important; }}
 .status-silent_or_not_dispatched {{ color: {status_warn} !important; }}
 .status-produced_output {{ color: {status_good} !important; }}
+.leak-db {{ color: {status_bad} !important; }}
 """
     if watermark.get("enabled"):
         opacity = watermark.get("opacity", 0.1)

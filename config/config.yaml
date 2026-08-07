@@ -188,6 +188,17 @@ plugins:
     timeout: 30
     max_retries: 2
   
+  # Breach Data Tools
+  leakosint:
+    enabled: true  # Enabled by default - skipped automatically if no API key is configured
+    priority: 1  # Leaked records outrank public sources, so they lead the report
+    timeout: 20
+    max_retries: 2
+    api_key: null  # Required: LeakOSINT API token (or set LEAKOSINT_API_TOKEN)
+    custom_params:
+      limit: 100  # Max records per query, per the API's `limit` parameter
+      lang: "en"
+
   # Historical Data Tools
   wayback_machine:
     enabled: true  # Enabled by default - skipped automatically if the tool is not installed

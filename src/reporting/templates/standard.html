@@ -201,6 +201,16 @@
         .tool-off { color: #a0aec0; text-decoration: line-through; }
         tr.tool-row-off td { color: #a0aec0; }
 
+        /* Breach records. Leaked rows are the strongest evidence in a report,
+           so the section leads and carries a warning accent. */
+        .leak-card { border-left: 4px solid #c53030; }
+        .leak-db { color: #742a2a; font-size: 1rem; margin-bottom: 0.25rem; }
+        .leak-info { font-size: 0.85rem; color: #4a5568; margin-bottom: 0.5rem; }
+        .leak-record { border-top: 1px solid #e2e8f0; padding-top: 0.6rem; margin-top: 0.6rem; }
+        .leak-record:first-of-type { border-top: 0; padding-top: 0; margin-top: 0; }
+        .leak-field { font-size: 0.85rem; color: #2d3748; overflow-wrap: anywhere; }
+        .leak-field-key { font-weight: 600; color: #4a5568; }
+
         /* Evidence Chain */
         .evidence-chain { 
             font-family: 'Courier New', monospace; 
@@ -533,6 +543,29 @@
         <button type="button" id="expand-all">Expand all details</button>
         <button type="button" id="collapse-all">Collapse all details</button>
     </div>
+    {% endif %}
+
+    {% if 'leaks' in sections and leak_findings.record_count %}
+    {% set ns.n = ns.n + 1 %}
+    <!-- Breach Records (leads the report whenever LeakOSINT returned data) -->
+    <h2>{{ ns.n }}. Breach Records ({{ leak_findings.record_count }})</h2>
+    <p class="section-blurb">Records the LeakOSINT API matched to this investigation's selectors, grouped by the leaked database they came from. Leaked rows carry attributes no public source exposes &mdash; passwords, addresses, document numbers &mdash; so they are presented first and should be treated as sensitive.</p>
+    {% for database in leak_findings.databases %}
+    <div class="card leak-card">
+        <h3 class="leak-db">{{ database.database }} &mdash; {{ database.records | length }} record{{ '' if database.records | length == 1 else 's' }}</h3>
+        {% if database.info %}<p class="leak-info">{{ database.info }}</p>{% endif %}
+        {% if database.queries %}<p class="meta">Matched selector{{ '' if database.queries | length == 1 else 's' }}: {{ database.queries | join(', ') }}</p>{% endif %}
+        {% for record in database.records %}
+        <div class="leak-record">
+            {% for field in record.fields %}
+            <div class="leak-field"><span class="leak-field-key">{{ field.key }}:</span> {{ field.value }}</div>
+            {% else %}
+            <div class="leak-field">{{ record.value }}</div>
+            {% endfor %}
+        </div>
+        {% endfor %}
+    </div>
+    {% endfor %}
     {% endif %}
 
     {% if 'identities' in sections and correlation.identities %}

@@ -77,6 +77,10 @@ No API key is ever placed on a command line.
   and the run is recorded as a failed `ToolResult`. `ShodanPlugin` additionally
   reports `is_available() == False` when neither `plugins.shodan.api_key` nor
   `SHODAN_API_KEY` is set, so the plugin path returns `SKIPPED`.
+- `leakosint` reads `plugins.leakosint.api_key`, falling back to `LEAKOSINT_API_TOKEN`
+  (or `LEAKOSINT_API_KEY`). The token travels in the POST body, never on a command line.
+  Without it `LeakosintPlugin.is_available()` is `False` and the plugin path returns
+  `SKIPPED`; quota and outage responses come back as `FAILURE` and are ignored.
 - `etherscan` and `geonames` have no integration; with `api_key: null` they are
   simply never scheduled.
 - Google Dorks (`src/modules/google_dorks.py`) is not a subprocess: it uses the
