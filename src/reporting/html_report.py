@@ -837,6 +837,11 @@ def generate_html_report(
     presences = db.get_platform_presences(conn, investigation_id)
     correlation = correlate_identities(conn, investigation_id)
 
+    # Citations are matched against the evidence targets, which are never
+    # masked, so the matching runs before redaction; the citations themselves
+    # are redacted as they are built.
+    citations = build_source_citations(conn, investigation_id, artifacts, redact)
+
     artifacts, links, presences, correlation = redact_payload(
         artifacts, links, presences, correlation, redact
     )
@@ -888,7 +893,6 @@ def generate_html_report(
     identity_images = _generate_identity_images(correlation, presences, artifacts)
 
     # Build drill-down views (parsed metadata, connected links, identity attribution)
-    citations = build_source_citations(conn, investigation_id, artifacts, redact)
     artifact_views = _build_artifact_views(artifacts, links, correlation, citations)
     identity_artifacts = _build_identity_artifacts(artifact_views, correlation)
 
@@ -1958,6 +1962,7 @@ def generate_json_report(
     links = db.get_links(conn, investigation_id)
     presences = db.get_platform_presences(conn, investigation_id)
     correlation = correlate_identities(conn, investigation_id)
+    citations = build_source_citations(conn, investigation_id, artifacts, redact)
     artifacts, links, presences, correlation = redact_payload(
         artifacts, links, presences, correlation, redact
     )
@@ -1990,7 +1995,7 @@ def generate_json_report(
         "platform_presences": presences,
         "evidence_chains": build_evidence_chains(artifacts, links),
         "preserved_evidence": build_preserved_evidence(conn, investigation_id, redact),
-        "source_citations": build_source_citations(conn, investigation_id, artifacts, redact),
+        "source_citations": citations,
         "timeline": build_timeline(artifacts),
         "orphan_findings": orphans,
         "cross_investigation": build_cross_investigation(conn, investigation_id, artifacts),

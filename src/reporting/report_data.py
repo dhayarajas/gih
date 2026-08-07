@@ -429,7 +429,12 @@ def _version_only(tool: Optional[str], version: Optional[str]) -> Optional[str]:
         return version
     stripped = version.strip()
     if stripped.lower().startswith(tool.lower()):
-        stripped = stripped[len(tool):].lstrip(" v:,-")
+        remainder = stripped[len(tool):].lstrip(" :,-")
+        # A leading "v" is only a version marker when a number follows it;
+        # otherwise it is the first letter of a word such as "version 7.94".
+        if remainder[:1].lower() == "v" and remainder[1:2].isdigit():
+            remainder = remainder[1:]
+        stripped = remainder
     return stripped or version
 
 

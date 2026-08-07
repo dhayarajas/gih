@@ -69,6 +69,18 @@ class TestCitations:
             artifacts[0]["artifact_id"]][0]
         assert citation["tool_version"] == "5.5.14"
 
+    def test_a_banner_whose_next_word_starts_with_v_is_left_intact(self, conn):
+        inv_id = db.create_investigation(conn, title="Banner")
+        db.add_artifact(conn, inv_id, "ip_address", "93.184.216.34", source="nmap", depth=1)
+        db.add_evidence(conn, _capture(
+            inv_id, "nmap", target="93.184.216.34", command="nmap 93.184.216.34",
+            captured_at="2026-01-01T09:00:00+00:00", version="Nmap version 7.94"))
+
+        artifacts = db.get_artifacts(conn, inv_id)
+        citation = build_source_citations(conn, inv_id, artifacts)[
+            artifacts[0]["artifact_id"]][0]
+        assert citation["tool_version"] == "version 7.94"
+
     def test_a_url_recorded_on_the_artifact_is_cited_too(self, conn, investigation):
         artifacts = db.get_artifacts(conn, investigation)
         email = next(a for a in artifacts if a["artifact_type"] == "email")
@@ -160,6 +172,28 @@ class TestRendering:
         assert "holehe" in citation_block
         assert "holehe ghost@example.com" not in citation_block
         assert "https://example.com/u/ghostuser" not in citation_block
+
+    def test_a_redacted_report_still_cites_the_run_that_found_the_artifact(
+        self, conn, investigation, tmp_path
+    ):
+        # The run naming this artifact must win over a later unrelated run of
+        # the same tool, which it cannot if masking has changed the value the
+        # target is compared against.
+        db.add_evidence(conn, _capture(
+            investigation, "holehe", target="ghost@example.com",
+            command="holehe --check ghost@example.com",
+            captured_at="2026-01-01T10:30:00+00:00", duration=2.75))
+        db.add_evidence(conn, _capture(
+            investigation, "holehe", target="someone@else.test",
+            command="holehe someone@else.test",
+            captured_at="2026-01-01T11:00:00+00:00", duration=9.25))
+
+        html = Path(generate_html_report(
+            conn, investigation, str(tmp_path / "r.html"), redact=True)).read_text()
+
+        citation_block = html.split("Source Citation", 1)[1].split("</table>", 1)[0]
+        assert "2.75s" in citation_block
+        assert "9.25s" not in citation_block
 
     def test_the_json_report_carries_the_citations(self, conn, investigation, tmp_path):
         payload = json.loads(Path(generate_json_report(
