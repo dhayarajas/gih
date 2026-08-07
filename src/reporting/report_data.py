@@ -755,6 +755,196 @@ def build_actionable_recommendations(
     return unique
 
 
+RISK_ORDER = ("critical", "high", "medium", "low", "minimal")
+RISK_COLORS = {
+    "critical": "#c53030",
+    "high": "#dd6b20",
+    "medium": "#d69e2e",
+    "low": "#38a169",
+    "minimal": "#3182ce",
+}
+CONFIDENCE_BANDS = (
+    ("Confirmed (\u2265 90%)", 0.9, 1.01, "#276749"),
+    ("Strong (70\u201389%)", 0.7, 0.9, "#38a169"),
+    ("Probable (50\u201369%)", 0.5, 0.7, "#d69e2e"),
+    ("Weak (< 50%)", -0.01, 0.5, "#c53030"),
+)
+MAX_CHART_BARS = 8
+
+
+def _bars(counter: Counter, limit: int = MAX_CHART_BARS, color: str = "#3182ce") -> list[dict]:
+    """Ranked bar rows scaled against the largest value, not the total.
+
+    A bar scaled to the total is unreadable as soon as one category dominates,
+    which in this report is the norm.
+    """
+    items = counter.most_common(limit)
+    if not items:
+        return []
+    top = items[0][1] or 1
+    total = sum(counter.values()) or 1
+    return [
+        {
+            "label": str(label),
+            "count": count,
+            "share": round(count / total * 100, 1),
+            "width": round(count / top * 100, 1),
+            "color": color,
+        }
+        for label, count in items
+    ]
+
+
+def _donut_segments(counts: dict) -> list[dict]:
+    """Stroke-dasharray offsets for a single-circle SVG donut."""
+    total = sum(counts.values())
+    if not total:
+        return []
+    segments = []
+    offset = 0.0
+    for level in RISK_ORDER:
+        value = counts.get(level, 0)
+        if not value:
+            continue
+        share = value / total * 100
+        segments.append({
+            "label": level,
+            "count": value,
+            "share": round(share, 1),
+            "dash": round(share, 3),
+            "gap": round(100 - share, 3),
+            "offset": round(25 - offset, 3),
+            "color": RISK_COLORS.get(level, "#718096"),
+        })
+        offset += share
+    return segments
+
+
+def build_highlights(
+    artifacts: list,
+    links: list,
+    presences: list,
+    correlation,
+    risk_levels: list,
+    tool_metrics: dict,
+    leak_findings: dict,
+    timeline: list,
+) -> dict:
+    """The at-a-glance band at the top of the report.
+
+    Everything here is derived from data the report already renders further
+    down; the point is that an analyst should not have to read 2,000 rows to
+    learn what the run found.
+    """
+    discovered = [a for a in artifacts if (a.get("source") or "") != "seed"]
+    confidences = [float(a.get("confidence") or 0) for a in artifacts]
+    risk_counts = Counter(risk_levels or [])
+    worst = next((level for level in RISK_ORDER if risk_counts.get(level)), None)
+
+    type_counter = Counter((a.get("artifact_type") or "unknown") for a in artifacts)
+    platform_counter = Counter(
+        (p.get("platform_name") or "unknown") for p in (presences or [])
+    )
+    source_counter: Counter = Counter()
+    for tool in tool_metrics.get("tools") or []:
+        if tool.get("kind") == "tool":
+            source_counter[tool.get("tool") or "unknown"] += tool.get("count") or 0
+
+    band_counts: Counter = Counter()
+    for value in confidences:
+        for label, low, high, _color in CONFIDENCE_BANDS:
+            if low < value <= high or (value == 0 and low < 0):
+                band_counts[label] += 1
+                break
+
+    band_peak = max(band_counts.values()) if band_counts else 1
+    depth_counter = Counter(f"Depth {a.get('depth', 0)}" for a in artifacts)
+
+    verified = sum(1 for p in (presences or []) if p.get("is_verified"))
+    productive = len([t for t in (tool_metrics.get("tools") or []) if t.get("kind") == "tool"])
+    leak_records = int(leak_findings.get("record_count") or 0)
+
+    kpis = [
+        {"label": "Artifacts", "value": len(artifacts),
+         "note": f"{len(discovered)} discovered, {len(artifacts) - len(discovered)} seeded",
+         "tone": "neutral"},
+        {"label": "Identity profiles", "value": len(correlation.identities),
+         "note": f"{len(links)} links between artifacts", "tone": "neutral"},
+        {"label": "Platform accounts", "value": len(presences or []),
+         "note": f"{verified} content-validated" if presences else "none found",
+         "tone": "neutral"},
+        {"label": "Breach records", "value": leak_records,
+         "note": "leaked rows matched" if leak_records else "no leak data",
+         "tone": "alert" if leak_records else "muted"},
+        {"label": "Highest risk", "value": (worst or "none").title(),
+         "note": f"{risk_counts.get(worst, 0)} profile(s) at this level" if worst
+                 else "no risk indicators",
+         "tone": "alert" if worst in ("critical", "high") else "neutral"},
+        {"label": "Mean confidence",
+         "value": f"{round(sum(confidences) / len(confidences) * 100)}%" if confidences else "-",
+         "note": f"{productive} tool(s) produced output", "tone": "neutral"},
+    ]
+
+    headlines = []
+    if leak_records:
+        databases = len(leak_findings.get("databases") or [])
+        headlines.append({
+            "tone": "alert",
+            "text": f"{leak_records} leaked record(s) across {databases} breached database(s)",
+        })
+    if worst in ("critical", "high"):
+        headlines.append({
+            "tone": "alert",
+            "text": f"{risk_counts[worst]} identity profile(s) rated {worst}",
+        })
+    strong = sum(1 for value in confidences if value >= 0.8)
+    if strong:
+        headlines.append({
+            "tone": "good",
+            "text": f"{strong} artifact(s) at 80%+ confidence",
+        })
+    if platform_counter:
+        top = ", ".join(label for label, _ in platform_counter.most_common(4))
+        headlines.append({"tone": "neutral", "text": f"Active on {len(platform_counter)} platform(s): {top}"})
+    subject_events = [
+        event for event in (timeline or [])
+        if event.get("kind") != "discovery" and event.get("when")
+    ]
+    if subject_events:
+        headlines.append({
+            "tone": "neutral",
+            "text": "Subject activity dated between "
+                    f"{subject_events[0]['when'][:10]} and {subject_events[-1]['when'][:10]}",
+        })
+    silent = len(tool_metrics.get("silent_installed") or [])
+    if silent:
+        headlines.append({
+            "tone": "muted",
+            "text": f"{silent} installed tool(s) returned nothing \u2014 coverage is not complete",
+        })
+
+    return {
+        "kpis": kpis,
+        "headlines": headlines,
+        "risk_donut": _donut_segments(risk_counts),
+        "risk_total": sum(risk_counts.values()),
+        "type_bars": _bars(type_counter, color="#3182ce"),
+        "platform_bars": _bars(platform_counter, color="#805ad5"),
+        "source_bars": _bars(source_counter, color="#2c7a7b"),
+        "depth_bars": _bars(depth_counter, limit=6, color="#4a5568"),
+        "confidence_bars": [
+            {
+                "label": label,
+                "count": band_counts.get(label, 0),
+                "width": round(band_counts.get(label, 0) / band_peak * 100, 1),
+                "share": round(band_counts.get(label, 0) / (len(confidences) or 1) * 100, 1),
+                "color": color,
+            }
+            for label, _low, _high, color in CONFIDENCE_BANDS
+        ] if band_counts else [],
+    }
+
+
 def enrich_tool_status(tool_metrics: dict) -> dict:
     """Annotate silent tools with host availability when possible."""
     metrics = dict(tool_metrics)

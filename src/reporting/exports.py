@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import csv
 import logging
+import re
 import shutil
 import subprocess
 import tempfile
@@ -59,7 +60,15 @@ def generate_pdf_from_html(html_path: str, pdf_path: Optional[str] = None) -> st
             engine = candidate
             break
 
-    cmd = [pandoc, str(html), "-o", str(out), "-f", "html"]
+    source = html
+    expanded = _open_all_details(html.read_text(encoding="utf-8", errors="ignore"))
+    with tempfile.NamedTemporaryFile(
+        "w", suffix=".html", delete=False, encoding="utf-8", dir=str(out.parent)
+    ) as tmp:
+        tmp.write(expanded)
+        source = Path(tmp.name)
+
+    cmd = [pandoc, str(source), "-o", str(out), "-f", "html"]
     if engine and engine.endswith("latex"):
         cmd.extend(["--pdf-engine", engine])
     elif engine == "wkhtmltopdf":
@@ -88,14 +97,31 @@ def generate_pdf_from_html(html_path: str, pdf_path: Optional[str] = None) -> st
                 Path(tmp_path).unlink(missing_ok=True)
     except Exception:
         raise
+    finally:
+        if source != html:
+            source.unlink(missing_ok=True)
 
     logger.info("PDF report saved to %s", out)
     return str(out)
 
 
+def _open_all_details(html: str) -> str:
+    """Add the `open` attribute to every `<details>` element."""
+    return re.sub(
+        r"<details(?![^>]*\bopen\b)([^>]*)>",
+        r"<details\1 open>",
+        html,
+        flags=re.I,
+    )
+
+
 def _simplify_html_for_pdf(html: str) -> str:
-    """Drop scripts and iframes that confuse LaTeX PDF engines."""
-    import re
+    """Drop scripts and iframes that confuse LaTeX PDF engines.
+
+    Collapsed sections are opened first: the on-screen report hides detail
+    behind `<details>`, but a PDF is the record and must contain all of it.
+    """
+    html = _open_all_details(html)
     html = re.sub(r"<script\b[^>]*>.*?</script>", "", html, flags=re.I | re.S)
     html = re.sub(r"<iframe\b[^>]*>.*?</iframe>", "<p>[Interactive graph omitted in PDF]</p>", html, flags=re.I | re.S)
     return html

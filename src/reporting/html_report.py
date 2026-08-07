@@ -813,6 +813,7 @@ def generate_html_report(
         build_cross_investigation,
         build_delta_report,
         build_evidence_chains,
+        build_highlights,
         build_leak_findings,
         build_orphan_findings,
         build_preserved_evidence,
@@ -902,6 +903,11 @@ def generate_html_report(
     delta = build_delta_report(conn, investigation_id, compare_id, redact)
 
 
+    highlights = build_highlights(
+        artifacts, links, presences, correlation, risk_levels,
+        tool_metrics, leak_findings, timeline,
+    )
+
     # Ranked, renderable profile pictures per identity
     identity_images = _generate_identity_images(correlation, presences, artifacts)
 
@@ -946,6 +952,7 @@ def generate_html_report(
         risk_levels=risk_levels,
         confidence_provenance=confidence_provenance,
         timeline=timeline,
+        highlights=highlights,
         key_findings=key_findings,
         confidence_metrics=confidence_metrics,
         risk_matrix=risk_matrix,
