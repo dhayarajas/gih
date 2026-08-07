@@ -5,7 +5,8 @@ from __future__ import annotations
 import json
 import logging
 import re
-from collections import defaultdict
+import sqlite3
+from collections import Counter, defaultdict
 from copy import deepcopy
 from typing import Any, Optional
 
@@ -88,6 +89,43 @@ def parse_sections(raw: Optional[str | list[str]]) -> set[str]:
     if not items or "all" in items:
         return set(DEFAULT_SECTIONS)
     return set(items) & set(DEFAULT_SECTIONS) or set(DEFAULT_SECTIONS)
+
+
+def build_preserved_evidence(
+    conn: sqlite3.Connection,
+    investigation_id: str,
+    redact: bool = False,
+) -> dict:
+    """Summarise the preserved raw tool outputs and re-verify their digests.
+
+    Each capture is re-hashed at report time, so the report states whether the
+    stored file still matches what was collected instead of merely asserting a
+    chain of custody. Under redaction the command line and target are dropped:
+    both embed the seed value, while the digest and timing do not.
+    """
+    from src.storage import evidence as evidence_store
+
+    try:
+        rows = db.get_evidence(conn, investigation_id)
+    except sqlite3.Error:
+        rows = []
+
+    items = evidence_store.verify(rows)
+    for item in items:
+        if redact:
+            item["command"] = None
+            item["target"] = None
+    counts = Counter(item["status"] for item in items)
+    return {
+        "enabled": bool(items),
+        "items": items,
+        "total": len(items),
+        "total_bytes": sum(int(item.get("byte_size") or 0) for item in items),
+        "verified": counts.get("verified", 0),
+        "modified": counts.get("modified", 0),
+        "missing": counts.get("missing", 0),
+        "intact": bool(items) and counts.get("verified", 0) == len(items),
+    }
 
 
 def build_evidence_chains(artifacts: list, links: list, max_chains: int = 40) -> list[dict]:
@@ -691,6 +729,9 @@ table, .collapsible, .collapsible-content, .drilldown-body, details.drilldown > 
 .status-not_installed {{ color: {status_bad} !important; }}
 .status-silent_or_not_dispatched {{ color: {status_warn} !important; }}
 .status-produced_output {{ color: {status_good} !important; }}
+.status-verified {{ color: {status_good} !important; }}
+.status-modified {{ color: {status_bad} !important; }}
+.status-missing {{ color: {status_warn} !important; }}
 .leak-db {{ color: {status_bad} !important; }}
 """
     if watermark.get("enabled"):

@@ -82,6 +82,7 @@ from src.modules import phone_osint, email_osint, username_search, image_search,
 from src.modules.correlation_neo4j import Neo4jCorrelation
 from src.modules.google_dorks import run_google_dorks_search, check_google_dorks_availability
 from src.storage import database as db
+from src.storage import evidence
 from src.utils.tool_checker import get_tool_checker, check_tool_availability
 from src.utils.matching import MatchPolicy, get_match_policy, filter_full_matches
 from src.modules.external_tools import (
@@ -517,6 +518,7 @@ def run_investigation(
     # per-run tool-analysis memoization so results aren't reused across runs.
     concurrency.configure()
     clear_tool_analysis_cache()
+    evidence.begin(inv_id)
     runtime_budget_s = max(0.0, config.max_runtime_minutes * 60.0)
     max_total_artifacts = config.max_total_artifacts
     max_workers = max(1, config.max_parallel_workers)
@@ -672,6 +674,10 @@ def run_investigation(
                         "depth": current_depth + 1,
                     })
 
+        # Captures are buffered on worker threads; this main thread owns the
+        # connection, so they are persisted at each level boundary.
+        evidence.flush(conn)
+
         conn.commit()
         logger.info(
             "BFS level %d done in %.1fs (parallel=%.1fs, db=%.1fs); processed=%d, "
@@ -691,6 +697,8 @@ def run_investigation(
     # Finalize
     finalize_start = time.monotonic()
     logger.debug("Finalizing investigation %s", inv_id)
+    evidence.flush(conn)
+    evidence.end()
     db.complete_investigation(conn, inv_id)
 
     # Compute summary
@@ -710,6 +718,7 @@ def run_investigation(
             "total_artifacts": result.total_artifacts,
             "total_links": result.total_links,
             "total_platforms": result.total_platforms,
+            "preserved_captures": len(db.get_evidence(conn, inv_id)),
         }),
     )
     

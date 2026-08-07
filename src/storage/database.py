@@ -179,6 +179,26 @@ def _init_schema(conn: sqlite3.Connection) -> None:
 
         CREATE INDEX IF NOT EXISTS idx_audit_investigation
             ON audit_trail(investigation_id, performed_at);
+
+        CREATE TABLE IF NOT EXISTS evidence (
+            evidence_id TEXT PRIMARY KEY,
+            investigation_id TEXT NOT NULL,
+            tool TEXT NOT NULL,
+            operation TEXT,
+            target TEXT,
+            command TEXT,
+            captured_at TEXT NOT NULL,
+            duration_seconds REAL,
+            exit_status TEXT,
+            sha256 TEXT NOT NULL,
+            byte_size INTEGER NOT NULL,
+            stored_path TEXT NOT NULL,
+            truncated INTEGER DEFAULT 0,
+            FOREIGN KEY (investigation_id) REFERENCES investigations(investigation_id)
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_evidence_investigation
+            ON evidence(investigation_id, captured_at);
     """)
     conn.commit()
 
@@ -432,6 +452,32 @@ def add_audit_log(
     )
     conn.commit()
     return audit_id
+
+
+def add_evidence(conn: sqlite3.Connection, capture) -> str:
+    """Record one preserved tool output (see src.storage.evidence)."""
+    evidence_id = f"EVD-{generate_id()}"
+    conn.execute(
+        "INSERT INTO evidence "
+        "(evidence_id, investigation_id, tool, operation, target, command, captured_at, "
+        "duration_seconds, exit_status, sha256, byte_size, stored_path, truncated) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        (evidence_id, capture.investigation_id, capture.tool, capture.operation,
+         capture.target, capture.command, capture.captured_at, capture.duration_seconds,
+         capture.exit_status, capture.sha256, capture.byte_size, capture.stored_path,
+         1 if capture.truncated else 0),
+    )
+    conn.commit()
+    return evidence_id
+
+
+def get_evidence(conn: sqlite3.Connection, investigation_id: str) -> list[dict]:
+    """Get preserved tool outputs for an investigation, oldest first."""
+    rows = conn.execute(
+        "SELECT * FROM evidence WHERE investigation_id = ? ORDER BY captured_at",
+        (investigation_id,),
+    ).fetchall()
+    return [dict(r) for r in rows]
 
 
 def get_audit_trail(conn: sqlite3.Connection, investigation_id: str) -> list[dict]:
