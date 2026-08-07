@@ -92,7 +92,7 @@ class TestRiskProvenance:
 
     def test_no_indicators_yields_no_signals(self):
         assert explain_identity_risk_score([]) == {
-            "score": 0.0, "signals": [], "capped": False
+            "score": 0.0, "raw_total": 0.0, "signals": [], "capped": False
         }
 
 
