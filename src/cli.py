@@ -68,7 +68,12 @@ import click
 from tabulate import tabulate
 
 from src.modules.external_tools import get_tool_coverage
-from src.orchestrator import run_investigation, InvestigationConfig
+from src.orchestrator import (
+    InvestigationAborted,
+    InvestigationConfig,
+    InvestigationResult,
+    run_investigation,
+)
 from src.correlation.linker import correlate_identities
 from src.correlation.scorer import compute_identity_risk_score, classify_risk_level
 from src.graph.visualizer import LAYOUTS, generate_interactive_graph, get_graph_stats
@@ -140,6 +145,18 @@ def _json_output_path(report_output: Optional[str], report_format: str) -> Optio
         json_path = path.with_name(f"{path.stem}_data.json")
 
     return str(json_path)
+
+
+def _partial_result(conn, investigation_id: str) -> InvestigationResult:
+    """Summarise an investigation from what it managed to store."""
+    from src.storage import database as dbmod
+
+    return InvestigationResult(
+        investigation_id=investigation_id,
+        total_artifacts=len(dbmod.get_artifacts(conn, investigation_id)),
+        total_links=len(dbmod.get_links(conn, investigation_id)),
+        total_platforms=len(dbmod.get_platform_presences(conn, investigation_id)),
+    )
 
 
 def _print_tool_coverage() -> None:
@@ -338,10 +355,21 @@ def investigate(
     # Run investigation
     conn = get_connection(ctx.obj.get("db_path"))
     try:
-        result = run_investigation(conn, seeds, config, title=title)
+        try:
+            result = run_investigation(conn, seeds, config, title=title)
+            heading = f"Investigation Complete: {result.investigation_id}"
+        except InvestigationAborted as aborted:
+            if not aborted.investigation_id:
+                raise
+            # Findings are stored as they are made, so the run stopping is no
+            # reason to throw away what it already found.
+            result = _partial_result(conn, aborted.investigation_id)
+            heading = f"Investigation Stopped Early: {result.investigation_id}"
+            click.echo(f"\n⚠ The run stopped early: {aborted}")
+            click.echo("  Reporting on what it found before it stopped.")
 
         click.echo(f"\n{'=' * 60}")
-        click.echo(f"Investigation Complete: {result.investigation_id}")
+        click.echo(heading)
         click.echo(f"{'=' * 60}")
         click.echo(f"  Artifacts discovered: {result.total_artifacts}")
         click.echo(f"  Connections found:    {result.total_links}")

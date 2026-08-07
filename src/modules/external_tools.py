@@ -10,6 +10,7 @@ import subprocess
 import json
 import logging
 import os
+import signal
 import re
 import tempfile
 import threading
@@ -87,6 +88,86 @@ class ToolResult:
     artifacts_discovered: List[Dict[str, Any]] = field(default_factory=list)
 
 
+# A tool that never stops printing would otherwise be held in memory in full.
+MAX_TOOL_OUTPUT_BYTES = 32 * 1024 * 1024
+
+
+def _decode(raw: Any) -> str:
+    """Text from a tool's pipe, whatever bytes it actually wrote.
+
+    Tools print filenames and page titles in whatever encoding they were given,
+    so strict decoding would throw away a whole run over one byte.
+    """
+    if raw is None:
+        return ""
+    if isinstance(raw, bytes):
+        return raw.decode("utf-8", errors="replace")
+    return str(raw)
+
+
+def _run_subprocess(
+    command: List[str],
+    timeout: int,
+    cwd: Optional[str],
+) -> tuple[int, str]:
+    """Run a tool to completion or to its deadline, leaving nothing behind.
+
+    ``subprocess.run`` kills only the process it started: a tool that forks
+    (amass, theHarvester) leaves children holding the pipes open, and the
+    cleanup read after the kill then blocks forever, hanging the whole
+    investigation. The child therefore leads its own process group, and the
+    group is signalled as a whole.
+    """
+    popen_kwargs: Dict[str, Any] = {
+        "stdout": subprocess.PIPE,
+        "stderr": subprocess.PIPE,
+        "cwd": cwd,
+    }
+    if os.name == "posix":
+        popen_kwargs["start_new_session"] = True
+
+    process = subprocess.Popen(command, **popen_kwargs)
+    try:
+        stdout, stderr = process.communicate(timeout=timeout)
+    except subprocess.TimeoutExpired:
+        _terminate(process)
+        # The group is gone, so this read cannot block.
+        stdout, stderr = process.communicate()
+        raise subprocess.TimeoutExpired(
+            command, timeout, output=stdout, stderr=stderr
+        )
+
+    output = _decode(stdout) + _decode(stderr)
+    if len(output) > MAX_TOOL_OUTPUT_BYTES:
+        logger.warning(
+            "%s printed %d bytes; keeping the first %d",
+            command[0], len(output), MAX_TOOL_OUTPUT_BYTES,
+        )
+        output = output[:MAX_TOOL_OUTPUT_BYTES]
+    return process.returncode, output
+
+
+def _terminate(process: "subprocess.Popen") -> None:
+    """End the tool and everything it started."""
+    try:
+        if os.name == "posix":
+            os.killpg(os.getpgid(process.pid), signal.SIGTERM)
+        else:
+            process.terminate()
+        try:
+            process.wait(timeout=5)
+            return
+        except subprocess.TimeoutExpired:
+            pass
+        if os.name == "posix":
+            os.killpg(os.getpgid(process.pid), signal.SIGKILL)
+        else:
+            process.kill()
+        process.wait(timeout=5)
+    except (ProcessLookupError, PermissionError, subprocess.TimeoutExpired) as exc:
+        logger.debug("Could not fully stop pid %s: %s", process.pid, exc)
+
+
 class ExternalToolsIntegration:
     """Integration layer for external OSINT tools."""
     
@@ -118,29 +199,25 @@ class ExternalToolsIntegration:
 
         try:
             logger.info(f"Running {tool_name}: {' '.join(command)}")
-            
+
             with io_slot():
-                process = subprocess.run(
-                    command,
-                    capture_output=True,
-                    text=True,
-                    timeout=timeout,
-                    cwd=cwd,
-                )
-            
-            result.success = process.returncode == 0
-            result.output = process.stdout + process.stderr
-            exit_status = f"exit {process.returncode}"
-            
-            if process.returncode != 0:
-                result.error_message = f"Tool exited with code {process.returncode}"
+                returncode, output = _run_subprocess(command, timeout, cwd)
+
+            result.success = returncode == 0
+            result.output = output
+            exit_status = f"exit {returncode}"
+
+            if returncode != 0:
+                result.error_message = f"Tool exited with code {returncode}"
                 logger.warning(f"{tool_name} failed: {result.error_message}")
-            
+
             logger.debug(f"{tool_name} completed successfully")
-            
-        except subprocess.TimeoutExpired:
+
+        except subprocess.TimeoutExpired as expired:
             result.error_message = f"Tool execution timed out after {timeout}s"
             exit_status = "timeout"
+            # Whatever it printed before the deadline is still evidence.
+            result.output = _decode(expired.stdout) + _decode(expired.stderr)
             logger.error(f"{tool_name} timeout: {result.error_message}")
             
         except FileNotFoundError:
