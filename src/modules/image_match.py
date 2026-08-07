@@ -70,6 +70,7 @@ VERSION:
 import json
 import logging
 import re
+import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -83,6 +84,12 @@ import numpy as np
 from src.utils.http_client import get_http_session
 
 logger = logging.getLogger(__name__)
+
+# dlib, behind face_recognition, is not safe to call from several threads: the
+# investigation runs a thread per artifact and each matched several images at
+# once, which aborted the whole process mid-run with a heap error. Every call
+# into it is serialised here.
+_FACE_LOCK = threading.Lock()
 
 
 @dataclass
@@ -492,12 +499,17 @@ def extract_face_encoding(image_url: str) -> Optional[np.ndarray]:
             # Load image from response
             from io import BytesIO
             image = Image.open(BytesIO(resp.content))
-            image_array = np.array(image)
-            
-            # Detect faces and get encodings
-            face_encodings = face_recognition.face_encodings(image_array)
-            
-            if face_encodings:
+            # dlib reads the buffer as 8-bit RGB whatever the array says, so a
+            # palette, grayscale or 16-bit image is converted before it is
+            # handed over rather than being read past its end.
+            if image.mode != "RGB":
+                image = image.convert("RGB")
+            image_array = np.ascontiguousarray(np.asarray(image, dtype=np.uint8))
+
+            with _FACE_LOCK:
+                face_encodings = face_recognition.face_encodings(image_array)
+
+            if len(face_encodings):
                 return face_encodings[0]  # Return first face encoding
     
     except ImportError:
