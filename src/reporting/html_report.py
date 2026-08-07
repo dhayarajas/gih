@@ -518,9 +518,11 @@ LEGAL_TEMPLATE = """<!DOCTYPE html>
 
         <h2>Chain of Custody</h2>
         {% if preserved_evidence.enabled %}
-        <p>The verbatim output of each collection step was written to disk at collection time and
-        named after the SHA-256 digest of its bytes. Every digest below was recomputed when this
-        report was produced: {{ preserved_evidence.verified }} of {{ preserved_evidence.total }}
+        <p>Preservation covers the external command-line tools and the web-archive query: the
+        verbatim output of each such run was written to disk at collection time and named after
+        the SHA-256 digest of its bytes. Findings from the built-in modules, which query APIs
+        directly, are not preserved and are not covered by the statements below. Every digest
+        below was recomputed when this report was produced: {{ preserved_evidence.verified }} of {{ preserved_evidence.total }}
         capture(s) still match their recorded digest{% if not preserved_evidence.intact %},
         {{ preserved_evidence.modified }} no longer match and {{ preserved_evidence.missing }}
         could not be located{% endif %}.</p>
