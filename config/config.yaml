@@ -295,6 +295,13 @@ reporting:
     opacity: 0.1
     position: "center"  # center, top-left, top-right, bottom-left, bottom-right
 
+# Graph Visualization Settings
+graph:
+  layout: "organic"  # organic, hierarchical, circular
+  # Collapse a node's same-type leaf neighbours into one collection node once
+  # there are at least this many of them; 0 keeps every node separate.
+  collection_threshold: 8
+
 # Evidence Preservation Settings
 # Raw tool output is written verbatim to <directory>/<investigation_id>/<sha256>.txt
 # so findings can be re-verified against the material they came from.
