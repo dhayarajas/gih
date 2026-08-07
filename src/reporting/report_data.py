@@ -37,6 +37,30 @@ DEFAULT_SECTIONS = (
 REDACT_TYPES = {"phone", "email", "image", "fullname", "gps_coordinates", "location"}
 _EMAIL_RE = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")
 _PHONE_RE = re.compile(r"\+?\d[\d\s().-]{7,}\d")
+_URL_RE = re.compile(r"^(https?|ftp)://", re.IGNORECASE)
+
+# Metadata keys naming something that identifies the subject. Tools invent
+# their own spellings, so a key is personal when one of these appears anywhere
+# in it (the long forms) or as a word within it (the short ones, which would
+# otherwise match innocent keys -- "ip" inside "description").
+_PERSONAL_KEY_PARTS = (
+    "email", "phone", "mobile", "msisdn", "avatar", "image", "photo",
+    "picture", "thumbnail", "address", "street", "postal", "latitude",
+    "longitude", "coordinate", "location", "password", "passwd", "document",
+    "passport", "birth", "gender", "handle", "nick", "login", "account",
+    "profile", "user", "name", "country", "region",
+)
+_PERSONAL_KEY_WORDS = frozenset({
+    "url", "uri", "link", "href", "ip", "dob", "ssn", "nid", "gps", "geo",
+    "tel", "age", "zip", "city", "mail", "hash",
+})
+# Keys whose name merely contains one of the above but describes the
+# collection rather than the subject.
+_IMPERSONAL_KEYS = frozenset({
+    "platform", "platform_name", "database", "source", "tool", "tool_version",
+    "user_agent", "username_count", "account_count", "location_count",
+    "name_count", "url_count", "status_code",
+})
 
 
 def load_reporting_config() -> dict:
@@ -752,8 +776,13 @@ def enrich_tool_status(tool_metrics: dict) -> dict:
     return metrics
 
 
-def build_cross_investigation(conn, investigation_id: str, artifacts: list, limit: int = 25) -> list[dict]:
-    """Find the same artifact values in other investigations."""
+def build_cross_investigation(conn, investigation_id: str, artifacts: list,
+                              limit: int = 25, redact: bool = False) -> list[dict]:
+    """Find the same artifact values in other investigations.
+
+    The values are read from the database, so under redaction they are masked
+    here: a match is worth reporting, the value behind it is not.
+    """
     values = {
         (a.get("artifact_type"), a.get("value"))
         for a in artifacts
@@ -777,9 +806,15 @@ def build_cross_investigation(conn, investigation_id: str, artifacts: list, limi
                     "confidence": row[4],
                 })
                 if len(hits) >= limit:
-                    return hits
+                    break
+            if len(hits) >= limit:
+                break
     except Exception as exc:
         logger.debug("Cross-investigation lookup failed: %s", exc)
+    if redact:
+        for hit in hits:
+            hit["value"] = mask_value(str(hit.get("value") or ""),
+                                      hit.get("artifact_type") or "")
     return hits
 
 
@@ -1069,6 +1104,81 @@ def mask_value(value: str, artifact_type: str = "") -> str:
                          _PHONE_RE.sub("***-****", value))
 
 
+def _is_personal_key(key: str) -> bool:
+    """Whether a metadata key names something identifying the subject."""
+    lowered = str(key).lower()
+    if lowered in _IMPERSONAL_KEYS:
+        return False
+    if any(part in lowered for part in _PERSONAL_KEY_PARTS):
+        return True
+    words = set(re.split(r"[^a-z0-9]+", lowered))
+    return bool(words & _PERSONAL_KEY_WORDS)
+
+
+def _redact_metadata(value, key: str = ""):
+    """Recursively strip personal detail from a parsed metadata value.
+
+    Metadata is whatever the tool returned, so nothing here can rely on a
+    schema: a key that names a person, a contact, a location or an address on
+    the web is dropped outright, and every surviving string is still pattern
+    masked in case the detail is buried in free text. Dates are the exception
+    -- they carry the timeline and identify no one on their own.
+    """
+    if isinstance(value, dict):
+        return {k: _redact_metadata(v, k) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_redact_metadata(v, key) for v in value]
+    if value is None or isinstance(value, bool):
+        return value
+
+    text = str(value)
+    if key and str(key).lower() in _DATE_KEYS:
+        return value
+    if key and _is_personal_key(key):
+        return "[REDACTED_URL]" if _URL_RE.match(text) else "[REDACTED]"
+    if _URL_RE.match(text):
+        return "[REDACTED_URL]"
+    if isinstance(value, (int, float)):
+        return value
+    return mask_value(text)
+
+
+def redact_context(investigation, audit_trail: list, comments: list,
+                   enabled: bool) -> tuple[Any, list, list]:
+    """Mask the free text around the findings: title, audit rows, notes.
+
+    An operator names a case after its seed and writes the subject's details
+    into notes, and the audit trail repeats the title verbatim, so these carry
+    the same personal detail the findings do.
+    """
+    if not enabled:
+        return investigation, audit_trail, comments
+
+    inv = dict(investigation) if investigation else investigation
+    if inv:
+        for field in ("title", "description"):
+            if inv.get(field):
+                inv[field] = mask_value(str(inv[field]))
+
+    trail = deepcopy(audit_trail)
+    for row in trail:
+        details = row.get("details")
+        if not details:
+            continue
+        parsed = _parse_metadata_field(details)
+        row["details"] = (json.dumps(_redact_metadata(parsed)) if parsed
+                          else mask_value(str(details)))
+
+    notes = deepcopy(comments)
+    for note in notes:
+        if note.get("content"):
+            note["content"] = mask_value(str(note["content"]))
+        if note.get("author"):
+            note["author"] = mask_value(str(note["author"]))
+
+    return inv, trail, notes
+
+
 def redact_payload(
     artifacts: list,
     links: list,
@@ -1091,6 +1201,9 @@ def redact_payload(
             _redact_leak_artifact(a)
             continue
         a["value"] = _mask(str(a.get("value") or ""), a.get("artifact_type") or "")
+        meta = _parse_metadata_field(a.get("metadata"))
+        if meta:
+            a["metadata"] = json.dumps(_redact_metadata(meta))
 
     pres = deepcopy(presences)
     for p in pres:
