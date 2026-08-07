@@ -115,6 +115,24 @@ class TestGeneratedGraph:
         assert 'window.parent.postMessage' in html
         assert seed in html
 
+    def test_the_circular_layout_places_the_collection_node_on_the_ring(
+        self, conn, investigation, tmp_path
+    ):
+        inv_id, seed = investigation
+        html = Path(generate_interactive_graph(
+            conn, inv_id, str(tmp_path / "g.html"), layout="circular",
+            collection_threshold=8,
+        )).read_text()
+
+        nodes = json.loads(html.split("nodes = new vis.DataSet(")[1].split(");")[0])
+        placed = {n["id"]: (n.get("x"), n.get("y")) for n in nodes}
+        collection_id = next(i for i in placed if str(i).startswith("collection::"))
+
+        assert None not in placed[collection_id]
+        # Visible nodes sit on one ring; nothing lands on top of anything else.
+        visible = [placed[seed], placed[collection_id]]
+        assert len(set(visible)) == len(visible)
+
     @pytest.mark.parametrize("layout,marker", [
         ("hierarchical", '"hierarchical"'),
         ("circular", '"physics": {"enabled": false}'),

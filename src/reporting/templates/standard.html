@@ -976,7 +976,7 @@
     <p class="section-blurb">Visual network diagram showing connections between artifacts and identities, helping identify clusters, central nodes, and relationship patterns for understanding social connections and potential attack vectors. Click a node to open its entry in the Discovered Artifacts section; a node labelled with a count stands for that many collapsed same-type artifacts and expands when clicked.</p>
     <div class="card">
         <div class="graph-container">
-            <iframe class="graph-frame" title="Identity relationship graph" sandbox="allow-scripts allow-same-origin allow-popups" src="{{ graph_iframe_src }}"></iframe>
+            <iframe id="gih-graph-frame" class="graph-frame" title="Identity relationship graph" sandbox="allow-scripts allow-same-origin allow-popups" src="{{ graph_iframe_src }}"></iframe>
         </div>
     </div>
 
@@ -1378,8 +1378,13 @@
         // The graph runs in a file:// iframe, which cannot touch this document,
         // so it asks for a node's detail section by message instead.
         window.addEventListener('message', function (event) {
+            // Only the graph this report embedded may drive navigation: any
+            // other frame or opener can claim the same payload.
+            var frame = document.getElementById('gih-graph-frame');
+            if (!frame || event.source !== frame.contentWindow) { return; }
             var data = event.data || {};
-            if (data.source === 'gih-graph' && data.artifactId) {
+            if (data.source === 'gih-graph' && typeof data.artifactId === 'string'
+                    && /^[A-Za-z0-9_-]+$/.test(data.artifactId)) {
                 revealTarget('artifact-' + data.artifactId);
             }
         });
