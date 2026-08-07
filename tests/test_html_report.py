@@ -392,6 +392,16 @@ class TestToolMetrics:
             assert "silent in this run" in html
         assert "Discovered Artifacts" in html
 
+    def test_tools_without_output_are_struck_through(self, conn, investigation, tmp_path):
+        html = render(conn, investigation, tmp_path)
+        assert ".tool-off { color: #a0aec0; text-decoration: line-through; }" in html
+        # Every silent tool, and every non-producing row of the run-status table,
+        # is rendered inside the disabled span; producing tools are not.
+        status = html.split("Tool Run Status")[1]
+        assert '<span class="tool-off">sherlock</span>' in status
+        assert '<span class="tool-off">holehe</span>' not in status
+        assert 'class="tool-row-off"' in status
+
     def test_section_renders_bars_and_breakdown(self, conn, investigation, tmp_path):
         html = render(conn, investigation, tmp_path)
         assert "Tool Metrics" in html

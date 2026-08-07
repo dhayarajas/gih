@@ -258,6 +258,7 @@ TECHNICAL_TEMPLATE = """<!DOCTYPE html>
         table { width: 100%; border-collapse: collapse; margin: 1rem 0; }
         th, td { overflow-wrap: anywhere; }
         th { background: #3e3e42; color: #d4d4d4; }
+        .tool-off { color: #808080; text-decoration: line-through; }
         .code { background: #1e1e1e; padding: 1rem; border-radius: 4px; font-family: monospace; }
     </style>
 </head>
@@ -311,7 +312,7 @@ TECHNICAL_TEMPLATE = """<!DOCTYPE html>
                 </tbody>
             </table>
             {% if tool_metrics.silent_tools %}
-            <p>Integrated but silent in this run: {{ tool_metrics.silent_tools | join(', ') }}.</p>
+            <p>Integrated but silent in this run: {% for tool in tool_metrics.silent_tools %}<span class="tool-off">{{ tool }}</span>{% if not loop.last %}, {% endif %}{% endfor %}.</p>
             {% endif %}
             {% else %}
             <p>No tool-derived artifacts in this investigation.</p>
