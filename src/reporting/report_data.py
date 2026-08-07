@@ -35,6 +35,12 @@ DEFAULT_SECTIONS = (
 )
 
 REDACT_TYPES = {"phone", "email", "image", "fullname", "gps_coordinates", "location"}
+
+# Artifact types whose value is a web address built around the subject's
+# handle -- an avatar path, a profile page -- so masking characters out of it
+# would leave the identifying part standing.
+REDACT_URL_TYPES = {"image_url", "url", "profile_url",
+                    "username_presence", "email_presence"}
 _EMAIL_RE = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")
 _PHONE_RE = re.compile(r"\+?\d[\d\s().-]{7,}\d")
 _URL_RE = re.compile(r"^(https?|ftp)://", re.IGNORECASE)
@@ -1097,6 +1103,8 @@ def mask_value(value: str, artifact_type: str = "") -> str:
         # not patterns anything here recognises, so only the database survives.
         database = value.split(":", 1)[0].strip() or "Unknown database"
         return f"{database}: [REDACTED]"
+    if atype in REDACT_URL_TYPES and _URL_RE.match(value.strip()):
+        return "[REDACTED_URL]"
     if atype in REDACT_TYPES or _EMAIL_RE.fullmatch(value) or _PHONE_RE.fullmatch(value.strip()):
         if "@" in value:
             local, _, domain = value.partition("@")
@@ -1219,6 +1227,10 @@ def redact_payload(
             p["profile_image_url"] = None
         if p.get("display_name"):
             p["display_name"] = _mask(str(p["display_name"]), "fullname")
+        if p.get("bio"):
+            # An account's own biography names the person, their employer and
+            # their town in prose no pattern catches.
+            p["bio"] = "[REDACTED]"
 
     corr = deepcopy(correlation)
     for identity in getattr(corr, "identities", []) or []:

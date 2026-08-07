@@ -40,6 +40,16 @@ def investigation(conn):
             "nested": [{"home_address": "12 Real Street"}],
         }),
     )
+    db.add_artifact(
+        conn, inv_id, "image_url",
+        "https://cdn.example.com/avatars/ghostuser.png", source="maigret", depth=1,
+    )
+    db.add_platform_presence(
+        conn, inv_id, platform_name="Mastodon",
+        profile_url="https://mastodon.social/@ghostuser",
+        username="ghostuser", display_name="Ghost User",
+        bio="Ghost User, engineer in Chennai",
+    )
     db.add_audit_log(
         conn, inv_id, action="investigation_started",
         entity_type="investigation", entity_id=inv_id,
@@ -118,6 +128,7 @@ class TestReportOutput:
 
         for secret in ("ghost@example.com", "mastodon.social/@ghostuser",
                        "avatars/ghostuser.png", "Ghost User", "Chennai",
+                       "engineer in Chennai",
                        "12 Real Street", "415 555 0132"):
             assert secret not in html
         assert "2013-10-04" in html  # a date identifies no one
@@ -131,6 +142,8 @@ class TestReportOutput:
 
         assert "ghost@example.com" not in payload
         assert "12 Real Street" not in payload
+        assert "avatars/ghostuser.png" not in payload
+        assert "engineer in Chennai" not in payload
 
     def test_without_redaction_nothing_is_hidden(
         self, conn, investigation, tmp_path
@@ -141,6 +154,8 @@ class TestReportOutput:
 
         assert "ghost@example.com" in html
         assert "Ghost User" in html
+        assert "engineer in Chennai" in html
+        assert "avatars/ghostuser.png" in html
 
 
 class TestContext:
