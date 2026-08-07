@@ -6,6 +6,7 @@ Documentation for Ghost Identity Hunter, an OSINT investigation tool that expand
 
 - [Design Documentation](#design-documentation)
 - [Development](#development)
+- [Tooling and Comparison](#tooling-and-comparison)
 - [Deployment and Setup](#deployment-and-setup)
 - [Where to Start](#where-to-start)
 
@@ -26,6 +27,14 @@ All diagrams use Mermaid and render directly on GitHub.
 | --- | --- |
 | [plugin_development.md](plugin_development.md) | Writing new plugins against the `OSINTPlugin` interface |
 | [LOCAL_PYTHON_SETUP.md](LOCAL_PYTHON_SETUP.md) | Local Python environment setup |
+
+## Tooling and Comparison
+
+| Document | Contents |
+| --- | --- |
+| [TOOL_INSTALLATION.md](TOOL_INSTALLATION.md) | Every tool and service the project uses, with install and verify commands, API-key behaviour, and the Maltego providers it does not cover ([PDF](TOOL_INSTALLATION.pdf)) |
+| [MALTEGO_COMPARISON.md](MALTEGO_COMPARISON.md) | Functional comparison against the Maltego platform across 22 capability areas, with a prioritised gap roadmap |
+| [MALTEGO_PROVIDER_GAP.md](MALTEGO_PROVIDER_GAP.md) | Maltego's published data providers mapped to this project's coverage: covered, partially covered or absent |
 
 ## Deployment and Setup
 
