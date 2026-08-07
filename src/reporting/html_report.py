@@ -876,7 +876,7 @@ def generate_html_report(
     evidence_chains = build_evidence_chains(artifacts, links)
     preserved_evidence = build_preserved_evidence(conn, investigation_id, redact)
     cross_hits = build_cross_investigation(conn, investigation_id, artifacts)
-    delta = build_delta_report(conn, investigation_id, compare_id)
+    delta = build_delta_report(conn, investigation_id, compare_id, redact)
 
 
     # Ranked, renderable profile pictures per identity
@@ -1986,7 +1986,7 @@ def generate_json_report(
         "timeline": build_timeline(artifacts),
         "orphan_findings": orphans,
         "cross_investigation": build_cross_investigation(conn, investigation_id, artifacts),
-        "delta": build_delta_report(conn, investigation_id, compare_id),
+        "delta": build_delta_report(conn, investigation_id, compare_id, redact),
         "comments": load_comments(conn, investigation_id),
         "audit_trail": db.get_audit_trail(conn, investigation_id),
         "graph": {

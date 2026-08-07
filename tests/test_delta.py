@@ -62,6 +62,41 @@ class TestDelta:
         assert [a["value"] for a in delta["removed"]] == ["old.example.com"]
         assert delta["shared_count"] == 2  # seed username + email
 
+    def test_an_artifact_that_moved_is_not_counted_as_unchanged(self, conn, runs):
+        baseline, current = runs
+        delta = build_delta_report(conn, current, baseline)
+
+        assert delta["changed_count"] == 1
+        assert delta["unchanged_count"] == delta["shared_count"] - delta["changed_count"] == 1
+
+    def test_a_redacted_diff_masks_the_values_it_reports(self, conn, runs):
+        baseline, current = runs
+        delta = build_delta_report(conn, current, baseline, redact=True)
+
+        assert delta["changed"][0]["value"] == "g***@example.com"
+        metadata_changes = [c for c in delta["changed"][0]["changes"]
+                            if c["field"].startswith("metadata.")]
+        assert metadata_changes
+        assert all(c["before"] in ("absent", "[REDACTED]")
+                   and c["after"] in ("absent", "[REDACTED]") for c in metadata_changes)
+        assert all(p["url"] == "[REDACTED_URL]"
+                   for p in delta["platforms_added"] + delta["platforms_removed"])
+
+    def test_a_redacted_report_does_not_reprint_the_seed_in_the_diff(
+        self, conn, runs, tmp_path
+    ):
+        baseline, current = runs
+        html = Path(generate_html_report(
+            conn, current, str(tmp_path / "r.html"), redact=True, compare_id=baseline
+        )).read_text()
+
+        # The artifact drill-down's own metadata redaction is a separate concern;
+        # what must hold here is that the diff does not re-expose it.
+        diff_section = html.split("Changes since", 1)[1].split("<h2", 1)[0]
+        assert "ghost@example.com" not in diff_section
+        assert "collection1" not in diff_section
+        assert "https://mastodon.social/@ghostuser" not in diff_section
+
     def test_an_artifact_in_both_runs_still_reports_what_moved(self, conn, runs):
         baseline, current = runs
         changed = build_delta_report(conn, current, baseline)["changed"]

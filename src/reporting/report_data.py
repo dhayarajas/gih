@@ -674,13 +674,22 @@ def find_previous_investigation(conn, investigation_id: str) -> Optional[str]:
 _DELTA_FIELDS = ("source", "confidence", "depth")
 
 
-def build_delta_report(conn, investigation_id: str, compare_id: Optional[str]) -> dict:
+def build_delta_report(
+    conn,
+    investigation_id: str,
+    compare_id: Optional[str],
+    redact: bool = False,
+) -> dict:
     """Compare two runs: added, removed, and changed artifacts and accounts.
 
     An artifact present in both runs is not necessarily unchanged — its
     confidence, the tool that reported it, or its metadata may all have moved,
     and that movement is often the finding. Pass compare_id="auto" to diff
     against the previous run of the same seeds.
+
+    The comparison reads both runs straight from the database, so under
+    redaction every value it emits is masked here: the diff must not become a
+    second, unmasked view of what the rest of the report hides.
     """
     empty = {
         "compare_id": compare_id, "added": [], "removed": [], "changed": [],
@@ -713,11 +722,11 @@ def build_delta_report(conn, investigation_id: str, compare_id: Optional[str]) -
 
     changed = []
     for key in shared_keys:
-        changes = _artifact_changes(baseline[key], current[key])
+        changes = _artifact_changes(baseline[key], current[key], redact)
         if changes:
             changed.append({
                 "type": key[0],
-                "value": key[1],
+                "value": mask_value(key[1], key[0]) if redact else key[1],
                 "artifact_id": current[key].get("artifact_id"),
                 "changes": changes,
             })
@@ -736,26 +745,32 @@ def build_delta_report(conn, investigation_id: str, compare_id: Optional[str]) -
         "compare_id": compare_id,
         "compare_title": other.get("title"),
         "compare_created_at": other.get("created_at"),
-        "added": [_delta_item(current[k]) for k in added_keys[:50]],
-        "removed": [_delta_item(baseline[k]) for k in removed_keys[:50]],
+        "added": [_delta_item(current[k], redact) for k in added_keys[:50]],
+        "removed": [_delta_item(baseline[k], redact) for k in removed_keys[:50]],
         "changed": changed[:50],
         "platforms_added": [
-            _platform_item(current_platforms[k])
+            _platform_item(current_platforms[k], redact)
             for k in sorted(set(current_platforms) - set(baseline_platforms))[:50]
         ],
         "platforms_removed": [
-            _platform_item(baseline_platforms[k])
+            _platform_item(baseline_platforms[k], redact)
             for k in sorted(set(baseline_platforms) - set(current_platforms))[:50]
         ],
         "shared_count": len(shared_keys),
         "added_count": len(added_keys),
         "removed_count": len(removed_keys),
         "changed_count": len(changed),
+        "unchanged_count": len(shared_keys) - len(changed),
     }
 
 
-def _artifact_changes(before: dict, after: dict) -> list[dict]:
-    """Field- and metadata-level differences between two runs of one artifact."""
+def _artifact_changes(before: dict, after: dict, redact: bool = False) -> list[dict]:
+    """Field- and metadata-level differences between two runs of one artifact.
+
+    Under redaction the fact that a metadata key changed is still reported --
+    that is the finding -- but neither value is shown, since a metadata value
+    can hold anything the tool returned.
+    """
     changes = []
     for fieldname in _DELTA_FIELDS:
         old, new = before.get(fieldname), after.get(fieldname)
@@ -777,32 +792,37 @@ def _artifact_changes(before: dict, after: dict) -> list[dict]:
             continue
         changes.append({
             "field": f"metadata.{key}",
-            "before": "absent" if key not in old_meta else _short(old_value),
-            "after": "absent" if key not in new_meta else _short(new_value),
+            "before": "absent" if key not in old_meta else _short(old_value, redact=redact),
+            "after": "absent" if key not in new_meta else _short(new_value, redact=redact),
         })
     return changes
 
 
-def _short(value, limit: int = 80) -> str:
+def _short(value, limit: int = 80, redact: bool = False) -> str:
     """Render a metadata value compactly enough for a diff row."""
+    if redact:
+        return "[REDACTED]"
     text = json.dumps(value, sort_keys=True) if isinstance(value, (dict, list)) else str(value)
     return text if len(text) <= limit else text[: limit - 1] + "…"
 
 
-def _delta_item(art: dict) -> dict:
+def _delta_item(art: dict, redact: bool = False) -> dict:
+    value = art.get("value")
+    artifact_type = art.get("artifact_type")
     return {
-        "type": art.get("artifact_type"),
-        "value": art.get("value"),
+        "type": artifact_type,
+        "value": mask_value(value, artifact_type) if redact else value,
         "source": art.get("source"),
         "confidence": art.get("confidence") or 0,
     }
 
 
-def _platform_item(presence: dict) -> dict:
+def _platform_item(presence: dict, redact: bool = False) -> dict:
+    username = presence.get("username")
     return {
         "platform": presence.get("platform_name"),
-        "username": presence.get("username"),
-        "url": presence.get("profile_url"),
+        "username": mask_value(username, "username") if redact else username,
+        "url": "[REDACTED_URL]" if redact else presence.get("profile_url"),
     }
 
 
@@ -870,6 +890,23 @@ def _redact_leak_artifact(artifact: dict) -> None:
     artifact["metadata"] = json.dumps(meta)
 
 
+def mask_value(value: str, artifact_type: str = "") -> str:
+    """Mask a value the way the report's redaction pass masks it."""
+    if not value:
+        return value
+    value = str(value)
+    atype = artifact_type or ""
+    if atype in REDACT_TYPES or _EMAIL_RE.fullmatch(value) or _PHONE_RE.fullmatch(value.strip()):
+        if "@" in value:
+            local, _, domain = value.partition("@")
+            return f"{local[:1]}***@{domain}"
+        if len(value) <= 4:
+            return "****"
+        return value[:2] + "***" + value[-2:]
+    return _EMAIL_RE.sub(lambda m: m.group(0)[:1] + "***@redacted",
+                         _PHONE_RE.sub("***-****", value))
+
+
 def redact_payload(
     artifacts: list,
     links: list,
@@ -881,18 +918,7 @@ def redact_payload(
     if not enabled:
         return artifacts, links, presences, correlation
 
-    def _mask(value: str, atype: str) -> str:
-        if not value:
-            return value
-        if atype in REDACT_TYPES or _EMAIL_RE.fullmatch(value) or _PHONE_RE.fullmatch(value.strip()):
-            if "@" in value:
-                local, _, domain = value.partition("@")
-                return f"{local[:1]}***@{domain}"
-            if len(value) <= 4:
-                return "****"
-            return value[:2] + "***" + value[-2:]
-        return _EMAIL_RE.sub(lambda m: m.group(0)[:1] + "***@redacted",
-                             _PHONE_RE.sub("***-****", value))
+    _mask = mask_value
 
     arts = deepcopy(artifacts)
     for a in arts:
