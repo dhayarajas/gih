@@ -463,6 +463,11 @@
         .status-verified { color: #276749; font-weight: 600; }
         .status-modified { color: #c53030; font-weight: 600; }
         .status-missing { color: #975a16; font-weight: 600; }
+        /* Source citations */
+        table.citation-table td { vertical-align: top; }
+        .citation-version { color: #4a5568; font-size: 0.78rem; }
+        code.citation-command { display: inline-block; background: #edf2f7; color: #1a202c; padding: 0.15rem 0.35rem; border-radius: 3px; font-size: 0.78rem; overflow-wrap: anywhere; }
+        .citation-meta { color: #718096; font-size: 0.78rem; }
         /* Run-to-run diff */
         table.delta-table td { vertical-align: top; }
         .delta-before { color: #9b2c2c; text-decoration: line-through; }
@@ -1087,6 +1092,35 @@
                         <tr><td>Attributed identity</td><td>{% if a.identity_profile_id %}<a class="xref" href="#identity-{{ a.identity_profile_id }}">{{ a.identity_label }}</a>{% else %}Not attributed{% endif %}</td></tr>
                     </tbody>
                 </table>
+
+                {% if a.citations %}
+                <h5>Source Citation</h5>
+                <table class="kv-table citation-table">
+                    <tbody>
+                        {% for citation in a.citations %}
+                        {% if citation.kind == 'tool' %}
+                        <tr>
+                            <td>{{ citation.tool }}{% if citation.tool_version %} <span class="citation-version">{{ citation.tool_version }}</span>{% endif %}</td>
+                            <td>
+                                {% if citation.command %}<code class="citation-command">{{ citation.command }}</code><br>{% endif %}
+                                <span class="citation-meta">
+                                    ran {{ (citation.captured_at or '')[:19].replace('T', ' ') }} UTC
+                                    {% if citation.duration_seconds is not none %}&middot; {{ "%.2f" | format(citation.duration_seconds) }}s{% endif %}
+                                    {% if citation.exit_status %}&middot; {{ citation.exit_status }}{% endif %}
+                                    {% if citation.sha256 %}&middot; output sha256 {{ citation.sha256[:16] }}&hellip;{% endif %}
+                                </span>
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td>{{ citation.field }}</td>
+                            <td><a href="{{ citation.url }}">{{ citation.url }}</a></td>
+                        </tr>
+                        {% endif %}
+                        {% endfor %}
+                    </tbody>
+                </table>
+                {% endif %}
 
                 {% if a.confidence_basis %}
                 <h5>Confidence Basis</h5>
