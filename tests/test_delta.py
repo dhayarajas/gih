@@ -82,6 +82,19 @@ class TestDelta:
         assert all(p["url"] == "[REDACTED_URL]"
                    for p in delta["platforms_added"] + delta["platforms_removed"])
 
+    def test_a_redacted_diff_reduces_a_leaked_record_to_its_database(self, conn):
+        record = "collection1: FullName=Ghost User; Password=hunter2; Document=X123"
+        baseline = _seed_run(conn, email_confidence=0.8, email_source="holehe")
+        current = _seed_run(
+            conn, email_confidence=0.8, email_source="holehe",
+            extra=[("leak_record", record)],
+        )
+
+        delta = build_delta_report(conn, current, baseline, redact=True)
+
+        assert delta["added"][0]["value"] == "collection1: [REDACTED]"
+        assert "hunter2" not in json.dumps(delta)
+
     def test_a_redacted_report_does_not_reprint_the_seed_in_the_diff(
         self, conn, runs, tmp_path
     ):
