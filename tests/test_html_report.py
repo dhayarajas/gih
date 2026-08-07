@@ -22,6 +22,7 @@ from src.reporting.html_report import (
     generate_html_report,
     generate_json_report,
 )
+from src.correlation.linker import correlate_identities
 from src.storage import database as db
 
 SEED_METADATA = {"platform": "github", "notes": "seed <b>value</b>"}
@@ -116,6 +117,22 @@ class TestDrillDowns:
     def test_identity_evidence_drilldown(self, conn, investigation, tmp_path):
         html = render(conn, investigation, tmp_path)
         assert "Complete Evidence Basis" in html
+
+    def test_every_artifact_is_addressable_and_cross_linked(self, conn, investigation, tmp_path):
+        """A reader following a relation must land on that artifact's own detail."""
+        html = render(conn, investigation, tmp_path)
+        artifacts = db.get_artifacts(conn, investigation)
+
+        for artifact in artifacts:
+            assert f'id="artifact-{artifact["artifact_id"]}"' in html
+
+        linked = db.get_links(conn, investigation)[0]
+        assert f'href="#artifact-{linked["target_artifact"]}"' in html
+        assert f'href="#artifact-{linked["source_artifact"]}"' in html
+
+        profile_id = correlate_identities(conn, investigation).identities[0].profile_id
+        assert f'id="identity-{profile_id}"' in html
+        assert f'href="#identity-{profile_id}"' in html
 
     def test_expand_collapse_controls(self, conn, investigation, tmp_path):
         html = render(conn, investigation, tmp_path)
