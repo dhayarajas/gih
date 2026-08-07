@@ -95,6 +95,7 @@ def parse_sections(raw: Optional[str | list[str]]) -> set[str]:
 TIMELINE_KINDS: dict[str, str] = {
     "discovery": "Discovered by the investigation",
     "breach": "Credentials exposed in a breach",
+    "indexed": "Breach published to a breach index",
     "registration": "Domain or account registered",
     "expiry": "Registration expires",
     "updated": "Registration record updated",
@@ -107,8 +108,8 @@ TIMELINE_KINDS: dict[str, str] = {
 _DATE_KEYS = {
     "breach_date": "breach",
     "breachdate": "breach",
-    "added_date": "breach",
-    "addeddate": "breach",
+    "added_date": "indexed",
+    "addeddate": "indexed",
     "leak_date": "breach",
     "creation_date": "registration",
     "created_at": "registration",
@@ -129,6 +130,27 @@ _DATE_KEYS = {
     "last_seen": "activity",
     "joined": "activity",
     "join_date": "activity",
+}
+
+# Keys that name the same moment. A source often supplies several of them for
+# one artifact -- EXIF carries CreateDate beside DateTimeOriginal, whois spells
+# creation half a dozen ways -- and emitting each would plot one occurrence
+# repeatedly, so only the first key present in a group is used.
+_DATE_KEY_ALIASES = (
+    ("breach_date", "breachdate", "leak_date"),
+    ("added_date", "addeddate"),
+    ("date_taken", "datetimeoriginal", "createdate"),
+    ("creation_date", "created_at", "created_date", "registered_on", "registration_date"),
+    ("expiration_date", "expiry_date"),
+    ("updated_date", "last_updated"),
+    ("last_activity", "last_seen"),
+    ("joined", "join_date"),
+)
+
+_ALIAS_RANK = {
+    key: (group_index, key_index)
+    for group_index, group in enumerate(_DATE_KEY_ALIASES)
+    for key_index, key in enumerate(group)
 }
 
 # Artifact types whose value is itself a date.
@@ -175,6 +197,21 @@ def parse_event_date(value) -> Optional[str]:
     return None
 
 
+def _preferred_date_keys(pairs) -> list:
+    """Drop metadata keys that merely repeat a moment another key already names."""
+    chosen: dict[int, tuple] = {}
+    passthrough = []
+    for key, raw in pairs:
+        rank = _ALIAS_RANK.get(key.lower())
+        if rank is None:
+            passthrough.append((key, raw))
+            continue
+        group, position = rank
+        if group not in chosen or position < chosen[group][0]:
+            chosen[group] = (position, key, raw)
+    return passthrough + [(key, raw) for _, key, raw in chosen.values()]
+
+
 def build_timeline(artifacts: list) -> list[dict]:
     """Build a typed chronology from discovery times and artifact metadata.
 
@@ -216,7 +253,10 @@ def build_timeline(artifacts: list) -> list[dict]:
                     "detail": atype.replace("_", " "),
                 })
 
-        for key, raw in _flatten_metadata(_parse_metadata_field(artifact.get("metadata"))):
+        preferred = _preferred_date_keys(
+            _flatten_metadata(_parse_metadata_field(artifact.get("metadata")))
+        )
+        for key, raw in preferred:
             kind = _DATE_KEYS.get(key.lower())
             if not kind:
                 continue
