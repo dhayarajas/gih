@@ -16,8 +16,15 @@ _process_external_tools(orchestrator)      # picks tools for the artifact type
        -> ANALYSIS_METHODS[tool][analysis] -> integration method
             -> @skip_if_not_available(tool)   # second guard, returns None
             -> self.run_tool(tool, argv)      # subprocess.run(capture_output, timeout)
-            -> parser -> ToolResult.artifacts_discovered
+            -> tool_parsers.parse_<tool>() -> ToolResult.artifacts_discovered
 ```
+
+Every tool prints something different -- maigret writes an NDJSON report per
+site, nmap an XML tree, whatweb a plugin map, whois repeated labels -- so each
+has its own parser in `src/modules/tool_parsers.py`, tested against a captured
+sample of that tool's real output in `tests/test_tool_parsers.py`. Where the
+structured report is optional (the binary is old, or the run wrote nothing) the
+parser for the printed output is the fallback, never the primary reader.
 
 Cross-cutting rules:
 
@@ -49,18 +56,18 @@ Cross-cutting rules:
 | Tool | Argv | Why these arguments | Parsed into |
 |------|------|--------------------|-------------|
 | sherlock | `sherlock <username> --print-found --timeout 5 --no-color --no-txt` | only found hits, bounded per-site wait, no ANSI codes, and `--no-txt` stops sherlock writing `<username>.txt` into the working directory | `[+] Platform: url` lines → `username_presence` |
-| maigret | `maigret <username> --top-sites 150 --timeout 5 --no-progressbar --no-color --no-recursion` | the full site list exceeds the run budget; recursion would duplicate the orchestrator's own BFS | `[+] Platform: url` lines → `username_presence` |
+| maigret | `maigret <username> --top-sites 150 --timeout 5 --no-progressbar --no-color --no-recursion -J ndjson -fo <tmpdir>` | the full site list exceeds the run budget; recursion would duplicate the orchestrator's own BFS; the NDJSON report carries what maigret's site extractors found, which the printed tree only draws | one JSON object per site → `username_presence` for each `Claimed` account, keeping the extracted `fullname`, `image`, `location`, `bio`, follower/post counts and account creation date, and promoting the identifying ones to `fullname` / `image_url` / `location` / `email` / `phone` artifacts |
 | osrframework | `usufy -n <username> -t social -T 32 -e json -o <tmpdir> --avoid_download` | `usufy` prints a human table but only writes structured results to a file, so a temp dir is the real interface; the `social` tag keeps it inside the time budget; `--avoid_download` skips fetching profile pages | `<tmpdir>/profiles.json` → `username_presence` |
-| holehe | `holehe <email> --only-used --no-color` | only registered services are useful; colour codes break parsing | `[+] service` lines → `email_presence` |
-| theHarvester | `theHarvester -d <domain> -b duckduckgo`, executed once per domain with both analyses parsing the same output | duckduckgo needs no API key; other sources do | emails (regex) and subdomains (regex anchored on the domain) |
-| subfinder | `subfinder -d <domain> -silent -timeout 10` | `-silent` gives one subdomain per line; the tool-level timeout bounds each resolver | `subdomain` |
+| holehe | `holehe <email> --only-used --no-color --no-clear -C` | only registered services are useful; colour codes break parsing; `-C` writes a CSV whose `emailrecovery`/`phoneNumber` columns are the part of a holehe run worth having | CSV rows with `exists=True` → `email_presence`, keeping the masked recovery address and phone; `[+] service` lines are the fallback |
+| theHarvester | `theHarvester -d <domain> -b duckduckgo -f <tmpdir>/report`, executed once per domain with both analyses reading the same report | duckduckgo needs no API key; other sources do; the JSON report separates hosts from addresses from people, which the printed summary runs together | report sections → `email`, `subdomain` (with the resolved address kept on the host), `ip_address`, `url`, `fullname`, `asn`; the printed sections are the fallback |
+| subfinder | `subfinder -d <domain> -silent -json -timeout 10` | `-silent` suppresses the banner and `-json` names the source behind each result, which is what makes one worth trusting; the tool-level timeout bounds each resolver | one JSON object per line → `subdomain` with the discovering source |
 | sublist3r | `sublist3r -d <domain> -n` | `-n` disables the brute-force/portscan phase | `subdomain` |
 | amass | `amass enum -passive -d <domain>` | passive mode only: active enumeration is slow and touches the target | `subdomain` |
-| whois | `whois <domain>` | no flags needed; the parser pulls registrar, creation/expiration date, name server and registrant email | `domain_info` with `parsed_data` fields |
-| whatweb | `whatweb --color=never --no-errors -a 1 <target>` | aggression level 1 = passive single request; `--no-errors` keeps unreachable hosts from failing the run | `Plugin[detail]` pairs → `web_technology`, plus `IP[...]` → `ip_address` |
-| nmap | `nmap -Pn -F -sV --version-light <target>`, or `-p <ports>` instead of `-F` when `plugins.nmap.custom_params.ports` is set to something other than `common` | `-Pn` skips host discovery (ICMP is usually filtered), `-F` is the top-100-ports scan and `--version-light` keeps service detection cheap; no `-sS`, so no root privileges are required | `<port>/<proto> open <service> <version>` → `open_port` |
-| shodan | `shodan host <ip>` | the CLI reads its key from `shodan init`, so no key appears on the command line | JSON when available, otherwise a regex over the human summary → `host_info`, `open_port` |
-| exiftool | `exiftool -json <file>` | `-json` gives a stable machine format; the integration refuses non-local paths up front because image artifacts are often URLs | `GPSLatitude/Longitude`, `Make/Model`, `CreateDate` |
+| whois | `whois <domain>` | no flags needed | every label, including the repeated ones: all name servers and all status codes rather than the first of each, plus registrar, dates, DNSSEC and the registrant/admin/tech contacts → `domain_info`, `name_server`, `email`, `fullname` |
+| whatweb | `whatweb --color=never --no-errors -a 1 --log-json=<tmpdir>/whatweb.json <target>` | aggression level 1 = passive single request; `--no-errors` keeps unreachable hosts from failing the run; the JSON log gives each plugin its own fields instead of one `Plugin[detail]` string to unpick | plugin map → `web_technology`, `ip_address`, any address found in the page, plus HTTP status, title, server and country on `parsed_data`; the printed summary is the fallback |
+| nmap | `nmap -Pn -F -sV --version-light -oX <tmpdir>/scan.xml <target>`, or `-p <ports>` instead of `-F` when `plugins.nmap.custom_params.ports` is set to something other than `common` | `-Pn` skips host discovery (ICMP is usually filtered), `-F` is the top-100-ports scan and `--version-light` keeps service detection cheap; no `-sS`, so no root privileges are required; the XML always separates state, service and version, where the text table omits the version column entirely when nothing was identified | `<port>` elements in state `open` → `open_port` with service, version and extra info kept apart, plus host state and `hostname`; the text table is the fallback |
+| shodan | `shodan host <ip>` | the CLI reads its key from `shodan init`, so no key appears on the command line | JSON when available, otherwise the human summary → `host_info`, `open_port`, `hostname`, with organisation, city, country and OS on `parsed_data` |
+| exiftool | `exiftool -json <file>` | `-json` gives a stable machine format; the integration refuses non-local paths up front because image artifacts are often URLs | the whole tag set on `parsed_data`, and `gps_coordinates`, `camera_info`, `creation_date`, plus the owner (`Artist`/`Creator`/`OwnerName`), `device_serial`, `software` and `copyright` as artifacts |
 | wayback_machine | no subprocess — HTTP `GET web.archive.org/cdx/search/cdx?url=<domain>/*&output=json&fl=timestamp,original,statuscode,mimetype&collapse=urlkey&limit=15` | public API, no binary to install; `collapse=urlkey` and `limit` bound the result set | `historical_url` |
 
 Tools declared in `ToolChecker` but deliberately not invoked (social_analyzer,

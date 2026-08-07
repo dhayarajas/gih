@@ -824,6 +824,7 @@ def generate_html_report(
         load_custom_css,
         load_reporting_config,
         parse_sections,
+        redact_context,
         redact_payload,
     )
 
@@ -884,11 +885,17 @@ def generate_html_report(
     verification_status = _generate_verification_status(artifacts)
     anomaly_detection = _generate_anomaly_detection(artifacts, links)
     auto_escalation = _generate_auto_escalation(artifacts, links, risk_levels, correlation)
-    audit_trail = db.get_audit_trail(conn, investigation_id)
-    comments = load_comments(conn, investigation_id)
+    investigation, audit_trail, comments = redact_context(
+        investigation,
+        db.get_audit_trail(conn, investigation_id),
+        load_comments(conn, investigation_id),
+        redact,
+    )
     evidence_chains = build_evidence_chains(artifacts, links)
     preserved_evidence = build_preserved_evidence(conn, investigation_id, redact)
-    cross_hits = build_cross_investigation(conn, investigation_id, artifacts)
+    cross_hits = build_cross_investigation(
+        conn, investigation_id, artifacts, redact=redact
+    )
     delta = build_delta_report(conn, investigation_id, compare_id, redact)
 
 
@@ -1953,6 +1960,7 @@ def generate_json_report(
         enrich_tool_status,
         load_comments,
         load_reporting_config,
+        redact_context,
         redact_payload,
     )
 
@@ -1968,6 +1976,13 @@ def generate_json_report(
     citations = build_source_citations(conn, investigation_id, artifacts, redact)
     artifacts, links, presences, correlation = redact_payload(
         artifacts, links, presences, correlation, redact
+    )
+
+    investigation, audit_trail, comments = redact_context(
+        investigation,
+        db.get_audit_trail(conn, investigation_id),
+        load_comments(conn, investigation_id),
+        redact,
     )
 
     tool_metrics = enrich_tool_status(_generate_tool_metrics(artifacts, correlation))
@@ -2001,10 +2016,12 @@ def generate_json_report(
         "source_citations": citations,
         "timeline": build_timeline(artifacts),
         "orphan_findings": orphans,
-        "cross_investigation": build_cross_investigation(conn, investigation_id, artifacts),
+        "cross_investigation": build_cross_investigation(
+            conn, investigation_id, artifacts, redact=redact
+        ),
         "delta": build_delta_report(conn, investigation_id, compare_id, redact),
-        "comments": load_comments(conn, investigation_id),
-        "audit_trail": db.get_audit_trail(conn, investigation_id),
+        "comments": comments,
+        "audit_trail": audit_trail,
         "graph": {
             "nodes": correlation.graph_nodes,
             "edges": correlation.graph_edges,
