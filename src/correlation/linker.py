@@ -142,6 +142,9 @@ TOOL_ARTIFACT_FIELDS = {
     "gps_coordinates": "geolocations",
     "camera_info": "device_info",
     "creation_date": "device_info",
+    # Breach rows belong to the selector they were found for, so they are
+    # attributed like any other tool finding rather than left unattached.
+    "leak_record": "leak_records",
 }
 
 # Tool artifact types that represent an account on a platform.
@@ -305,6 +308,7 @@ class IdentityProfile:
     web_technologies: list[str] = field(default_factory=list)
     geolocations: list[str] = field(default_factory=list)
     device_info: list[str] = field(default_factory=list)
+    leak_records: list[str] = field(default_factory=list)
     tool_findings: list[dict] = field(default_factory=list)
 
     @property
@@ -347,6 +351,7 @@ class IdentityProfile:
             "web_technologies": self.web_technologies,
             "geolocations": self.geolocations,
             "device_info": self.device_info,
+            "leak_records": self.leak_records,
             "tool_findings": self.tool_findings,
             "tools_used": self.tools_used,
         }

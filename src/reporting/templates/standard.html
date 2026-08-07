@@ -199,7 +199,9 @@
         /* A tool that produced nothing is shown greyed out rather than hidden:
            the reader still needs to know it was integrated but contributed no evidence. */
         .tool-off { color: #a0aec0; text-decoration: line-through; }
-        tr.tool-row-off td { color: #a0aec0; }
+        /* The state cell keeps its own colour: greying it too would erase the
+           distinction between a missing tool and an installed but silent one. */
+        tr.tool-row-off td:not([class^="status-"]) { color: #a0aec0; }
 
         /* Breach records. Leaked rows are the strongest evidence in a report,
            so the section leads and carries a warning accent. */
@@ -655,6 +657,11 @@
                 {% if identity.historical_urls %}
                 <p><strong>Historical URLs:</strong> {{ identity.historical_urls | length }} archived
                    (e.g. {{ identity.historical_urls[:3] | join(', ') }})</p>
+                {% endif %}
+                {% if identity.leak_records %}
+                {# Counted only: the leaked values themselves stay in the breach section, which honours redaction. #}
+                <p><strong>Breach Records:</strong> {{ identity.leak_records | length }} leaked row(s)
+                   attributed to this identity — see the Breach Records section</p>
                 {% endif %}
             </div>
         </div>

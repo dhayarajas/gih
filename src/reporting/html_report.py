@@ -275,6 +275,9 @@ TECHNICAL_TEMPLATE = """<!DOCTYPE html>
         th, td { overflow-wrap: anywhere; }
         th { background: #3e3e42; color: #d4d4d4; }
         .tool-off { color: #808080; text-decoration: line-through; }
+        /* A single long leaked value would otherwise starve the field column. */
+        .leak-table { table-layout: fixed; }
+        .leak-table th:first-child, .leak-table td:first-child { width: 12rem; }
         .code { background: #1e1e1e; padding: 1rem; border-radius: 4px; font-family: monospace; }
     </style>
 </head>
@@ -290,7 +293,7 @@ TECHNICAL_TEMPLATE = """<!DOCTYPE html>
         <div class="card">
             <h3>{{ database.database }} &mdash; {{ database.records | length }} record{{ '' if database.records | length == 1 else 's' }}</h3>
             {% if database.info %}<p>{{ database.info }}</p>{% endif %}
-            <table>
+            <table class="leak-table">
                 <thead>
                     <tr><th>Field</th><th>Value</th></tr>
                 </thead>
