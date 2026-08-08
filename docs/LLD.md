@@ -594,7 +594,7 @@ Default output path is `reports/{investigation_id}_report.html`; the function re
 
 **Redaction (`redact=True`).** `report_data` masks `REDACT_TYPES` (phone, email, image, fullname, GPS, location) and replaces `REDACT_URL_TYPES` values with `[REDACTED_URL]` — masking characters out of an avatar or profile URL leaves the handle standing. Platform biographies are masked too, and the walk recurses through nested metadata. Ordering matters: cross-investigation matching queries the database with the *stored* values and masks only the rows it returns, since looking up `[REDACTED]` finds nothing.
 
-**PDF and CSV.** `src/reporting/exports.py` renders the generated HTML through WeasyPrint (`_simplify_html_for_pdf` first strips the interactive graph and dark styling) and writes artifact/presence CSVs.
+**PDF and CSV.** `src/reporting/exports.py` converts the generated HTML with pandoc — required on PATH — using the first of `xelatex`, `pdflatex`, `lualatex`, `wkhtmltopdf` it finds as the engine, and writes artifact/presence CSVs. `_open_all_details` adds `open` to every `<details>` before conversion, because pandoc reads the DOM and never applies the print stylesheet; `_simplify_html_for_pdf`, which strips `<script>` and `<iframe>`, is a fallback attempted only after the first conversion fails.
 
 ### 8.2 `generate_json_report`
 
@@ -637,7 +637,7 @@ Serialises `metadata` (generator, version, timestamp), `investigation`, `summary
 | `/api/v1/investigations/<id>/report` | GET | `?format=json\|html\|pdf\|csv`, with `template`, `sections`, `redact` and `compare` query parameters; PDF and CSV are served through `exports.py` as attachments |
 | `/api/v1/investigations/<id>/artifacts` | GET | Direct SQL over `artifacts` |
 | `/api/v1/investigations/<id>/links` | GET | Direct SQL over `artifact_links` |
-| `/api/v1/investigations/<id>/risk` | GET | Risk indicators read from `investigation_metadata` |
+| `/api/v1/investigations/<id>/risk` | GET | Risk indicators collected from the `risk_indicators` key of each artifact's own `metadata` JSON |
 
 Caveats for this layer are listed in [§12](#12-known-gaps).
 

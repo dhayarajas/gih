@@ -434,7 +434,7 @@ graph TD
     RDATA["report_data.py: leaks, per-artifact detail, preserved evidence, source citations, cross-investigation hits, run-to-run delta, redaction"]
     EMBED["_generate_embedded_graph -> generate_interactive_graph into a temp file"]
     TPL["_select_template -> templates/standard.html | EXECUTIVE_TEMPLATE | TECHNICAL_TEMPLATE | LEGAL_TEMPLATE"]
-    EXPORT["exports.py: PDF via WeasyPrint, artifacts/presences CSV"]
+    EXPORT["exports.py: PDF via pandoc, artifacts/presences CSV"]
     RENDER["Jinja2 Environment(BaseLoader).from_string(...).render(...)"]
     OUT["reports/{id}_report.html"]
 
@@ -595,7 +595,7 @@ graph LR
 | Graph analysis | NetworkX (`Graph`, `connected_components`, `density`) | `src/correlation/linker.py`, `src/modules/correlation.py`, `src/graph/visualizer.py` |
 | Graph visualization | pyvis `Network` (forceAtlas2Based physics, standalone HTML) | `src/graph/visualizer.py` |
 | Templating | Jinja2 `Environment(BaseLoader)`; the standard template is a file, the other three are in-module strings | `src/reporting/html_report.py`, `src/reporting/templates/standard.html` |
-| PDF export | WeasyPrint over the generated HTML | `src/reporting/exports.py` |
+| PDF export | pandoc over the generated HTML, with `xelatex`/`pdflatex`/`lualatex`/`wkhtmltopdf` as the engine when one is on PATH | `src/reporting/exports.py` |
 | Evidence integrity | `hashlib` SHA-256 over preserved captures | `src/storage/evidence.py` |
 | Persistence | SQLite (WAL journal, foreign keys on) | `src/storage/database.py` |
 | Optional graph store | Neo4j via the `neo4j` bolt driver | `src/modules/correlation_neo4j.py` |

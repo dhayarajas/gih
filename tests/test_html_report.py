@@ -676,3 +676,42 @@ class TestPdfExpansion:
         )
         assert html.count("open") == 2
         assert '<details class="report-section" open>' in html
+
+
+class TestConfidenceBands:
+    """A score on a band edge belongs to the band it opens, not the one below."""
+
+    def test_band_boundaries_are_lower_inclusive(self):
+        from src.reporting.report_data import build_highlights
+
+        artifacts = [{"artifact_type": "username", "confidence": value}
+                     for value in (1.0, 0.9, 0.7, 0.5, 0.0)]
+        highlights = build_highlights(
+            artifacts, [], [], SimpleNamespace(identities=[]), [],
+            {}, {"record_count": 0}, [],
+        )
+        counts = {row["label"]: row["count"] for row in highlights["confidence_bars"]}
+        assert counts["Confirmed (\u2265 90%)"] == 2      # 1.0 and 0.9
+        assert counts["Strong (70\u201389%)"] == 1        # 0.7
+        assert counts["Probable (50\u201369%)"] == 1      # 0.5
+        assert counts["Weak (< 50%)"] == 1                # 0.0
+        assert sum(counts.values()) == len(artifacts)
+
+
+class TestSectionCounts:
+    def test_preserved_evidence_badge_counts_captures(self, conn, tmp_path):
+        from src.storage import evidence as evidence_store
+
+        inv_id = db.create_investigation(conn, title="Evidence")
+        db.add_artifact(conn, inv_id, "domain", "example.com",
+                        source="whois", confidence=0.7, depth=1)
+        db.add_evidence(conn, evidence_store.EvidenceCapture(
+            investigation_id=inv_id, tool="whois", operation="lookup",
+            target="example.com", command="whois example.com",
+            tool_version="5.5.14", captured_at="2026-01-01T09:00:00+00:00",
+            duration_seconds=0.4, exit_status="exit 0", sha256="b" * 64,
+            byte_size=42, stored_path=str(tmp_path / "b.txt"),
+        ))
+
+        html = render(conn, inv_id, tmp_path)
+        assert "Preserved Evidence</h2><span class=\"section-count\">1 capture(s)" in html

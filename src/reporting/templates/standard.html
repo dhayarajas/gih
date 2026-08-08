@@ -1453,7 +1453,7 @@
     {% if 'evidence' in sections and preserved_evidence.enabled %}
     {% set ns.n = ns.n + 1 %}
     <details class="report-section" data-section="evidence">
-    <summary><h2 class="section-title">{{ ns.n }}. Preserved Evidence</h2><span class="section-count">{{ preserved_evidence | length }} capture(s)</span></summary>
+    <summary><h2 class="section-title">{{ ns.n }}. Preserved Evidence</h2><span class="section-count">{{ preserved_evidence.total }} capture(s)</span></summary>
     <div class="section-body">
     <p class="section-blurb">Verbatim output of every external tool run and web-archive query &mdash; the built-in modules query APIs directly and are not preserved &mdash; stored on disk under the SHA-256 of its bytes. Each digest below was recomputed when this report was generated, so a capture that has been altered or deleted since collection is reported as such rather than assumed intact.</p>
     <div class="card">
