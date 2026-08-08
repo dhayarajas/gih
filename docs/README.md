@@ -34,6 +34,7 @@ All diagrams use Mermaid and render directly on GitHub.
 | Document | Contents |
 | --- | --- |
 | [TOOL_INSTALLATION.md](TOOL_INSTALLATION.md) | Every tool and service the project uses, with install and verify commands, API-key behaviour, and the Maltego providers it does not cover ([PDF](TOOL_INSTALLATION.pdf)) |
+| [TOOL_COMMANDS.md](TOOL_COMMANDS.md) | The exact argv gih builds for each tool, runnable standalone to cross-reference a report, plus what each writes, its timeout, and the tools deliberately not dispatched and why |
 | [MALTEGO_COMPARISON.md](MALTEGO_COMPARISON.md) | Functional comparison against the Maltego platform across 22 capability areas, with a prioritised gap roadmap |
 | [MALTEGO_PROVIDER_GAP.md](MALTEGO_PROVIDER_GAP.md) | Maltego's published data providers mapped to this project's coverage: covered, partially covered or absent |
 
