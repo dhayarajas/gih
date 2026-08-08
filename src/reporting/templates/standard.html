@@ -265,13 +265,24 @@
             cursor: pointer;
             padding: 0.65rem 1rem;
             display: flex;
-            flex-wrap: wrap;
+            flex-wrap: nowrap;
             gap: 0.75rem;
             align-items: center;
             background: #fbfdff;
             color: #1a202c;
             border-radius: 6px;
+            overflow: hidden;
         }
+        /* Same one-line rule as every other row: the value gives way first, so
+           the attributes that follow it stay readable down the column. */
+        details.drilldown > summary > * {
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            min-width: 0;
+            flex-shrink: 0;
+        }
+        details.drilldown > summary > .summary-value { flex-shrink: 1; }
         details.drilldown > summary::-webkit-details-marker { display: none; }
         details.drilldown > summary::before {
             content: '\25B8';
@@ -489,6 +500,8 @@
             margin: 0 0 0.75rem; font-size: 0.85rem; text-transform: uppercase;
             letter-spacing: 0.05em; color: #4a5568;
         }
+        /* A graph or a per-tool chart is unreadable in a 280px column. */
+        .chart-card.chart-wide { grid-column: 1 / -1; }
         .bar-row { display: grid; grid-template-columns: 40% 1fr auto; gap: 0.5rem; align-items: center; margin-bottom: 0.4rem; }
         .bar-label { font-size: 0.8rem; color: #2d3748; overflow-wrap: anywhere; }
         .bar-track { display: block; background: #edf2f7; border-radius: 3px; height: 0.75rem; overflow: hidden; }
@@ -539,8 +552,50 @@
             margin-left: auto; font-weight: 500; font-size: 0.78rem; color: #4a5568;
             background: #edf2f7; border-radius: 10px; padding: 0.1rem 0.6rem;
         }
-        .section-body { padding: 1rem; }
+        .section-body { padding: 1rem; font-size: 0.85rem; color: #2d3748; }
         .section-body > h2:first-child, .section-body > h3:first-child { margin-top: 0; }
+
+        /* One type scale for every collapsed section. Sizes live here rather than
+           on each component, so a paragraph, a table cell, a list row and a
+           timeline entry all read at the same size, and only the three heading
+           levels and machine values differ. */
+        .section-body p, .section-body li, .section-body td, .section-body dd,
+        .section-body .kv-table td, .section-body .nested-table th,
+        .section-body .nested-table td, .section-body .leak-field,
+        .section-body .map-list li, .section-body .timeline-event,
+        .section-body .silent-tools, .section-body .empty-note,
+        .section-body .summary-meta, .section-body .chain-step,
+        .section-body .legend, .section-body .bar-label, .section-body .bar-count,
+        .section-body .citation-version { font-size: 0.85rem; }
+        .section-body h3 { font-size: 0.95rem; }
+        .section-body h4, .section-body .leak-db { font-size: 0.9rem; }
+        .section-body h5, .section-body th { font-size: 0.8rem; }
+        /* Machine values keep one monospace face instead of three: paths, digests,
+           commands and timestamps are all read character by character. */
+        .section-body .evidence-chain, .section-body .evidence-command,
+        .section-body .evidence-digest, .section-body .timeline-when,
+        .section-body code, .section-body pre {
+            font-family: 'SF Mono', Menlo, Consolas, 'Courier New', monospace;
+            font-size: 0.8rem;
+        }
+
+        /* One row, one line, everywhere. Any entry that overflows is clipped with
+           an ellipsis instead of wrapping, so rows stay scannable down the page;
+           the full text is put in the element's title on open (see script) and
+           printing restores it in full. */
+        .section-body td, .section-body th {
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 26rem;
+        }
+        .section-body .map-list li, .section-body .chain-step,
+        .section-body .silent-tools, .section-body .legend li,
+        .section-body .bar-label, .section-body .leak-field {
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
         .detail-controls { display: flex; gap: 0.5rem; margin: 1rem 0; }
         .detail-controls button {
             font: inherit; font-size: 0.8rem; padding: 0.35rem 0.75rem;
@@ -556,6 +611,24 @@
             details[open] > summary::before, details > summary::before { content: ""; }
             details > .section-body, details > *:not(summary) { display: block !important; }
             .detail-controls, .filter-bar, .drilldown-controls { display: none; }
+            /* Nothing is clipped on paper: a hover title is unreachable there, so a
+               truncated row would lose its value outright. */
+            .section-body td, .section-body th, .section-body .map-list li,
+            .section-body .chain-step, .section-body .silent-tools,
+            .section-body .legend li, .section-body .bar-label,
+            .section-body .leak-field, .timeline-event > *,
+            details.drilldown > summary, details.drilldown > summary > * {
+                white-space: normal;
+                overflow: visible;
+                text-overflow: clip;
+                max-width: none;
+            }
+            details.drilldown > summary { flex-wrap: wrap; }
+            .timeline-event { flex-wrap: wrap; overflow: visible; }
+            /* A PDF converter that does not run scripts leaves the map an empty
+               box; Leaflet marks the container it took over, so only an
+               initialised map is printed. */
+            .map-frame:not(.leaflet-container) { display: none; }
         }
 
         /* Branding / watermark injected via branding_css */
@@ -578,6 +651,13 @@
             width: 100%; min-height: 480px; border: 0; border-radius: 6px;
             background: #fff;
         }
+        .map-frame {
+            width: 100%; height: 420px; border-radius: 6px; background: #edf2f7;
+        }
+        /* Leaflet's own panes must not inherit the report's nowrap rules. */
+        .map-frame .leaflet-popup-content { white-space: normal; font-size: 0.8rem; }
+        .map-point-label { font-weight: 600; }
+        .map-point-meta { color: #4a5568; }
         .org-logo { max-height: 48px; margin-bottom: 0.75rem; }
         .map-list { columns: 2; column-gap: 1.5rem; }
         .map-list li { break-inside: avoid; margin-bottom: 0.35rem; font-size: 0.9rem; }
@@ -610,7 +690,24 @@
         .timeline-controls select { padding: 0.3rem 0.5rem; border: 1px solid #cbd5e0; border-radius: 4px; background: #ffffff; color: #1a202c; }
         .timeline-toggle { display: inline-flex; align-items: center; gap: 0.35rem; }
         ol.timeline { list-style: none; margin: 0; padding: 0 0 0 1rem; border-left: 2px solid #cbd5e0; }
-        .timeline-event { position: relative; display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.5rem; padding: 0.4rem 0 0.4rem 0.75rem; font-size: 0.85rem; }
+        /* One event, one line: a chronology is read by scanning down the dates,
+           which a wrapped row breaks up. Overflow is clipped rather than wrapped,
+           and the full text stays in the element's title. */
+        .timeline-event { position: relative; display: flex; flex-wrap: nowrap; align-items: baseline; gap: 0.5rem; padding: 0.4rem 0 0.4rem 0.75rem; font-size: 0.85rem; overflow: hidden; }
+        .timeline-event > * {
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            min-width: 0;
+            flex: 0 1 auto;
+        }
+        /* Shrink order: the value and its detail give way first, so the ellipsis
+           lands there rather than on the date, event kind and type, which are
+           what the row is scanned by and are short enough to always fit. */
+        .timeline-event > .timeline-when { flex-shrink: 0; }
+        .timeline-event > .timeline-kind, .timeline-event > .badge { flex-shrink: 0; }
+        .timeline-event > a.xref { flex-shrink: 1; }
+        .timeline-event > .timeline-detail { flex: 1 2 auto; }
         .timeline-event::before { content: ''; position: absolute; left: -1.42rem; top: 0.85rem; width: 9px; height: 9px; border-radius: 50%; background: #718096; }
         .timeline-event.kind-breach::before { background: #c53030; }
         .timeline-event.kind-indexed::before { background: #dd6b20; }
@@ -662,6 +759,13 @@
             }
         }
     </script>
+    {% if geographic_data.points %}
+    <!-- Leaflet renders the location map. It is fetched from a CDN, as the
+         graph embed's libraries are; without network the map hides itself and
+         the coordinates remain in the Geographic section. -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    {% endif %}
 </head>
 <body>
     <div class="container">
@@ -743,7 +847,6 @@
             {% for chart in [
                 {'title': 'Artifacts by type', 'rows': highlights.type_bars},
                 {'title': 'Confidence distribution', 'rows': highlights.confidence_bars},
-                {'title': 'Findings by tool', 'rows': highlights.source_bars},
                 {'title': 'Platform accounts', 'rows': highlights.platform_bars},
                 {'title': 'Discovery depth', 'rows': highlights.depth_bars}
             ] %}
@@ -760,6 +863,40 @@
             </div>
             {% endif %}
             {% endfor %}
+
+            {% if tool_metrics.tools %}
+            <div class="chart-card chart-wide">
+                <h3>Artifacts per Tool</h3>
+                <p class="subsection-blurb">Bar length is relative to the highest-yielding tool. Volume is not quality &mdash; a single domain_info record can outweigh fifty profile hits. Per-tool figures are in the Tool Metrics section.</p>
+                <div class="tool-chart">
+                    {% for tool in tool_metrics.tools %}
+                    <div class="tool-chart-name" title="{{ tool.tool }}">{{ tool.label or tool.tool }}</div>
+                    <div class="tool-chart-track">
+                        <div class="tool-chart-bar" style="width: {{ (tool.count * 100 // tool_metrics.max_count) if tool_metrics.max_count else 0 }}%;"></div>
+                    </div>
+                    <div class="tool-chart-count">{{ tool.count }}</div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+
+            {% if geographic_data.points %}
+            <div class="chart-card chart-wide">
+                <h3>Where the subject appears</h3>
+                <p class="subsection-blurb">{{ geographic_data.points | length }} plotted location signal(s). A solid marker is a coordinate read from an artifact (EXIF GPS); a hollow one is a named place resolved to the centre of the area it covers, so it is indicative only. Every signal, plotted or not, is listed in the Geographic / Location Signals section.</p>
+                <!-- Single-quoted: tojson escapes ' but leaves " as JSON needs it. -->
+                <div id="gih-map" class="map-frame" data-points='{{ geographic_data.points | tojson }}'></div>
+                <p class="empty-note" id="gih-map-fallback" hidden>Map tiles could not be loaded (the report is open without network access). The coordinates are listed in the Geographic / Location Signals section.</p>
+            </div>
+            {% endif %}
+
+            {% if 'graph' in sections and graph_iframe_src %}
+            <div class="chart-card chart-wide">
+                <h3>Relationship graph</h3>
+                <p class="subsection-blurb">Click a node to open its entry in the Discovered Artifacts section; a node labelled with a count stands for that many collapsed same-type artifacts and expands when clicked.</p>
+                <iframe id="gih-graph-frame" class="graph-frame" title="Identity relationship graph" sandbox="allow-scripts allow-same-origin allow-popups" src="{{ graph_iframe_src }}"></iframe>
+            </div>
+            {% endif %}
         </div>
 
         <div class="detail-controls">
@@ -1056,8 +1193,8 @@
                 <span class="timeline-when">{{ event.when.replace('T', ' ') }}</span>
                 <span class="timeline-kind">{{ event.kind_label }}</span>
                 <span class="badge badge-{{ event.artifact_type }}">{{ event.artifact_type }}</span>
-                <a class="xref" href="#artifact-{{ event.artifact_id }}">{{ event.value }}</a>
-                <span class="timeline-detail">{{ event.detail }} &middot; {{ event.source or 'unknown' }}</span>
+                <a class="xref" href="#artifact-{{ event.artifact_id }}" title="{{ event.value }}">{{ event.value }}</a>
+                <span class="timeline-detail" title="{{ event.detail }} &middot; {{ event.source or 'unknown' }}">{{ event.detail }} &middot; {{ event.source or 'unknown' }}</span>
             </li>
             {% endfor %}
         </ol>
@@ -1075,29 +1212,6 @@
         </ul>
     </div>
     {% endif %}
-
-    <div class="card">
-        <h3>Summary Statistics</h3>
-        <p class="subsection-blurb">Aggregate metrics showing total artifacts, connections, identities, and platforms discovered during the investigation.</p>
-        <div class="stats-grid">
-            <div class="stat-card">
-                <div class="stat-value">{{ artifacts | length }}</div>
-                <div class="stat-label">Artifacts Found</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-value">{{ links | length }}</div>
-                <div class="stat-label">Connections</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-value">{{ correlation.identities | length }}</div>
-                <div class="stat-label">Identities</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-value">{{ presences | length }}</div>
-                <div class="stat-label">Platforms</div>
-            </div>
-        </div>
-    </div>
 
     <div class="card">
         <h3>Confidence Metrics</h3>
@@ -1147,36 +1261,10 @@
     <p class="section-blurb">What each OSINT tool actually contributed to this investigation: how many artifacts it produced, of which types, at what average confidence, and how many identity profiles its output reached. Seeded artifacts are excluded, so the totals here count only discovered evidence. Rows marked <em>derived</em> are pipeline steps rather than tools &mdash; the orchestrator pivoting one artifact into another &mdash; and are excluded from the tool count.</p>
     <div class="card">
         {% if tool_metrics.tools %}
-        <div class="stats-grid">
-            <div class="stat-card">
-                <div class="stat-value">{{ tool_metrics.tool_count }}</div>
-                <div class="stat-label">Tools Producing Output</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-value">{{ tool_metrics.attributed }}</div>
-                <div class="stat-label">Tool-Derived Artifacts</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-value">{{ tool_metrics.top_tool_count }}</div>
-                <div class="stat-label">Highest Yield · {{ tool_metrics.top_tool_label or '—' }}</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-value">{{ tool_metrics.types | length }}</div>
-                <div class="stat-label">Artifact Types Covered</div>
-            </div>
-        </div>
-
-        <h3>Artifacts per Tool</h3>
-        <p class="subsection-blurb">Bar length is relative to the highest-yielding tool. Volume is not quality &mdash; a single domain_info record can outweigh fifty profile hits.</p>
-        <div class="tool-chart">
-            {% for tool in tool_metrics.tools %}
-            <div class="tool-chart-name" title="{{ tool.tool }}">{{ tool.label or tool.tool }}</div>
-            <div class="tool-chart-track">
-                <div class="tool-chart-bar" style="width: {{ (tool.count * 100 // tool_metrics.max_count) if tool_metrics.max_count else 0 }}%;"></div>
-            </div>
-            <div class="tool-chart-count">{{ tool.count }}</div>
-            {% endfor %}
-        </div>
+        <p>{{ tool_metrics.tool_count }} tool(s) produced {{ tool_metrics.attributed }} artifact(s) across
+           {{ tool_metrics.types | length }} type(s); highest yield was
+           {{ tool_metrics.top_tool_label or '—' }} with {{ tool_metrics.top_tool_count }}.
+           The chart of this distribution is in the OSINT Overview.</p>
 
         <h3>Per-Tool Breakdown</h3>
         <table>
@@ -1270,23 +1358,6 @@
             </div>
         </details>
         {% endfor %}
-    </div>
-
-    </div>
-    </details>
-    {% endif %}
-
-    {% if 'graph' in sections and graph_iframe_src %}
-    {% set ns.n = ns.n + 1 %}
-    <!-- Relationship Graph -->
-    <details class="report-section" data-section="graph">
-    <summary><h2 class="section-title">{{ ns.n }}. Relationship Graph</h2></summary>
-    <div class="section-body">
-    <p class="section-blurb">Visual network diagram showing connections between artifacts and identities, helping identify clusters, central nodes, and relationship patterns for understanding social connections and potential attack vectors. Click a node to open its entry in the Discovered Artifacts section; a node labelled with a count stands for that many collapsed same-type artifacts and expands when clicked.</p>
-    <div class="card">
-        <div class="graph-container">
-            <iframe id="gih-graph-frame" class="graph-frame" title="Identity relationship graph" sandbox="allow-scripts allow-same-origin allow-popups" src="{{ graph_iframe_src }}"></iframe>
-        </div>
     </div>
 
     </div>
@@ -1524,25 +1595,22 @@
     <details class="report-section" data-section="tools">
     <summary><h2 class="section-title">{{ ns.n }}. Tool Run Status</h2><span class="section-count">{{ tool_metrics.tool_status | length }} tool(s)</span></summary>
     <div class="section-body">
-    <p class="section-blurb">Distinguishes not-installed tools from installed tools that were silent or not dispatched.</p>
+    <p class="section-blurb">Every installed tool and what it contributed, with a reason for each one that contributed nothing. Tools that are not installed on this host are named below the table rather than given a row of their own.</p>
     <div class="card">
         <table>
-            <thead><tr><th>Tool</th><th>Available</th><th>State</th></tr></thead>
+            <thead><tr><th>Tool</th><th>State</th><th>Reason</th></tr></thead>
             <tbody>
             {% for row in tool_metrics.tool_status %}
             <tr{% if row.state != 'produced_output' %} class="tool-row-off"{% endif %}>
                 <td>{% if row.state == 'produced_output' %}{{ row.tool }}{% else %}<span class="tool-off">{{ row.tool }}</span>{% endif %}</td>
-                <td>{{ 'yes' if row.available else ('no' if row.available is sameas false else '?') }}</td>
                 <td class="status-{{ row.state }}">{{ row.state }}</td>
+                <td title="{{ row.reason }}">{{ row.reason or 'produced output' }}</td>
             </tr>
             {% endfor %}
             </tbody>
         </table>
         {% if tool_metrics.not_installed %}
-        <p class="silent-tools">Not installed: {% for tool in tool_metrics.not_installed %}<span class="tool-off">{{ tool }}</span>{% if not loop.last %}, {% endif %}{% endfor %}</p>
-        {% endif %}
-        {% if tool_metrics.silent_installed %}
-        <p class="silent-tools">Installed but silent/not dispatched: {% for tool in tool_metrics.silent_installed %}<span class="tool-off">{{ tool }}</span>{% if not loop.last %}, {% endif %}{% endfor %}</p>
+        <p class="silent-tools">Not installed on this host ({{ tool_metrics.not_installed | length }}): {% for tool in tool_metrics.not_installed %}<span class="tool-off">{{ tool }}</span>{% if not loop.last %}, {% endif %}{% endfor %}</p>
         {% endif %}
     </div>
     </div>
@@ -1554,16 +1622,14 @@
     <details class="report-section" data-section="geo">
     <summary><h2 class="section-title">{{ ns.n }}. Geographic / Location Signals</h2></summary>
     <div class="section-body">
-    <p class="section-blurb">GPS and location-related artifacts (EXIF, phone region, etc.).</p>
+    <p class="section-blurb">GPS and location-related artifacts (EXIF, phone region, etc.). Those that resolve to coordinates are plotted on the map in the OSINT Overview.</p>
     <div class="card">
         <ul class="map-list">
         {% for loc in geographic_data.locations %}
             <li><strong>{{ loc.value }}</strong> <span class="summary-meta">({{ loc.source }})</span></li>
         {% endfor %}
         </ul>
-        {% if geographic_data.map_url %}
-        <p><a href="{{ geographic_data.map_url }}" target="_blank" rel="noopener">Open approximate map view</a></p>
-        {% endif %}
+
     </div>
     </div>
     </details>
@@ -1735,6 +1801,79 @@
         var closeSections = document.getElementById('close-sections');
         if (openSections) { openSections.addEventListener('click', function () { setAllSections(true); }); }
         if (closeSections) { closeSections.addEventListener('click', function () { setAllSections(false); }); }
+
+        // Location signals plotted in place of a link to a map service. Without
+        // Leaflet (no network) the container would be an empty grey box, so it
+        // is replaced by a note pointing at the coordinates in the section.
+        var mapEl = document.getElementById('gih-map');
+        if (mapEl) {
+            var points = JSON.parse(mapEl.getAttribute('data-points') || '[]');
+            if (typeof L === 'undefined' || !points.length) {
+                mapEl.hidden = true;
+                var fallback = document.getElementById('gih-map-fallback');
+                if (fallback) { fallback.hidden = false; }
+            } else {
+                var map = L.map(mapEl, { scrollWheelZoom: false });
+                L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    maxZoom: 18,
+                    attribution: '&copy; OpenStreetMap contributors'
+                }).addTo(map);
+                var bounds = [];
+                points.forEach(function (point) {
+                    // Filled for a coordinate taken from an artifact, hollow for
+                    // a name resolved to an area centre: the report should not
+                    // present the two as equally exact.
+                    var marker = L.circleMarker([point.lat, point.lon], {
+                        radius: 7,
+                        color: point.precise ? '#c53030' : '#2b6cb0',
+                        weight: 2,
+                        fillColor: point.precise ? '#c53030' : '#ffffff',
+                        fillOpacity: point.precise ? 0.85 : 0.35
+                    }).addTo(map);
+                    marker.bindPopup(
+                        '<span class="map-point-label"></span><br>'
+                        + '<span class="map-point-meta"></span>'
+                    );
+                    marker.on('popupopen', function (event) {
+                        var node = event.popup.getElement();
+                        node.querySelector('.map-point-label').textContent = point.label;
+                        node.querySelector('.map-point-meta').textContent =
+                            point.type + ' · ' + point.source + ' · '
+                            + point.lat.toFixed(4) + ', ' + point.lon.toFixed(4)
+                            + (point.precise ? '' : ' (approximate)');
+                    });
+                    bounds.push([point.lat, point.lon]);
+                });
+                if (bounds.length === 1) {
+                    map.setView(bounds[0], 10);
+                } else {
+                    map.fitBounds(bounds, { padding: [30, 30] });
+                }
+            }
+        }
+
+        // Rows are clipped to one line, so whatever is cut off has to stay
+        // reachable: give any clipped element its own text as a tooltip. Widths
+        // only exist once a section is open, hence the toggle listener, and the
+        // marker keeps a reopened section from being measured twice.
+        function annotateClipped(root) {
+            root.querySelectorAll(
+                'td, .map-list li, .chain-step, .timeline-event > *, .bar-label,'
+                + ' details.drilldown > summary > *'
+            ).forEach(function (el) {
+                if (el.dataset.clipChecked) { return; }
+                el.dataset.clipChecked = '1';
+                if (el.scrollWidth > el.clientWidth + 1 && !el.title) {
+                    el.title = (el.textContent || '').trim();
+                }
+            });
+        }
+        sections.forEach(function (section) {
+            section.addEventListener('toggle', function () {
+                if (section.open) { annotateClipped(section); }
+            });
+            if (section.open) { annotateClipped(section); }
+        });
 
         // A collapsed section prints as a heading with nothing under it, which
         // would quietly drop findings from the printed record.

@@ -808,6 +808,7 @@ def generate_html_report(
         redact: Mask phones/emails/images for shareable exports
         compare_id: Optional prior investigation ID for a delta section
     """
+    from src.reporting.geo import build_map_points
     from src.reporting.report_data import (
         branding_css,
         build_cross_investigation,
@@ -877,13 +878,24 @@ def generate_html_report(
     if not redact:
         graph_html = _generate_embedded_graph(conn, investigation_id)
 
-    tool_metrics = enrich_tool_status(_generate_tool_metrics(artifacts, correlation))
+    tool_metrics = enrich_tool_status(
+        _generate_tool_metrics(artifacts, correlation),
+        artifacts=artifacts,
+        evidence_runs=db.get_evidence(conn, investigation_id),
+    )
     leak_findings = build_leak_findings(artifacts, redact=redact)
     orphan_findings = build_orphan_findings(artifacts, correlation)
     recommendations: list = []
 
     priority_queue = _generate_priority_queue(artifacts, links, correlation)
     geographic_data = _generate_geographic_data(artifacts, presences)
+    # Redaction masks the location values themselves, so plotting them would
+    # hand back what the masking removed.
+    if not redact:
+        geographic_data["points"] = build_map_points(
+            conn, geographic_data["locations"],
+            geocode=reporting_cfg.get("geocode_locations", True),
+        )
     platform_heatmap = _generate_platform_heatmap(presences)
     correlation_strength = _generate_correlation_strength(links)
     verification_status = _generate_verification_status(artifacts)
@@ -1314,24 +1326,13 @@ def _generate_geographic_data(artifacts: list, presences: list) -> dict:
                 "confidence": 0.5,
             })
 
-    map_url = None
-    for loc in locations:
-        value = str(loc.get("value") or "")
-        # Prefer explicit lat,lon pairs
-        if "," in value and any(ch.isdigit() for ch in value):
-            parts = [p.strip() for p in value.split(",")]
-            if len(parts) >= 2:
-                map_url = f"https://www.openstreetmap.org/search?query={parts[0]}%2C{parts[1]}"
-                break
-    if not map_url and locations:
-        from urllib.parse import quote
-        map_url = f"https://www.openstreetmap.org/search?query={quote(str(locations[0]['value']))}"
-
     return {
         "has_location_data": len(locations) > 0,
         "location_count": len(locations),
         "locations": locations[:20],
-        "map_url": map_url,
+        # Filled in by the caller, which has the database the geocode cache
+        # lives in and knows whether the report is redacted.
+        "points": [],
     }
 
 
@@ -1996,7 +1997,11 @@ def generate_json_report(
         redact,
     )
 
-    tool_metrics = enrich_tool_status(_generate_tool_metrics(artifacts, correlation))
+    tool_metrics = enrich_tool_status(
+        _generate_tool_metrics(artifacts, correlation),
+        artifacts=artifacts,
+        evidence_runs=db.get_evidence(conn, investigation_id),
+    )
     orphans = build_orphan_findings(artifacts, correlation)
     leak_findings = build_leak_findings(artifacts, redact=redact)
 

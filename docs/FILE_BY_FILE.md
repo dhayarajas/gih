@@ -188,7 +188,7 @@ Package docstring only.
 
 **How it works:** `sqlite3.Row` factory, WAL journaling, foreign keys on. Schema is idempotent `CREATE TABLE IF NOT EXISTS`. IDs are prefixed short UUIDs: `INV-`, `ART-`, `LNK-`, `PRS-`, `AUD-`. Artifact `metadata` is JSON text.
 
-**Tables:** `investigations`, `artifacts`, `artifact_links`, `platform_presence`, `investigation_metadata`, `audit_trail`, `evidence` (+ `comments` created by collaboration module).
+**Tables:** `investigations`, `artifacts`, `artifact_links`, `platform_presence`, `investigation_metadata`, `audit_trail`, `evidence`, `geocode_cache` (place → coordinates for the report map, shared across investigations) (+ `comments` created by collaboration module).
 
 ### `src/storage/evidence.py`
 
@@ -511,6 +511,18 @@ The default report template, kept as a file rather than a string so its CSS is e
 
 **Redaction:** `REDACT_TYPES` masks phone, email, image, fullname, GPS and location; `REDACT_URL_TYPES` replaces avatar and profile URLs with `[REDACTED_URL]`, since masking characters out of a URL leaves the handle standing; platform biographies are redacted too, and masking recurses through nested metadata rather than only top-level values.
 
+### `src/reporting/geo.py`
+
+**Purpose:** Turns location signals into map points so the report plots them itself instead of linking out to a map service.
+
+| Function | Role |
+| --- | --- |
+| `parse_coordinates` | Reads a decimal pair or ExifTool's degrees/minutes/seconds; rejects anything outside the earth's range, which is how a version string gives itself away |
+| `build_map_points` | Coordinates first, then place names (phone regions, profile locations), deduplicated to 4 decimal places and marked `precise` only when read from an artifact |
+| `_geocode` / `_cached_geocode` | Nominatim lookup, one request a second, at most `_GEOCODE_BUDGET` unseen names per report; every answer including a miss is cached in `geocode_cache` so a place is asked once ever |
+
+**Failure behaviour:** an unreachable or empty geocoder costs the map a point and nothing else. `reporting.geocode_locations: false` keeps report generation entirely offline, plotting only coordinates already in the data; redacted reports plot nothing, since the masking exists to remove exactly those values.
+
 ### `src/reporting/exports.py`
 
 **Purpose:** Non-HTML outputs. `export_artifacts_csv` / `export_presences_csv` flatten rows to CSV; `generate_pdf_from_html` converts a report with pandoc, preferring whichever of `xelatex`, `pdflatex`, `lualatex` or `wkhtmltopdf` is on PATH as the engine and raising if pandoc itself is missing; `_open_all_details` expands every collapsed section first so nothing the screen hides is dropped, and `_simplify_html_for_pdf` strips `<script>` and `<iframe>` elements as a second attempt when the first conversion fails.
@@ -649,6 +661,10 @@ Builds `Dockerfile.kali` → Kali image. Services: `ghost-hunter-kali` (interact
 ### `scripts/run.sh`
 
 Creates/activates `venv` if missing; installs editable package if needed; runs `python -m src.cli "$@"` from repo root.
+
+### `scripts/serve_reports.sh`
+
+Backgrounds `python3 -m http.server` over the reports directory (`start|stop|status|restart`, `-d DIR -p PORT -b ADDRESS`), recording the PID under `logs/` so a second start does not stack servers and printing the URL of the newest report. Binds to `127.0.0.1` by default because an unredacted report names people and carries breach records.
 
 ### `scripts/run.py`
 
