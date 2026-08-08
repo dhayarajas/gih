@@ -87,9 +87,11 @@ Package marker for Ghost Identity Hunter. Docstring only; no runtime logic.
 4. Other commands load an investigation by ID and call linker, visualizer, or report generators.
 5. A run that stops early raises `InvestigationAborted`; the CLI catches it, summarises what was stored from the DB and still generates the report, rather than printing a traceback over the findings.
 
-**Key helpers:** `_json_output_path` (avoid HTML/JSON path collision), `_partial_result` (counts for an aborted run), `_print_tool_coverage` (integrated vs available tools).
+**Key helpers:** `_json_output_path` (avoid HTML/JSON path collision), `_shareable_copy` (masked twin, see below), `_partial_result` (counts for an aborted run), `_print_tool_coverage` (integrated vs available tools).
 
-**Report flags:** `--report-format html|json|both|pdf|csv`, `--report-template standard|executive|technical|legal`, `--report-sections`, `--redact-report`, `--strict-match/--no-strict-match`.
+**Report flags:** `--report-format html|json|both|pdf|csv`, `--report-template standard|executive|technical|legal`, `--report-sections`, `--redact-report`, `--shareable-copy/--no-shareable-copy`, `--strict-match/--no-strict-match`.
+
+**Two files, not a toggle:** an unredacted HTML report is accompanied by `<name>_redacted.html`, generated separately with the values masked. A switch inside one file could only ever unmask what that file already contains, so the shareable version has to be a second render; `--no-shareable-copy` skips it, and a failure to write it never costs the working report.
 
 **Calls:** `orchestrator`, `storage.database`, `correlation.linker/scorer`, `graph.visualizer`, `reporting.html_report`, `external_tools.get_tool_coverage`, `tool_checker`, plugins, `config.loader`.
 
@@ -493,6 +495,10 @@ Package docstring only.
 
 The default report template, kept as a file rather than a string so its CSS is editable and diffable. Carries the light/dark branding rules, the section layout, per-artifact drill-downs (`<details>`) and the responsive tables. Every surface has an explicit colour — the template previously inherited the reader's scheme, which rendered text on same-coloured backgrounds.
 
+Evidence chains are a fixed-layout table (`.chain-table`): the path column absorbs the slack and clips with an ellipsis while the narrow columns keep their width, so one chain is always one line, with the full path in the row's `title`.
+
+**Sections it no longer renders:** the location list (the overview map carries every plottable signal, and the list repeated it) and the audit trail (lifecycle events an analyst does not read; still in the JSON export, and the legal template's chain of custody rests on the preserved captures instead).
+
 ### `src/reporting/report_data.py`
 
 **Purpose:** The derived sections of a report and, importantly, the redaction that shareable copies depend on.
@@ -664,7 +670,7 @@ Creates/activates `venv` if missing; installs editable package if needed; runs `
 
 ### `scripts/serve_reports.sh`
 
-Backgrounds `python3 -m http.server` over the reports directory (`start|stop|status|restart`, `-d DIR -p PORT -b ADDRESS`), recording the PID under `logs/` so a second start does not stack servers and printing the URL of the newest report. Binds to `127.0.0.1` by default because an unredacted report names people and carries breach records.
+Backgrounds `python3 -m http.server` over the reports directory (`start|stop|status|restart`, `-d DIR -p PORT -b ADDRESS`), recording the PID under `logs/` so a second start does not stack servers and printing the URL of the newest report. Binds to `127.0.0.1` by default because an unredacted report names people and carries breach records, and says so on start/status along with the `restart -b 0.0.0.0` needed to reach it from another machine (whose routable addresses it then prints).
 
 ### `scripts/run.py`
 

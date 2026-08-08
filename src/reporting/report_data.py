@@ -1615,7 +1615,7 @@ table, .collapsible, .collapsible-content, .drilldown-body, details.drilldown > 
   color: {body_color} !important;
   border-color: {card_border} !important;
 }}
-.chain-step {{ background: {banner_bg} !important; color: {body_color} !important; }}
+.chain-path, .chain-index {{ color: {body_color} !important; }}
 .timeline-when, .timeline-kind, .timeline-controls label {{ color: {body_color} !important; }}
 details.provenance, .provenance-body {{ color: {body_color} !important; }}
 code.citation-command {{ background: {banner_bg} !important; color: {body_color} !important; }}

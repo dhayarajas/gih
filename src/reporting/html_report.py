@@ -896,6 +896,13 @@ def generate_html_report(
             conn, geographic_data["locations"],
             geocode=reporting_cfg.get("geocode_locations", True),
         )
+        # A signal that could not be placed on the map is still a signal, and
+        # there is no longer a section further down that would have listed it.
+        plotted = {point["value"] for point in geographic_data["points"]}
+        geographic_data["unplotted"] = [
+            loc for loc in geographic_data["locations"]
+            if loc.get("value") and loc["value"] not in plotted
+        ]
     platform_heatmap = _generate_platform_heatmap(presences)
     correlation_strength = _generate_correlation_strength(links)
     verification_status = _generate_verification_status(artifacts)
@@ -1286,6 +1293,16 @@ def _generate_priority_queue(artifacts: list, links: list, correlation) -> list:
     return scored_artifacts[:20]  # Return top 20 priority artifacts
 
 
+_BIO_COUNTRY_NAMES = {
+    "usa": "United States", "us": "United States", "uk": "United Kingdom",
+    "india": "India", "germany": "Germany", "france": "France",
+    "canada": "Canada", "australia": "Australia",
+}
+_BIO_COUNTRY = re.compile(
+    r"\b(" + "|".join(_BIO_COUNTRY_NAMES) + r")\b", re.IGNORECASE
+)
+
+
 def _generate_geographic_data(artifacts: list, presences: list) -> dict:
     """Generate geographic data from artifacts and platform presences."""
     locations = []
@@ -1317,12 +1334,13 @@ def _generate_geographic_data(artifacts: list, presences: list) -> dict:
                     })
 
     for presence in presences:
-        bio = (presence.get("bio") or "").lower()
-        if any(loc in bio for loc in ["usa", "us", "uk", "india", "germany", "france", "canada", "australia"]):
+        # The country a bio names is the signal; the platform it was written on
+        # is not a place. Word boundaries keep "us" out of "just" and "trust".
+        for match in _BIO_COUNTRY.findall(presence.get("bio") or ""):
             locations.append({
-                "type": "platform",
-                "value": presence.get("platform_name", ""),
-                "source": "platform_bio",
+                "type": "location",
+                "value": _BIO_COUNTRY_NAMES[match.lower()],
+                "source": f"bio on {presence.get('platform_name') or 'a platform'}",
                 "confidence": 0.5,
             })
 
@@ -1333,6 +1351,7 @@ def _generate_geographic_data(artifacts: list, presences: list) -> dict:
         # Filled in by the caller, which has the database the geocode cache
         # lives in and knows whether the report is redacted.
         "points": [],
+        "unplotted": [],
     }
 
 

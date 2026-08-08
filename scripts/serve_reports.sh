@@ -60,12 +60,31 @@ server_pid() {
     echo "$pid"
 }
 
+# Whether the server can be reached from another machine is the first thing
+# anyone asks, and a localhost bind answers "no" silently, so say so.
+report_reach() {
+    if [ "$BIND" = "127.0.0.1" ] || [ "$BIND" = "localhost" ] || [ "$BIND" = "::1" ]; then
+        echo "Reachable from this machine only. For other machines on your network:"
+        echo "  $0 restart -b 0.0.0.0 -p $PORT"
+        echo "  (a report names people and, unredacted, carries breach records --"
+        echo "   generate it with 'report --redact' before exposing it)"
+        return
+    fi
+    local addr
+    for addr in $(hostname -I 2>/dev/null || true); do
+        case "$addr" in *:*) continue ;; esac      # skip IPv6
+        echo "Reachable at http://$addr:$PORT/"
+    done
+    echo "Bound to $BIND: any machine that can route here can read these reports."
+}
+
 do_status() {
     local pid
     if pid="$(server_pid)"; then
         echo "Serving on http://$BIND:$PORT/ (pid $pid)"
         echo "  directory: $REPORT_DIR"
         echo "  log:       $LOG_FILE"
+        report_reach
         return 0
     fi
     echo "Not running on port $PORT"
@@ -91,6 +110,7 @@ do_stop() {
 do_start() {
     if pid="$(server_pid)"; then
         echo "Already serving on http://$BIND:$PORT/ (pid $pid) — nothing to do"
+        echo "A running server keeps the address it started with; use restart to change it."
         return 0
     fi
 
@@ -124,7 +144,16 @@ do_start() {
     echo "Serving $REPORT_DIR at http://$BIND:$PORT/ (pid $pid)"
     local latest
     latest="$(ls -t "$REPORT_DIR"/*.html 2>/dev/null | head -n 1 || true)"
-    [ -n "$latest" ] && echo "Latest report: http://$BIND:$PORT/$(basename "$latest")"
+    # 0.0.0.0 is a bind address, not somewhere a browser can go, so the newest
+    # report is named as a path and the reachable hosts are listed below.
+    if [ -n "$latest" ]; then
+        if [ "$BIND" = "0.0.0.0" ]; then
+            echo "Latest report: /$(basename "$latest")"
+        else
+            echo "Latest report: http://$BIND:$PORT/$(basename "$latest")"
+        fi
+    fi
+    report_reach
     echo "Log: $LOG_FILE"
     echo "Stop with: scripts/serve_reports.sh stop -p $PORT"
 }

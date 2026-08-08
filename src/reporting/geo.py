@@ -57,8 +57,10 @@ _DMS = re.compile(
     re.IGNORECASE,
 )
 
-# Type names whose value is a coordinate rather than a place.
-COORDINATE_TYPES = {"gps_coordinates", "geolocation"}
+# Only these carry a place name. A "platform" signal's value is the platform a
+# located bio was found on -- geocoding "GitHub" plants a marker on whatever
+# Nominatim makes of the word and spends a lookup that a real place needed.
+PLACE_NAME_TYPES = {"location", "phone_region", "address", "city", "country"}
 
 
 def _dms_to_decimal(degrees: str, minutes: str, seconds: str | None, hemisphere: str) -> float:
@@ -171,8 +173,10 @@ def build_map_points(conn: sqlite3.Connection, locations: list[dict],
         precise = coords is not None
 
         if coords is None:
-            if loc.get("type") in COORDINATE_TYPES:
-                continue                          # a coordinate we cannot read
+            if loc.get("type") not in PLACE_NAME_TYPES:
+                # Either a coordinate this parser cannot read, or a value that
+                # was never a place to begin with.
+                continue
             cached = _cached_geocode(conn, value)
             if cached is not None:
                 lat, lon, display = cached

@@ -59,6 +59,7 @@ VERSION:
 
 import logging
 import os
+import sqlite3
 import sys
 from dataclasses import replace
 from pathlib import Path
@@ -147,6 +148,33 @@ def _json_output_path(report_output: Optional[str], report_format: str) -> Optio
     return str(json_path)
 
 
+def _shareable_copy(conn, investigation_id: str, html_path: str,
+                    template_type: str, sections: Optional[str],
+                    compare_id: Optional[str] = None) -> Optional[str]:
+    """Write a masked twin of a report next to it.
+
+    A toggle inside the report could only unmask what the file already holds,
+    so the shareable version is a second file generated with the values
+    removed. The working copy stays complete.
+    """
+    path = Path(html_path)
+    redacted = path.with_name(f"{path.stem}_redacted{path.suffix}")
+    try:
+        return generate_html_report(
+            conn,
+            investigation_id,
+            str(redacted),
+            template_type=template_type,
+            sections=sections,
+            redact=True,
+            compare_id=compare_id,
+        )
+    except (OSError, ValueError, RuntimeError, sqlite3.Error) as exc:
+        # The working report is already written; a failure here must not undo it.
+        logging.getLogger(__name__).warning("Shareable copy not written: %s", exc)
+        return None
+
+
 def _partial_result(conn, investigation_id: str) -> InvestigationResult:
     """Summarise an investigation from what it managed to store."""
     from src.storage import database as dbmod
@@ -199,6 +227,8 @@ def _print_tool_coverage() -> None:
 @click.option("--report-template", type=click.Choice(["standard", "executive", "technical", "legal"]), default=None, help="HTML report template (default: standard / config)")
 @click.option("--report-sections", default=None, help="Comma-separated standard-template sections to include")
 @click.option("--redact-report", is_flag=True, help="Mask sensitive values in auto-generated reports")
+@click.option("--shareable-copy/--no-shareable-copy", default=True,
+              help="Also write a masked <name>_redacted.html next to the report (default: on)")
 @click.option("--use-external-tools", is_flag=True, default=True, help="Use external OSINT tools if available (default: enabled)")
 @click.option("--no-external-tools", is_flag=True, help="Skip external OSINT tools")
 @click.option("--check-tools", is_flag=True, help="Check available external tools")
@@ -234,6 +264,7 @@ def investigate(
     report_template: Optional[str],
     report_sections: Optional[str],
     redact_report: bool,
+    shareable_copy: bool,
     use_external_tools: bool,
     no_external_tools: bool,
     check_tools: bool,
@@ -412,6 +443,13 @@ def investigate(
                         redact=redact_report,
                     )
                     click.echo(f"✓ HTML report saved: {html_path}")
+                    if not redact_report and shareable_copy:
+                        masked = _shareable_copy(
+                            conn, result.investigation_id, html_path,
+                            report_template, report_sections,
+                        )
+                        if masked:
+                            click.echo(f"✓ Shareable (masked) copy: {masked}")
 
                 if report_format in ("json", "both"):
                     json_path = generate_json_report(
@@ -470,12 +508,15 @@ def investigate(
 @click.option("--template", "template_type", type=click.Choice(["standard", "executive", "technical", "legal"]), default="standard", help="HTML template (default: standard)")
 @click.option("--sections", default=None, help="Comma-separated sections for the standard template")
 @click.option("--redact", is_flag=True, help="Mask phones, emails, images, and profile URLs")
+@click.option("--shareable-copy/--no-shareable-copy", default=True,
+              help="Also write a masked <name>_redacted.html next to the report (default: on)")
 @click.option("--compare", "compare_id", default=None,
               help="Prior investigation ID for the changes section, or 'auto' for the "
                    "previous run of the same seeds")
 @click.pass_context
 def report(ctx: click.Context, investigation_id: str, fmt: str, output: Optional[str],
-           template_type: str, sections: Optional[str], redact: bool, compare_id: Optional[str]) -> None:
+           template_type: str, sections: Optional[str], redact: bool,
+           shareable_copy: bool, compare_id: Optional[str]) -> None:
     """Generate a report for a completed investigation.
 
     Examples:
@@ -521,6 +562,13 @@ def report(ctx: click.Context, investigation_id: str, fmt: str, output: Optional
                 compare_id=compare_id,
             )
             click.echo(f"HTML report: {html_path}")
+            if not redact and shareable_copy:
+                masked = _shareable_copy(
+                    conn, investigation_id, html_path,
+                    template_type, sections, compare_id,
+                )
+                if masked:
+                    click.echo(f"Shareable (masked) copy: {masked}")
 
         if fmt in ("json", "both"):
             json_path = output if output and fmt == "json" else None

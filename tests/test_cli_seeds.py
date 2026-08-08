@@ -62,3 +62,39 @@ class TestReportOutputPaths:
     def test_single_format_keeps_the_requested_path(self):
         assert _json_output_path("/tmp/r.html", "json") == "/tmp/r.html"
         assert _json_output_path(None, "both") is None
+
+
+class TestShareableCopy:
+    """A masked twin is a second file; a toggle could only unmask the first."""
+
+    @staticmethod
+    def _report(monkeypatch, tmp_path):
+        """Record every report generated, writing each to disk."""
+        written: list[tuple[str, bool]] = []
+
+        def fake_generate(conn, investigation_id, output_path=None, **kwargs):
+            path = Path(output_path or tmp_path / "report.html")
+            path.write_text("report")
+            written.append((path.name, bool(kwargs.get("redact"))))
+            return str(path)
+
+        monkeypatch.setattr(cli_module, "generate_html_report", fake_generate)
+        return written
+
+    def test_a_masked_twin_is_written_beside_the_report(self, monkeypatch, tmp_path):
+        written = self._report(monkeypatch, tmp_path)
+        path = cli_module._shareable_copy(
+            None, "INV-test", str(tmp_path / "INV-test_report.html"),
+            "standard", None,
+        )
+        assert Path(path).name == "INV-test_report_redacted.html"
+        assert written == [("INV-test_report_redacted.html", True)]
+
+    def test_a_failed_copy_does_not_cost_the_report(self, monkeypatch, tmp_path):
+        def explode(*args, **kwargs):
+            raise OSError("read-only file system")
+
+        monkeypatch.setattr(cli_module, "generate_html_report", explode)
+        assert cli_module._shareable_copy(
+            None, "INV-test", str(tmp_path / "r.html"), "standard", None,
+        ) is None

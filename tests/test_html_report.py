@@ -14,6 +14,7 @@ from src.reporting.html_report import (
     LEGAL_TEMPLATE,
     TECHNICAL_TEMPLATE,
     _format_metadata_value,
+    _generate_geographic_data,
     _generate_identity_images,
     _generate_tool_metrics,
     _metadata_table,
@@ -811,6 +812,23 @@ class TestToolRunStatus:
         assert "<th>Reason</th>" in html
         assert "not dispatched" in html or "ran on" in html
 
+    def test_a_host_without_any_tool_still_names_what_is_missing(
+        self, conn, tmp_path, monkeypatch
+    ):
+        """No rows is the case where the reader most needs the missing list."""
+        from src.utils import tool_checker
+
+        monkeypatch.setattr(
+            tool_checker, "get_tool_checker",
+            lambda: SimpleNamespace(is_available=lambda tool: False),
+        )
+        inv_id = db.create_investigation(conn, title="Bare host")
+        db.add_artifact(conn, inv_id, "username", "someone", source="seed", confidence=1.0)
+        html = render(conn, inv_id, tmp_path)
+        assert "Tool Run Status" in html
+        assert "Not installed on this host" in html
+        assert "sherlock" in html
+
 
 class TestSectionCounts:
     def test_preserved_evidence_badge_counts_captures(self, conn, tmp_path):
@@ -829,3 +847,69 @@ class TestSectionCounts:
 
         html = render(conn, inv_id, tmp_path)
         assert "Preserved Evidence</h2><span class=\"section-count\">1 capture(s)" in html
+
+
+class TestWhatTheStandardReportNoLongerCarries:
+    """Two sections said nothing an analyst reads, and were dropped."""
+
+    def test_the_audit_trail_is_not_in_the_report(self, conn, investigation, tmp_path):
+        db.add_audit_log(
+            conn, investigation, action="investigation_created",
+            entity_type="investigation", entity_id=investigation,
+        )
+        html = render(conn, investigation, tmp_path)
+        assert "Audit Trail" not in html
+
+    def test_the_legal_chain_of_custody_is_untouched(self, conn, investigation, tmp_path):
+        """Custody there rests on the preserved captures, not on the trail."""
+        html = render(conn, investigation, tmp_path, template_type="legal")
+        assert "Chain of Custody" in html
+
+    def test_a_location_is_only_on_the_map(self, conn, tmp_path):
+        inv_id = db.create_investigation(conn, title="Located")
+        db.add_artifact(conn, inv_id, "location", "San Francisco",
+                        source="plugin:MaigretPlugin", confidence=0.6)
+        html = render(conn, inv_id, tmp_path)
+        assert "Geographic / Location Signals" not in html
+        assert "Where the subject appears" in html
+
+
+class TestEvidenceChainLayout:
+    """Every chain occupies exactly one row, which is what makes it scannable."""
+
+    def test_each_chain_is_one_table_row(self, conn, investigation, tmp_path):
+        html = render(conn, investigation, tmp_path)
+        section = html.split("Evidence Chains", 1)[1].split("</table>", 1)[0]
+        assert "chain-table" in section
+        assert section.count("<tr>") == html.count('class="chain-index"') + 1
+
+    def test_a_path_carries_its_untruncated_form(self, conn, investigation, tmp_path):
+        """The row clips, so the full path has to survive as the hover title."""
+        html = render(conn, investigation, tmp_path)
+        assert 'class="chain-path" title="' in html
+
+
+class TestABioIsNotAPlace:
+    """A country named in a bio is the signal; the platform is not."""
+
+    def test_the_country_is_the_location_not_the_platform(self, conn, tmp_path):
+        inv_id = db.create_investigation(conn, title="Bio")
+        db.add_platform_presence(
+            conn, inv_id, platform_name="GitHub",
+            profile_url="https://github.com/someone",
+            bio="Engineer based in Germany",
+        )
+        data = _generate_geographic_data([], db.get_platform_presences(conn, inv_id))
+        assert [(loc["type"], loc["value"]) for loc in data["locations"]] == [
+            ("location", "Germany")
+        ]
+
+    def test_a_word_containing_us_is_not_a_country(self, conn, tmp_path):
+        inv_id = db.create_investigation(conn, title="Bio")
+        db.add_platform_presence(
+            conn, inv_id, platform_name="GitHub",
+            profile_url="https://github.com/someone",
+            bio="Just building trustworthy software",
+        )
+        data = _generate_geographic_data([], db.get_platform_presences(conn, inv_id))
+        assert data["locations"] == []

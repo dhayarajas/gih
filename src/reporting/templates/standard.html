@@ -564,7 +564,7 @@
         .section-body .nested-table td, .section-body .leak-field,
         .section-body .map-list li, .section-body .timeline-event,
         .section-body .silent-tools, .section-body .empty-note,
-        .section-body .summary-meta, .section-body .chain-step,
+        .section-body .summary-meta,
         .section-body .legend, .section-body .bar-label, .section-body .bar-count,
         .section-body .citation-version { font-size: 0.85rem; }
         .section-body h3 { font-size: 0.95rem; }
@@ -572,7 +572,7 @@
         .section-body h5, .section-body th { font-size: 0.8rem; }
         /* Machine values keep one monospace face instead of three: paths, digests,
            commands and timestamps are all read character by character. */
-        .section-body .evidence-chain, .section-body .evidence-command,
+        .section-body .evidence-command,
         .section-body .evidence-digest, .section-body .timeline-when,
         .section-body code, .section-body pre {
             font-family: 'SF Mono', Menlo, Consolas, 'Courier New', monospace;
@@ -589,7 +589,7 @@
             text-overflow: ellipsis;
             max-width: 26rem;
         }
-        .section-body .map-list li, .section-body .chain-step,
+        .section-body .map-list li,
         .section-body .silent-tools, .section-body .legend li,
         .section-body .bar-label, .section-body .leak-field {
             white-space: nowrap;
@@ -614,7 +614,7 @@
             /* Nothing is clipped on paper: a hover title is unreachable there, so a
                truncated row would lose its value outright. */
             .section-body td, .section-body th, .section-body .map-list li,
-            .section-body .chain-step, .section-body .silent-tools,
+            .section-body .silent-tools,
             .section-body .legend li, .section-body .bar-label,
             .section-body .leak-field, .timeline-event > *,
             details.drilldown > summary, details.drilldown > summary > * {
@@ -661,8 +661,20 @@
         .org-logo { max-height: 48px; margin-bottom: 0.75rem; }
         .map-list { columns: 2; column-gap: 1.5rem; }
         .map-list li { break-inside: avoid; margin-bottom: 0.35rem; font-size: 0.9rem; }
-        .chain-step { display: inline-block; padding: 0.2rem 0.5rem; background: #edf2f7; color: #2d3748; border-radius: 4px; margin: 0.15rem; font-size: 0.8rem; max-width: 100%; overflow-wrap: anywhere; }
-        .chain-arrow { color: #718096; margin: 0 0.15rem; }
+        /* Fixed layout is what holds a path to its line: the path column takes
+           the slack and clips, the narrow columns keep their width. */
+        .chain-table { table-layout: fixed; width: 100%; }
+        .chain-col-index { width: 3.25rem; }
+        .chain-col-from { width: 20%; }
+        .chain-col-via { width: 15rem; }
+        .chain-table th, .chain-table td { vertical-align: middle; }
+        /* The path column takes whatever is left and must be allowed to, so the
+           general 26rem cap on a cell cannot apply here. */
+        .chain-table td { max-width: none; }
+        .chain-index { color: #a0aec0; text-align: right; }
+        .chain-path { color: #2d3748; }
+        .chain-path .summary-meta { font-size: 0.75rem; }
+        .chain-arrow { color: #a0aec0; margin: 0 0.35rem; }
         .status-not_installed { color: #c53030; }
         .status-silent_or_not_dispatched { color: #975a16; }
         .status-produced_output { color: #276749; }
@@ -880,13 +892,23 @@
             </div>
             {% endif %}
 
-            {% if geographic_data.points %}
+            {% if 'geo' in sections and (geographic_data.points or geographic_data.unplotted) %}
             <div class="chart-card chart-wide">
                 <h3>Where the subject appears</h3>
-                <p class="subsection-blurb">{{ geographic_data.points | length }} plotted location signal(s). A solid marker is a coordinate read from an artifact (EXIF GPS); a hollow one is a named place resolved to the centre of the area it covers, so it is indicative only. Every signal, plotted or not, is listed in the Geographic / Location Signals section.</p>
+                <p class="subsection-blurb">{{ geographic_data.points | length }} plotted location signal(s). A solid marker is a coordinate read from an artifact (EXIF GPS); a hollow one is a named place resolved to the centre of the area it covers, so it is indicative only.</p>
                 <!-- Single-quoted: tojson escapes ' but leaves " as JSON needs it. -->
                 <div id="gih-map" class="map-frame" data-points='{{ geographic_data.points | tojson }}'></div>
-                <p class="empty-note" id="gih-map-fallback" hidden>Map tiles could not be loaded (the report is open without network access). The coordinates are listed in the Geographic / Location Signals section.</p>
+                <p class="empty-note" id="gih-map-fallback" hidden>Map tiles could not be loaded (the report is open without network access).</p>
+                {% if geographic_data.points %}
+                <ul class="map-list">
+                {% for point in geographic_data.points %}
+                    <li><strong>{{ point.label }}</strong> <span class="summary-meta">{{ "%.4f" | format(point.lat) }}, {{ "%.4f" | format(point.lon) }} &middot; {{ point.source }}{% if not point.precise %} &middot; approximate{% endif %}</span></li>
+                {% endfor %}
+                </ul>
+                {% endif %}
+                {% if geographic_data.unplotted %}
+                <p class="empty-note">Not plottable ({{ geographic_data.unplotted | length }}): {% for loc in geographic_data.unplotted %}{{ loc.value }} <span class="summary-meta">({{ loc.source }})</span>{% if not loop.last %}, {% endif %}{% endfor %}</p>
+                {% endif %}
             </div>
             {% endif %}
 
@@ -1507,17 +1529,31 @@
     <details class="report-section" data-section="evidence">
     <summary><h2 class="section-title">{{ ns.n }}. Evidence Chains</h2><span class="section-count">{{ evidence_chains | length }} chain(s)</span></summary>
     <div class="section-body">
-    <p class="section-blurb">Provenance paths from seed artifacts through discovery links (type, confidence, evidence text).</p>
+    <p class="section-blurb">How each finding was reached, one path per line: the seed, then every artifact discovered from it. Hover a path for its untruncated form; the last column names the link that closed it.</p>
     <div class="card">
-        {% for chain in evidence_chains %}
-        <div class="evidence-chain" style="margin-bottom: 0.75rem;">
-            {% for step in chain.steps %}
-            <span class="chain-step"><span class="badge badge-{{ step.type }}">{{ step.type }}</span> <a class="xref" href="#artifact-{{ step.artifact_id }}">{{ step.value }}</a>
-            {% if step.via %} <span class="summary-meta">(via {{ step.via.link_type }}{% if step.via.evidence %}: {{ step.via.evidence }}{% endif %})</span>{% endif %}
-            </span>{% if not loop.last %}<span class="chain-arrow">→</span>{% endif %}
+        <table class="chain-table">
+            <colgroup>
+                <col class="chain-col-index"><col class="chain-col-from">
+                <col><col class="chain-col-via">
+            </colgroup>
+            <thead><tr><th>#</th><th>From</th><th>Path</th><th>Reached by</th></tr></thead>
+            <tbody>
+            {% for chain in evidence_chains %}
+            {% set last = chain.steps[-1] %}
+            <tr>
+                <td class="chain-index">{{ loop.index }}</td>
+                <td><span class="badge badge-{{ chain.steps[0].type }}">{{ chain.steps[0].type }}</span> <a class="xref" href="#artifact-{{ chain.steps[0].artifact_id }}">{{ chain.steps[0].value }}</a></td>
+                <td class="chain-path" title="{{ chain.narrative }}">
+                    {%- for step in chain.steps[1:] -%}
+                    {%- if not loop.first %}<span class="chain-arrow">→</span>{% endif -%}
+                    <a class="xref" href="#artifact-{{ step.artifact_id }}">{{ step.value }}</a><span class="summary-meta"> {{ step.type }}</span>
+                    {%- endfor -%}
+                </td>
+                <td class="chain-via">{% if last.via %}{{ last.via.link_type }}{% if last.via.confidence %} <span class="summary-meta">{{ (last.via.confidence * 100) | round | int }}%</span>{% endif %}{% else %}<span class="summary-meta">—</span>{% endif %}</td>
+            </tr>
             {% endfor %}
-        </div>
-        {% endfor %}
+            </tbody>
+        </table>
     </div>
     </div>
     </details>
@@ -1590,13 +1626,16 @@
     </details>
     {% endif %}
 
-    {% if 'tools' in sections and tool_metrics.tool_status %}
+{# A host with none of the tools installed has no rows, and that is exactly the
+   host whose reader most needs to be told what was missing. #}
+{% if 'tools' in sections and (tool_metrics.tool_status or tool_metrics.not_installed) %}
     {% set ns.n = ns.n + 1 %}
     <details class="report-section" data-section="tools">
     <summary><h2 class="section-title">{{ ns.n }}. Tool Run Status</h2><span class="section-count">{{ tool_metrics.tool_status | length }} tool(s)</span></summary>
     <div class="section-body">
     <p class="section-blurb">Every installed tool and what it contributed, with a reason for each one that contributed nothing. Tools that are not installed on this host are named below the table rather than given a row of their own.</p>
     <div class="card">
+        {% if tool_metrics.tool_status %}
         <table>
             <thead><tr><th>Tool</th><th>State</th><th>Reason</th></tr></thead>
             <tbody>
@@ -1609,6 +1648,9 @@
             {% endfor %}
             </tbody>
         </table>
+        {% else %}
+        <p class="empty-note">No integrated tool ran on this host, so every finding below came from the built-in modules.</p>
+        {% endif %}
         {% if tool_metrics.not_installed %}
         <p class="silent-tools">Not installed on this host ({{ tool_metrics.not_installed | length }}): {% for tool in tool_metrics.not_installed %}<span class="tool-off">{{ tool }}</span>{% if not loop.last %}, {% endif %}{% endfor %}</p>
         {% endif %}
@@ -1617,48 +1659,11 @@
     </details>
     {% endif %}
 
-    {% if 'geo' in sections and geographic_data and geographic_data.locations %}
-    {% set ns.n = ns.n + 1 %}
-    <details class="report-section" data-section="geo">
-    <summary><h2 class="section-title">{{ ns.n }}. Geographic / Location Signals</h2></summary>
-    <div class="section-body">
-    <p class="section-blurb">GPS and location-related artifacts (EXIF, phone region, etc.). Those that resolve to coordinates are plotted on the map in the OSINT Overview.</p>
-    <div class="card">
-        <ul class="map-list">
-        {% for loc in geographic_data.locations %}
-            <li><strong>{{ loc.value }}</strong> <span class="summary-meta">({{ loc.source }})</span></li>
-        {% endfor %}
-        </ul>
-
-    </div>
-    </div>
-    </details>
-    {% endif %}
-
-    {% if 'audit' in sections and audit_trail %}
-    {% set ns.n = ns.n + 1 %}
-    <details class="report-section" data-section="audit">
-    <summary><h2 class="section-title">{{ ns.n }}. Audit Trail</h2><span class="section-count">{{ audit_trail | length }} entries</span></summary>
-    <div class="section-body">
-    <p class="section-blurb">Investigation lifecycle events recorded during collection and reporting.</p>
-    <div class="card">
-        <table>
-            <thead><tr><th>When</th><th>Action</th><th>Entity</th><th>Details</th></tr></thead>
-            <tbody>
-            {% for a in audit_trail %}
-            <tr>
-                <td>{{ (a.performed_at or '')[:19] }}</td>
-                <td>{{ a.action }}</td>
-                <td>{{ a.entity_type or '-' }} {{ a.entity_id or '' }}</td>
-                <td>{{ a.details or '-' }}</td>
-            </tr>
-            {% endfor %}
-            </tbody>
-        </table>
-    </div>
-    </div>
-    </details>
-    {% endif %}
+{# The location signals live on the overview map now; a section repeating them
+   as bullets said nothing the map does not. #}
+{# The audit trail records lifecycle events an analyst does not read; it stays
+   in the JSON export, and the legal template's chain of custody rests on the
+   preserved captures rather than on it. #}
 
     {% if 'comments' in sections and comments %}
     {% set ns.n = ns.n + 1 %}
@@ -1858,7 +1863,7 @@
         // marker keeps a reopened section from being measured twice.
         function annotateClipped(root) {
             root.querySelectorAll(
-                'td, .map-list li, .chain-step, .timeline-event > *, .bar-label,'
+                'td, .map-list li, .timeline-event > *, .bar-label,'
                 + ' details.drilldown > summary > *'
             ).forEach(function (el) {
                 if (el.dataset.clipChecked) { return; }
