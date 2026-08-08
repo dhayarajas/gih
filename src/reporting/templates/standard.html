@@ -434,6 +434,128 @@
             border: 1px solid #e2e8f0;
         }
 
+        /* Executive overview: the only part of the report that is always open */
+        .exec-band { margin: 1.5rem 0 2rem; }
+        .exec-band h2 { margin-top: 0; }
+        .kpi-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+            gap: 0.75rem;
+            margin-bottom: 1.25rem;
+        }
+        .kpi {
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
+            border-top: 3px solid #3182ce;
+            border-radius: 6px;
+            padding: 0.85rem 1rem;
+        }
+        .kpi-alert { border-top-color: #c53030; }
+        .kpi-muted { border-top-color: #a0aec0; }
+        .kpi-value { font-size: 1.7rem; font-weight: 700; color: #1e3a5f; line-height: 1.2; }
+        .kpi-alert .kpi-value { color: #c53030; }
+        .kpi-label {
+            font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em;
+            color: #4a5568; font-weight: 700;
+        }
+        .kpi-note { font-size: 0.75rem; color: #718096; margin-top: 0.15rem; }
+
+        .headlines { list-style: none; margin: 0 0 1.25rem; padding: 0; }
+        .headlines li {
+            padding: 0.5rem 0.85rem;
+            margin-bottom: 0.4rem;
+            border-left: 4px solid #3182ce;
+            background: #f7fafc;
+            border-radius: 4px;
+            font-size: 0.9rem;
+            color: #2d3748;
+        }
+        .headlines li.tone-alert { border-left-color: #c53030; background: #fff5f5; color: #742a2a; }
+        .headlines li.tone-good { border-left-color: #38a169; background: #f0fff4; color: #22543d; }
+        .headlines li.tone-muted { border-left-color: #a0aec0; color: #4a5568; }
+
+        .chart-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 1rem;
+        }
+        .chart-card {
+            background: #ffffff; border: 1px solid #e2e8f0; border-radius: 6px;
+            padding: 1rem; break-inside: avoid;
+        }
+        .chart-card h3 {
+            margin: 0 0 0.75rem; font-size: 0.85rem; text-transform: uppercase;
+            letter-spacing: 0.05em; color: #4a5568;
+        }
+        .bar-row { display: grid; grid-template-columns: 40% 1fr auto; gap: 0.5rem; align-items: center; margin-bottom: 0.4rem; }
+        .bar-label { font-size: 0.8rem; color: #2d3748; overflow-wrap: anywhere; }
+        .bar-track { display: block; background: #edf2f7; border-radius: 3px; height: 0.75rem; overflow: hidden; }
+        .bar-fill { display: block; height: 100%; border-radius: 3px; }
+        .bar-count { font-size: 0.78rem; color: #4a5568; font-variant-numeric: tabular-nums; }
+        .donut-wrap { display: flex; gap: 1rem; align-items: center; flex-wrap: wrap; }
+        .donut { width: 130px; height: 130px; transform: rotate(-90deg); }
+        .donut circle { fill: none; stroke-width: 4; }
+        .donut-hole-label {
+            font-size: 0.75rem; color: #4a5568; text-align: center;
+        }
+        .legend { list-style: none; margin: 0; padding: 0; font-size: 0.8rem; }
+        .legend li { display: flex; align-items: center; gap: 0.4rem; margin-bottom: 0.25rem; color: #2d3748; }
+        .legend .swatch { width: 0.7rem; height: 0.7rem; border-radius: 2px; display: inline-block; }
+
+        /* Collapsed detail sections */
+        details.report-section {
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            margin-bottom: 0.75rem;
+            background: #ffffff;
+        }
+        details.report-section > summary {
+            cursor: pointer;
+            list-style: none;
+            padding: 0.85rem 1rem;
+            display: flex;
+            align-items: baseline;
+            gap: 0.6rem;
+            color: #1e3a5f;
+            font-weight: 600;
+        }
+        details.report-section > summary::-webkit-details-marker { display: none; }
+        details.report-section > summary::before {
+            content: "\25B8";
+            color: #3182ce;
+            font-size: 0.9rem;
+            transition: transform 0.15s ease;
+        }
+        details.report-section[open] > summary::before { content: "\25BE"; }
+        details.report-section > summary:hover { background: #f7fafc; }
+        details.report-section[open] > summary { border-bottom: 1px solid #e2e8f0; }
+        h2.section-title {
+            display: inline; margin: 0; padding: 0; border: 0;
+            font-size: 1.05rem; color: #1e3a5f;
+        }
+        .section-count {
+            margin-left: auto; font-weight: 500; font-size: 0.78rem; color: #4a5568;
+            background: #edf2f7; border-radius: 10px; padding: 0.1rem 0.6rem;
+        }
+        .section-body { padding: 1rem; }
+        .section-body > h2:first-child, .section-body > h3:first-child { margin-top: 0; }
+        .detail-controls { display: flex; gap: 0.5rem; margin: 1rem 0; }
+        .detail-controls button {
+            font: inherit; font-size: 0.8rem; padding: 0.35rem 0.75rem;
+            border: 1px solid #cbd5e0; border-radius: 4px; background: #fff;
+            color: #2d3748; cursor: pointer;
+        }
+        .detail-controls button:hover { background: #edf2f7; }
+
+        @media print {
+            /* Print and PDF export must show everything: a collapsed section
+               would otherwise be silently missing from the record. */
+            details, details.report-section { display: block; }
+            details[open] > summary::before, details > summary::before { content: ""; }
+            details > .section-body, details > *:not(summary) { display: block !important; }
+            .detail-controls, .filter-bar, .drilldown-controls { display: none; }
+        }
+
         /* Branding / watermark injected via branding_css */
         {{ branding_css | safe }}
         {% if branding.custom_css_content %}{{ branding.custom_css_content | safe }}{% endif %}
@@ -570,6 +692,82 @@
     <div class="redacted-banner">Redacted shareable report — sensitive values are masked.</div>
     {% endif %}
 
+    {% if highlights %}
+    <!-- Executive overview: always expanded; everything below it is collapsed. -->
+    <div class="exec-band">
+        <h2>Executive Overview</h2>
+        <div class="kpi-grid">
+            {% for kpi in highlights.kpis %}
+            <div class="kpi kpi-{{ kpi.tone }}">
+                <div class="kpi-label">{{ kpi.label }}</div>
+                <div class="kpi-value">{{ kpi.value }}</div>
+                <div class="kpi-note">{{ kpi.note }}</div>
+            </div>
+            {% endfor %}
+        </div>
+
+        {% if highlights.headlines %}
+        <ul class="headlines">
+            {% for item in highlights.headlines %}
+            <li class="tone-{{ item.tone }}">{{ item.text }}</li>
+            {% endfor %}
+        </ul>
+        {% endif %}
+
+        <div class="chart-grid">
+            {% if highlights.risk_donut %}
+            <div class="chart-card">
+                <h3>Risk across identity profiles</h3>
+                <div class="donut-wrap">
+                    <svg class="donut" viewBox="0 0 42 42" role="img"
+                         aria-label="Risk distribution across {{ highlights.risk_total }} identity profiles">
+                        <circle cx="21" cy="21" r="15.915" stroke="#edf2f7"></circle>
+                        {% for segment in highlights.risk_donut %}
+                        <circle cx="21" cy="21" r="15.915" stroke="{{ segment.color }}"
+                                stroke-dasharray="{{ segment.dash }} {{ segment.gap }}"
+                                stroke-dashoffset="{{ segment.offset }}"></circle>
+                        {% endfor %}
+                    </svg>
+                    <ul class="legend">
+                        {% for segment in highlights.risk_donut %}
+                        <li><span class="swatch" style="background: {{ segment.color }}"></span>
+                            {{ segment.label | title }} &mdash; {{ segment.count }} ({{ segment.share }}%)</li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            </div>
+            {% endif %}
+
+            {% for chart in [
+                {'title': 'Artifacts by type', 'rows': highlights.type_bars},
+                {'title': 'Confidence distribution', 'rows': highlights.confidence_bars},
+                {'title': 'Findings by tool', 'rows': highlights.source_bars},
+                {'title': 'Platform accounts', 'rows': highlights.platform_bars},
+                {'title': 'Discovery depth', 'rows': highlights.depth_bars}
+            ] %}
+            {% if chart.rows %}
+            <div class="chart-card">
+                <h3>{{ chart.title }}</h3>
+                {% for row in chart.rows %}
+                <div class="bar-row">
+                    <span class="bar-label">{{ row.label.replace('_', ' ') }}</span>
+                    <span class="bar-track"><span class="bar-fill" style="width: {{ row.width }}%; background: {{ row.color }}"></span></span>
+                    <span class="bar-count">{{ row.count }}</span>
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+            {% endfor %}
+        </div>
+
+        <div class="detail-controls">
+            <button type="button" id="open-sections">Open all sections</button>
+            <button type="button" id="close-sections">Close all sections</button>
+        </div>
+        <p class="meta">Full detail is below, collapsed by section. Printing or exporting to PDF includes every section regardless of what is open.</p>
+    </div>
+    {% endif %}
+
     {% set ns = namespace(n=0) %}
     {% set has_filterable = (artifact_views or []) or (presences or []) %}
 
@@ -608,7 +806,9 @@
     {% if 'leaks' in sections and leak_findings.record_count %}
     {% set ns.n = ns.n + 1 %}
     <!-- Breach Records (leads the report whenever LeakOSINT returned data) -->
-    <h2>{{ ns.n }}. Breach Records ({{ leak_findings.record_count }})</h2>
+    <details class="report-section" data-section="leaks" open>
+    <summary><h2 class="section-title">{{ ns.n }}. Breach Records ({{ leak_findings.record_count }})</h2></summary>
+    <div class="section-body">
     <p class="section-blurb">Records the LeakOSINT API matched to this investigation's selectors, grouped by the leaked database they came from. Leaked rows carry attributes no public source exposes &mdash; passwords, addresses, document numbers &mdash; so they are presented first and should be treated as sensitive.</p>
     {% for database in leak_findings.databases %}
     <div class="card leak-card">
@@ -626,12 +826,16 @@
         {% endfor %}
     </div>
     {% endfor %}
+    </div>
+    </details>
     {% endif %}
 
     {% if 'identities' in sections and correlation.identities %}
     {% set ns.n = ns.n + 1 %}
     <!-- Identity Profiles -->
-    <h2>{{ ns.n }}. Identity Profiles</h2>
+    <details class="report-section" data-section="identities">
+    <summary><h2 class="section-title">{{ ns.n }}. Identity Profiles</h2><span class="section-count">{{ correlation.identities | length }} profile(s)</span></summary>
+    <div class="section-body">
     <p class="section-blurb">Correlated personas that link multiple artifacts to single identities, showing confidence scores, associated risk indicators, and profile images for understanding the target's digital footprint. Expand a profile to review its complete evidence basis.</p>
     {% for identity in correlation.identities %}
     <div class="card" id="identity-{{ identity.profile_id }}">
@@ -819,12 +1023,16 @@
     </div>
     {% endfor %}
 
+    </div>
+    </details>
     {% endif %}
 
     {% if 'summary' in sections and (timeline or key_findings or artifacts) %}
     {% set ns.n = ns.n + 1 %}
     <!-- Summary -->
-    <h2>{{ ns.n }}. Summary</h2>
+    <details class="report-section" data-section="summary">
+    <summary><h2 class="section-title">{{ ns.n }}. Summary</h2></summary>
+    <div class="section-body">
     <p class="section-blurb">Investigation overview including timeline of discoveries, key findings, statistical metrics, confidence scores, and risk assessment matrix.</p>
     {% if timeline %}
     <div class="card">
@@ -924,12 +1132,16 @@
         </table>
     </div>
 
+    </div>
+    </details>
     {% endif %}
 
     {% if 'tools' in sections and (tool_metrics.tools or tool_metrics.silent_tools) %}
     {% set ns.n = ns.n + 1 %}
     <!-- Tool Metrics -->
-    <h2>{{ ns.n }}. Tool Metrics</h2>
+    <details class="report-section" data-section="tools">
+    <summary><h2 class="section-title">{{ ns.n }}. Tool Metrics</h2></summary>
+    <div class="section-body">
     <p class="section-blurb">What each OSINT tool actually contributed to this investigation: how many artifacts it produced, of which types, at what average confidence, and how many identity profiles its output reached. Seeded artifacts are excluded, so the totals here count only discovered evidence. Rows marked <em>derived</em> are pipeline steps rather than tools &mdash; the orchestrator pivoting one artifact into another &mdash; and are excluded from the tool count.</p>
     <div class="card">
         {% if tool_metrics.tools %}
@@ -996,12 +1208,16 @@
         {% endif %}
     </div>
 
+    </div>
+    </details>
     {% endif %}
 
     {% if 'platforms' in sections and presences %}
     {% set ns.n = ns.n + 1 %}
     <!-- Platform Presence -->
-    <h2>{{ ns.n }}. Platform Presence</h2>
+    <details class="report-section" data-section="platforms">
+    <summary><h2 class="section-title">{{ ns.n }}. Platform Presence</h2><span class="section-count">{{ presences | length }} account(s)</span></summary>
+    <div class="section-body">
     <p class="section-blurb">All discovered social media and online platform accounts with direct profile links for verification and understanding the target's online behavior and communication channels. Expand a platform to review the captured profile details.
     <strong>Content-validated</strong> entries were confirmed by inspecting the profile page or API response; <strong>unvalidated (status only)</strong> entries rest on an HTTP 200 alone and may be soft 404s, login walls or app shells &mdash; treat them as leads, not findings.</p>
     <div class="card">
@@ -1054,12 +1270,16 @@
         {% endfor %}
     </div>
 
+    </div>
+    </details>
     {% endif %}
 
     {% if 'graph' in sections and graph_iframe_src %}
     {% set ns.n = ns.n + 1 %}
     <!-- Relationship Graph -->
-    <h2>{{ ns.n }}. Relationship Graph</h2>
+    <details class="report-section" data-section="graph">
+    <summary><h2 class="section-title">{{ ns.n }}. Relationship Graph</h2></summary>
+    <div class="section-body">
     <p class="section-blurb">Visual network diagram showing connections between artifacts and identities, helping identify clusters, central nodes, and relationship patterns for understanding social connections and potential attack vectors. Click a node to open its entry in the Discovered Artifacts section; a node labelled with a count stands for that many collapsed same-type artifacts and expands when clicked.</p>
     <div class="card">
         <div class="graph-container">
@@ -1067,12 +1287,16 @@
         </div>
     </div>
 
+    </div>
+    </details>
     {% endif %}
 
     {% if 'artifacts' in sections and artifact_views %}
     {% set ns.n = ns.n + 1 %}
     <!-- Artifacts -->
-    <h2>{{ ns.n }}. Discovered Artifacts</h2>
+    <details class="report-section" data-section="artifacts">
+    <summary><h2 class="section-title">{{ ns.n }}. Discovered Artifacts</h2><span class="section-count">{{ artifact_views | length }} artifact(s)</span></summary>
+    <div class="section-body">
     <p class="section-blurb">Complete inventory of all data points found (emails, usernames, phone numbers, domains, etc.) with source attribution, confidence scores, and discovery depth. Expand an artifact to review its full metadata and the links that connect it to the rest of the investigation.</p>
     <div class="card">
         {% for a in artifact_views %}
@@ -1201,11 +1425,15 @@
     </div>
 
 
+    </div>
+    </details>
     {% endif %}
 
     {% if 'evidence' in sections and evidence_chains %}
     {% set ns.n = ns.n + 1 %}
-    <h2>{{ ns.n }}. Evidence Chains</h2>
+    <details class="report-section" data-section="evidence">
+    <summary><h2 class="section-title">{{ ns.n }}. Evidence Chains</h2><span class="section-count">{{ evidence_chains | length }} chain(s)</span></summary>
+    <div class="section-body">
     <p class="section-blurb">Provenance paths from seed artifacts through discovery links (type, confidence, evidence text).</p>
     <div class="card">
         {% for chain in evidence_chains %}
@@ -1218,11 +1446,15 @@
         </div>
         {% endfor %}
     </div>
+    </div>
+    </details>
     {% endif %}
 
     {% if 'evidence' in sections and preserved_evidence.enabled %}
     {% set ns.n = ns.n + 1 %}
-    <h2>{{ ns.n }}. Preserved Evidence</h2>
+    <details class="report-section" data-section="evidence">
+    <summary><h2 class="section-title">{{ ns.n }}. Preserved Evidence</h2><span class="section-count">{{ preserved_evidence | length }} capture(s)</span></summary>
+    <div class="section-body">
     <p class="section-blurb">Verbatim output of every external tool run and web-archive query &mdash; the built-in modules query APIs directly and are not preserved &mdash; stored on disk under the SHA-256 of its bytes. Each digest below was recomputed when this report was generated, so a capture that has been altered or deleted since collection is reported as such rather than assumed intact.</p>
     <div class="card">
         <p>
@@ -1255,11 +1487,15 @@
             </tbody>
         </table>
     </div>
+    </div>
+    </details>
     {% endif %}
 
     {% if 'orphans' in sections and orphan_findings %}
     {% set ns.n = ns.n + 1 %}
-    <h2>{{ ns.n }}. Unattributed Findings</h2>
+    <details class="report-section" data-section="orphans">
+    <summary><h2 class="section-title">{{ ns.n }}. Unattributed Findings</h2><span class="section-count">{{ orphan_findings | length }} finding(s)</span></summary>
+    <div class="section-body">
     <p class="section-blurb">Artifacts that are not attached to an identity profile (common for IP/domain-only seeds).</p>
     <div class="card">
         <table>
@@ -1277,11 +1513,15 @@
             </tbody>
         </table>
     </div>
+    </div>
+    </details>
     {% endif %}
 
     {% if 'tools' in sections and tool_metrics.tool_status %}
     {% set ns.n = ns.n + 1 %}
-    <h2>{{ ns.n }}. Tool Run Status</h2>
+    <details class="report-section" data-section="tools">
+    <summary><h2 class="section-title">{{ ns.n }}. Tool Run Status</h2><span class="section-count">{{ tool_metrics.tool_status | length }} tool(s)</span></summary>
+    <div class="section-body">
     <p class="section-blurb">Distinguishes not-installed tools from installed tools that were silent or not dispatched.</p>
     <div class="card">
         <table>
@@ -1303,11 +1543,15 @@
         <p class="silent-tools">Installed but silent/not dispatched: {% for tool in tool_metrics.silent_installed %}<span class="tool-off">{{ tool }}</span>{% if not loop.last %}, {% endif %}{% endfor %}</p>
         {% endif %}
     </div>
+    </div>
+    </details>
     {% endif %}
 
     {% if 'geo' in sections and geographic_data and geographic_data.locations %}
     {% set ns.n = ns.n + 1 %}
-    <h2>{{ ns.n }}. Geographic / Location Signals</h2>
+    <details class="report-section" data-section="geo">
+    <summary><h2 class="section-title">{{ ns.n }}. Geographic / Location Signals</h2></summary>
+    <div class="section-body">
     <p class="section-blurb">GPS and location-related artifacts (EXIF, phone region, etc.).</p>
     <div class="card">
         <ul class="map-list">
@@ -1319,11 +1563,15 @@
         <p><a href="{{ geographic_data.map_url }}" target="_blank" rel="noopener">Open approximate map view</a></p>
         {% endif %}
     </div>
+    </div>
+    </details>
     {% endif %}
 
     {% if 'audit' in sections and audit_trail %}
     {% set ns.n = ns.n + 1 %}
-    <h2>{{ ns.n }}. Audit Trail</h2>
+    <details class="report-section" data-section="audit">
+    <summary><h2 class="section-title">{{ ns.n }}. Audit Trail</h2><span class="section-count">{{ audit_trail | length }} entries</span></summary>
+    <div class="section-body">
     <p class="section-blurb">Investigation lifecycle events recorded during collection and reporting.</p>
     <div class="card">
         <table>
@@ -1340,11 +1588,15 @@
             </tbody>
         </table>
     </div>
+    </div>
+    </details>
     {% endif %}
 
     {% if 'comments' in sections and comments %}
     {% set ns.n = ns.n + 1 %}
-    <h2>{{ ns.n }}. Investigator Notes</h2>
+    <details class="report-section" data-section="comments">
+    <summary><h2 class="section-title">{{ ns.n }}. Investigator Notes</h2><span class="section-count">{{ comments | length }} note(s)</span></summary>
+    <div class="section-body">
     <p class="section-blurb">Threaded comments and annotations attached to the investigation.</p>
     <div class="card">
         {% for c in comments %}
@@ -1355,11 +1607,15 @@
         </div>
         {% endfor %}
     </div>
+    </div>
+    </details>
     {% endif %}
 
     {% if 'cross' in sections and cross_hits %}
     {% set ns.n = ns.n + 1 %}
-    <h2>{{ ns.n }}. Cross-Investigation Matches</h2>
+    <details class="report-section" data-section="cross">
+    <summary><h2 class="section-title">{{ ns.n }}. Cross-Investigation Matches</h2><span class="section-count">{{ cross_hits | length }} match(es)</span></summary>
+    <div class="section-body">
     <p class="section-blurb">Same artifact values seen in other investigations in this database.</p>
     <div class="card">
         <table>
@@ -1376,11 +1632,15 @@
             </tbody>
         </table>
     </div>
+    </div>
+    </details>
     {% endif %}
 
     {% if 'delta' in sections and delta.enabled and (delta.added_count or delta.removed_count or delta.changed_count or delta.platforms_added or delta.platforms_removed) %}
     {% set ns.n = ns.n + 1 %}
-    <h2>{{ ns.n }}. Changes since {{ delta.compare_id }}</h2>
+    <details class="report-section" data-section="delta">
+    <summary><h2 class="section-title">{{ ns.n }}. Changes since {{ delta.compare_id }}</h2></summary>
+    <div class="section-body">
     <p class="section-blurb">What this run found that the previous one did not, what it no longer finds, and what moved in between. An artifact present in both runs can still have changed: a different tool may now report it, its confidence may have shifted, or its metadata may have been rewritten &mdash; often the finding itself. Baseline: {{ delta.compare_title or delta.compare_id }}{% if delta.compare_created_at %}, run {{ delta.compare_created_at[:19] }}{% endif %}.</p>
     <div class="card">
         <div class="stats-grid">
@@ -1432,6 +1692,8 @@
         </ul>
         {% endif %}
     </div>
+    </div>
+    </details>
     {% endif %}
 
     <!-- Footer -->
@@ -1462,6 +1724,30 @@
         var collapseAll = document.getElementById('collapse-all');
         if (expandAll) { expandAll.addEventListener('click', function () { setAllDetails(true); }); }
         if (collapseAll) { collapseAll.addEventListener('click', function () { setAllDetails(false); }); }
+
+        var sections = document.querySelectorAll('details.report-section');
+        function setAllSections(open) {
+            sections.forEach(function (item) { item.open = open; });
+        }
+        var openSections = document.getElementById('open-sections');
+        var closeSections = document.getElementById('close-sections');
+        if (openSections) { openSections.addEventListener('click', function () { setAllSections(true); }); }
+        if (closeSections) { closeSections.addEventListener('click', function () { setAllSections(false); }); }
+
+        // A collapsed section prints as a heading with nothing under it, which
+        // would quietly drop findings from the printed record.
+        var printState = [];
+        window.addEventListener('beforeprint', function () {
+            printState = [];
+            document.querySelectorAll('details').forEach(function (item) {
+                printState.push([item, item.open]);
+                item.open = true;
+            });
+        });
+        window.addEventListener('afterprint', function () {
+            printState.forEach(function (entry) { entry[0].open = entry[1]; });
+            printState = [];
+        });
 
         // Interactive filters for artifacts / platforms
         var typeSelect = document.getElementById('filter-type');

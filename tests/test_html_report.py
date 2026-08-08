@@ -591,3 +591,88 @@ class TestEmptyStates:
         for template_type in ("executive", "legal", "technical"):
             html = render(conn, inv_id, tmp_path, template_type=template_type)
             assert "No identity profiles were correlated" in html
+
+
+class TestExecutiveOverview:
+    """The top of the report answers the case without expanding anything."""
+
+    def test_highlights_lead_the_report_and_sections_are_collapsed(self, conn, investigation, tmp_path):
+        html = render(conn, investigation, tmp_path)
+
+        assert "Executive Overview" in html
+        assert html.index("Executive Overview") < html.index('<details class="report-section"')
+
+        # Key numbers are outside any <details>, so they are readable as rendered.
+        head = html[:html.index('<details class="report-section"')]
+        assert "Artifacts" in head and "Identity profiles" in head
+        assert "Mean confidence" in head
+
+        # Every numbered section is a collapsed <details>, none pre-opened.
+        assert '<details class="report-section"' in html
+        assert '<details class="report-section" data-section="artifacts" open>' not in html
+
+    def test_breach_records_stay_open_because_they_lead_the_report(self, conn, tmp_path):
+        inv_id = db.create_investigation(conn, title="Leaks")
+        db.add_artifact(
+            conn, inv_id, "leak_record", "row-1", source="leakosint", confidence=0.9,
+            metadata=json.dumps({"database": "Example", "fields": {"Email": "a@b.c"}}),
+        )
+        html = render(conn, inv_id, tmp_path)
+        assert '<details class="report-section" data-section="leaks" open>' in html
+
+    def test_charts_render_from_the_investigation_data(self, conn, investigation, tmp_path):
+        html = render(conn, investigation, tmp_path)
+        assert "Artifacts by type" in html
+        assert "Confidence distribution" in html
+        assert 'class="bar-fill"' in html
+
+
+class TestHighlights:
+    def test_empty_investigation_produces_no_charts(self):
+        from src.reporting.report_data import build_highlights
+
+        highlights = build_highlights(
+            [], [], [], SimpleNamespace(identities=[]), [], {}, {"record_count": 0}, [],
+        )
+        assert highlights["type_bars"] == []
+        assert highlights["confidence_bars"] == []
+        assert highlights["risk_donut"] == []
+        assert highlights["kpis"]
+
+    def test_donut_segments_cover_the_circle_once(self):
+        from src.reporting.report_data import build_highlights
+
+        highlights = build_highlights(
+            [], [], [], SimpleNamespace(identities=[]), ["high", "high", "low"],
+            {}, {"record_count": 0}, [],
+        )
+        shares = [segment["share"] for segment in highlights["risk_donut"]]
+        assert round(sum(shares)) == 100
+        assert [segment["label"] for segment in highlights["risk_donut"]] == ["high", "low"]
+
+    def test_bars_scale_against_the_largest_category(self):
+        from src.reporting.report_data import build_highlights
+
+        artifacts = [{"artifact_type": "username", "confidence": 0.9}] * 8
+        artifacts += [{"artifact_type": "email", "confidence": 0.4}] * 2
+        highlights = build_highlights(
+            artifacts, [], [], SimpleNamespace(identities=[]), [],
+            {}, {"record_count": 0}, [],
+        )
+        widths = {row["label"]: row["width"] for row in highlights["type_bars"]}
+        assert widths["username"] == 100.0
+        assert widths["email"] == 25.0
+
+
+class TestPdfExpansion:
+    """A PDF is the record: collapsed sections must be opened before conversion."""
+
+    def test_all_details_are_opened(self):
+        from src.reporting.exports import _open_all_details
+
+        html = _open_all_details(
+            '<details class="report-section"><summary>x</summary></details>'
+            '<details open><summary>y</summary></details>'
+        )
+        assert html.count("open") == 2
+        assert '<details class="report-section" open>' in html
