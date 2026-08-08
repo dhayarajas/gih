@@ -89,6 +89,7 @@ from src.modules.external_tools import (
     run_tool_analysis,
     get_tool_integrations,
     clear_tool_analysis_cache,
+    tool_enabled,
 )
 from src.plugins import PluginManager, PluginRegistry, Artifact as PluginArtifact, PluginConfig
 from src.config.loader import get_config
@@ -1306,11 +1307,11 @@ def _process_external_tools(
 
     try:
         if artifact_type == "username":
-            if check_tool_availability("sherlock"):
+            if check_tool_availability("sherlock") and tool_enabled("sherlock"):
                 tasks.append(("sherlock", _tool_task("sherlock", "username_search", "Sherlock")))
-            if check_tool_availability("maigret"):
+            if check_tool_availability("maigret") and tool_enabled("maigret"):
                 tasks.append(("maigret", _tool_task("maigret", "username_search", "Maigret")))
-            if check_tool_availability("osrframework"):
+            if check_tool_availability("osrframework") and tool_enabled("osrframework"):
                 tasks.append((
                     "osrframework",
                     _tool_task("osrframework", "username_search", "OSRFramework"),
@@ -1324,22 +1325,22 @@ def _process_external_tools(
                 tasks.append(("google_dorks", _google_dorks_task(value)))
 
         elif artifact_type in ("domain", "subdomain"):
-            if check_tool_availability("whois"):
+            if check_tool_availability("whois") and tool_enabled("whois"):
                 tasks.append(("whois", _tool_task("whois", "domain_lookup", "Whois")))
-            if check_tool_availability("whatweb"):
+            if check_tool_availability("whatweb") and tool_enabled("whatweb"):
                 tasks.append(("whatweb", _tool_task("whatweb", "tech_fingerprint", "WhatWeb")))
 
             if run_enumeration_tools:
-                if check_tool_availability("theharvester"):
+                if check_tool_availability("theharvester") and tool_enabled("theharvester"):
                     tasks.append(("theharvester_email",
                                   _tool_task("theharvester", "email_harvest", "theHarvester (email)")))
                     tasks.append(("theharvester_subdomain",
                                   _tool_task("theharvester", "subdomain_harvest", "theHarvester (subdomain)")))
-                if check_tool_availability("subfinder"):
+                if check_tool_availability("subfinder") and tool_enabled("subfinder"):
                     tasks.append(("subfinder", _tool_task("subfinder", "subdomain_enum", "Subfinder")))
-                if check_tool_availability("sublist3r"):
+                if check_tool_availability("sublist3r") and tool_enabled("sublist3r"):
                     tasks.append(("sublist3r", _tool_task("sublist3r", "subdomain_enum", "Sublist3r")))
-                if check_tool_availability("amass"):
+                if check_tool_availability("amass") and tool_enabled("amass"):
                     tasks.append(("amass", _tool_task("amass", "subdomain_enum", "Amass")))
                 # Wayback Machine uses a public API and runs regardless of local tools.
                 tasks.append(("wayback_machine",
@@ -1348,17 +1349,17 @@ def _process_external_tools(
         elif artifact_type in ("ip_address", "ip"):
             # Port scanning is expensive; keep it near the seeds.
             if depth < 2:
-                if check_tool_availability("shodan"):
+                if check_tool_availability("shodan") and tool_enabled("shodan"):
                     tasks.append(("shodan", _tool_task("shodan", "host_search", "Shodan")))
-                if check_tool_availability("nmap"):
+                if check_tool_availability("nmap") and tool_enabled("nmap"):
                     tasks.append(("nmap", _tool_task("nmap", "host_scan", "Nmap")))
 
         elif artifact_type == "image":
-            if check_tool_availability("exiftool"):
+            if check_tool_availability("exiftool") and tool_enabled("exiftool"):
                 tasks.append(("exiftool", _tool_task("exiftool", "metadata_extract", "ExifTool")))
 
         elif artifact_type == "email":
-            if check_tool_availability("holehe"):
+            if check_tool_availability("holehe") and tool_enabled("holehe"):
                 tasks.append(("holehe", _tool_task("holehe", "email_check", "Holehe")))
 
             # Extract domain from email for domain-based analysis (no tool run).

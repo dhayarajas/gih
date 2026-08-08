@@ -14,6 +14,11 @@ from ..config import get_config
 logger = logging.getLogger(__name__)
 
 
+def _normalise(name: str) -> str:
+    """Compare a class name and a config key without their punctuation."""
+    return name.replace("_", "").replace("-", "").lower()
+
+
 class PluginManager:
     """
     Manager for executing OSINT plugins and aggregating results.
@@ -31,7 +36,24 @@ class PluginManager:
         self.registry = registry or PluginRegistry()
         self._execution_stats: Dict[str, Dict] = {}
         self.config = get_config()
-    
+        self._config_keys = {
+            _normalise(key): key for key in self.config.list_plugins()
+        }
+
+    def _config_key(self, plugin_name: str) -> str:
+        """The `plugins:` key holding this plugin's settings.
+
+        The registry knows plugins by class name (`WhatWebPlugin`) while the
+        config names tools (`whatweb`), so a literal lookup silently missed
+        every entry and fell back to the defaults -- which is how a plugin
+        disabled in config.yaml still ran.
+        """
+        key = self._config_keys.get(_normalise(plugin_name.removesuffix("Plugin")))
+        if key is None:
+            logger.debug("No config entry for plugin %s; using defaults", plugin_name)
+            return plugin_name
+        return key
+
     def execute_plugin(
         self,
         plugin_name: str,
@@ -50,7 +72,7 @@ class PluginManager:
             PluginResult with findings
         """
         # Check if plugin is enabled in configuration
-        plugin_config = self.config.get_plugin_config(plugin_name)
+        plugin_config = self.config.get_plugin_config(self._config_key(plugin_name))
         if not plugin_config.get("enabled", True):
             logger.debug(f"Plugin '{plugin_name}' is disabled in configuration")
             return PluginResult(

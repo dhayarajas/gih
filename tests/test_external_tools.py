@@ -286,10 +286,10 @@ class TestIpArtifactTypeIsConsistent:
     orphaned from the identity that reaches the other."""
 
     def test_plugins_use_ip_address(self):
+        from src.plugins.builtins.nmap_plugin import NmapPlugin
         from src.plugins.builtins.shodan_plugin import ShodanPlugin
-        from src.plugins.builtins.whois_plugin import WhoisPlugin
 
-        for plugin in (ShodanPlugin(), WhoisPlugin()):
+        for plugin in (ShodanPlugin(), NmapPlugin()):
             supported = plugin.get_supported_artifact_types()
             assert "ip" not in supported, plugin.name
             assert "ip_address" in supported, plugin.name

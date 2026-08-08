@@ -16,6 +16,7 @@ from src.modules.external_tools import (
     STATUS_REPORTED,
     TOOL_ARTIFACT_TYPES,
     TOOL_INPUT_TYPES,
+    tool_enabled,
 )
 from src.storage import database as db
 
@@ -974,6 +975,9 @@ def _silence_reason(tool: str, runs: list[dict], artifact_types: set[str]) -> st
             return f"ran on {len(runs)} target(s) and found nothing"
         failures = sorted(statuses - ANSWERED_STATUSES)
         return f"ran but failed ({', '.join(failures)})"
+
+    if not tool_enabled(tool):
+        return "not dispatched — disabled in configuration"
 
     accepted = TOOL_INPUT_TYPES.get(tool) or []
     if accepted and not (set(accepted) & artifact_types):

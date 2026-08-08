@@ -128,13 +128,15 @@ class ConfigLoader:
         """
         plugin_config = self.get(f"plugins.{plugin_name}", {})
         
-        # Apply global plugin settings as defaults
         global_settings = self.get("plugin_settings", {})
         
-        # Merge with plugin-specific settings taking precedence
+        # The defaults are deliberately not read from plugin_settings: its
+        # `parallel_execution` and `rate_limit_seconds` describe how plugins are
+        # scheduled, not whether one is enabled or how long it may run, and
+        # borrowing them gave an unlisted plugin a 100ms timeout.
         merged_config = {
-            "enabled": global_settings.get("parallel_execution", True),
-            "timeout": global_settings.get("rate_limit_seconds", 30),
+            "enabled": True,
+            "timeout": global_settings.get("default_timeout_seconds", 30),
             "max_retries": global_settings.get("max_retries", 3),
             **plugin_config
         }

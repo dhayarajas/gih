@@ -144,9 +144,13 @@ plugins:
     max_retries: 2
   
   osrframework:
-    enabled: true  # Enabled by default - skipped automatically if the tool is not installed
+    # Disabled: usufy spends ~139s checking the "social" tag serially and has
+    # exited 1 with zero findings on every observed run, while maigret covers
+    # the same platforms in ~10s. Because a BFS level cannot end until its
+    # slowest task returns, it set the wall clock for the whole investigation.
+    # Set to true to try it again -- nothing else needs changing.
+    enabled: false
     priority: 2
-    # usufy checks the whole "social" tag serially per thread; ~2m15s observed.
     timeout: 180
     max_retries: 2
   
