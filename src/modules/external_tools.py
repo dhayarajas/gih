@@ -940,6 +940,28 @@ TOOL_ARTIFACT_TYPES: Dict[str, List[str]] = {
     "leakosint": ["leak_record"],
 }
 
+# Artifact types each tool is dispatched for, mirroring the dispatch in
+# orchestrator._analyze_with_external_tools. A tool whose input type never
+# appears in an investigation is silent for that reason alone, which is what
+# the report says instead of leaving it unexplained.
+TOOL_INPUT_TYPES: Dict[str, List[str]] = {
+    "sherlock": ["username"],
+    "maigret": ["username"],
+    "osrframework": ["username"],
+    "holehe": ["email"],
+    "theharvester": ["domain", "subdomain"],
+    "subfinder": ["domain", "subdomain"],
+    "sublist3r": ["domain", "subdomain"],
+    "amass": ["domain", "subdomain"],
+    "whois": ["domain", "subdomain"],
+    "whatweb": ["domain", "subdomain"],
+    "wayback_machine": ["domain", "subdomain"],
+    "shodan": ["ip_address"],
+    "nmap": ["ip_address"],
+    "exiftool": ["image"],
+    "leakosint": ["email", "phone", "username", "fullname"],
+}
+
 
 def get_tool_coverage() -> Dict[str, Dict[str, Any]]:
     """

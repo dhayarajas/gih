@@ -200,6 +200,17 @@ def _init_schema(conn: sqlite3.Connection) -> None:
 
         CREATE INDEX IF NOT EXISTS idx_evidence_investigation
             ON evidence(investigation_id, captured_at);
+
+        -- Place names resolved to coordinates for the report map. Cached across
+        -- investigations because the answer does not change and the geocoder
+        -- is rate-limited; a miss is cached too, so it is asked once.
+        CREATE TABLE IF NOT EXISTS geocode_cache (
+            place TEXT PRIMARY KEY,
+            latitude REAL,
+            longitude REAL,
+            display_name TEXT,
+            resolved_at TEXT NOT NULL
+        );
     """)
     _add_missing_columns(conn, "evidence", {"tool_version": "TEXT"})
     conn.commit()

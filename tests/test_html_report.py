@@ -698,6 +698,120 @@ class TestConfidenceBands:
         assert sum(counts.values()) == len(artifacts)
 
 
+class TestVisualsLeadTheReport:
+    """Charts and the graph belong above the fold; the sections stay textual."""
+
+    def test_graph_and_tool_chart_sit_in_the_overview_only(self, conn, investigation, tmp_path):
+        html = render(conn, investigation, tmp_path)
+        head = html[:html.index('<details class="report-section"')]
+
+        assert "graph-frame" in head
+        assert "Artifacts per Tool" in head
+        # And nowhere else: one copy each, no Relationship Graph section.
+        assert html.count('id="gih-graph-frame"') == 1
+        assert html.count("tool-chart-bar") == head.count("tool-chart-bar")
+        assert "Relationship Graph</h2>" not in html
+
+    def test_counts_charted_at_the_top_are_not_restated_below(self, conn, investigation, tmp_path):
+        html = render(conn, investigation, tmp_path)
+        body = html[html.index('<details class="report-section"'):]
+
+        assert "Summary Statistics" not in body
+        assert "Tools Producing Output" not in body
+        assert "Findings by tool" not in html      # duplicated Artifacts per Tool
+
+
+class TestUniformRows:
+    """One line per entry, clipped with an ellipsis, in every section."""
+
+    def test_rows_are_clipped_not_wrapped(self, conn, investigation, tmp_path):
+        html = render(conn, investigation, tmp_path)
+        styles = html[:html.index("</head>")]
+
+        assert ".section-body td, .section-body th {" in styles
+        assert "text-overflow: ellipsis;" in styles
+        assert ".timeline-event { position: relative; display: flex; flex-wrap: nowrap;" in styles
+
+    def test_print_restores_every_clipped_value(self, conn, investigation, tmp_path):
+        html = render(conn, investigation, tmp_path)
+        print_blocks = html.split("@media print {")
+        unclip = [block for block in print_blocks if "text-overflow: clip;" in block]
+        assert unclip, "print must undo the clipping or the PDF loses values"
+        assert ".timeline-event { flex-wrap: wrap; overflow: visible; }" in unclip[0]
+
+    def test_clipped_rows_keep_their_text_in_a_tooltip(self, conn, investigation, tmp_path):
+        html = render(conn, investigation, tmp_path)
+        assert "el.title = (el.textContent || '').trim();" in html
+
+
+class TestToolRunStatus:
+    """A tool that produced nothing has to say why."""
+
+    @pytest.fixture
+    def only_whois_installed(self, monkeypatch):
+        """Pin host availability so the rows do not depend on this machine."""
+        from src.utils import tool_checker
+
+        monkeypatch.setattr(
+            tool_checker, "get_tool_checker",
+            lambda: SimpleNamespace(is_available=lambda tool: tool == "whois"),
+        )
+
+    def test_uninstalled_tools_get_no_row(self, only_whois_installed):
+        from src.reporting.report_data import enrich_tool_status
+
+        metrics = enrich_tool_status({"tools": [], "silent_tools": []})
+        assert [row["tool"] for row in metrics["tool_status"]] == ["whois"]
+        assert "nmap" in metrics["not_installed"]
+
+    def test_a_recorded_run_explains_the_silence(self, only_whois_installed):
+        from src.reporting.report_data import enrich_tool_status
+
+        metrics = enrich_tool_status(
+            {"tools": [], "silent_tools": ["whois"]},
+            artifacts=[{"artifact_type": "domain"}],
+            evidence_runs=[{"tool": "whois", "exit_status": "exit 0"}],
+        )
+        row = metrics["tool_status"][0]
+        assert row["state"] == "silent_or_not_dispatched"
+        assert row["reason"] == "ran on 1 target(s) and found nothing"
+
+    def test_a_timeout_is_not_reported_as_no_findings(self):
+        from src.reporting.report_data import _silence_reason
+
+        assert _silence_reason(
+            "sherlock", [{"exit_status": "exit 0"}, {"exit_status": "timeout"}], {"username"}
+        ) == "ran but timed out before returning"
+        assert _silence_reason(
+            "sherlock", [{"exit_status": "exit 1"}], {"username"}
+        ) == "ran but failed (exit 1)"
+
+    def test_a_tool_with_nothing_to_run_against_says_so(self):
+        from src.reporting.report_data import _silence_reason
+
+        # nmap takes an IP; an investigation of a username never reaches it.
+        assert _silence_reason("nmap", [], {"username"}) == (
+            "not dispatched — no ip_address artifact in this investigation"
+        )
+        assert _silence_reason("nmap", [], {"ip_address"}) == (
+            "not dispatched — no run recorded"
+        )
+
+    def test_every_integrated_tool_declares_what_it_takes(self):
+        """Without an entry a tool's silence cannot be explained."""
+        from src.modules.external_tools import TOOL_ARTIFACT_TYPES, TOOL_INPUT_TYPES
+
+        assert set(TOOL_INPUT_TYPES) == set(TOOL_ARTIFACT_TYPES)
+
+    def test_the_reason_reaches_the_report(self, conn, tmp_path):
+        inv_id = db.create_investigation(conn, title="Tool status")
+        db.add_artifact(conn, inv_id, "domain", "example.com",
+                        source="amass", confidence=0.7, depth=1)
+        html = render(conn, inv_id, tmp_path)
+        assert "<th>Reason</th>" in html
+        assert "not dispatched" in html or "ran on" in html
+
+
 class TestSectionCounts:
     def test_preserved_evidence_badge_counts_captures(self, conn, tmp_path):
         from src.storage import evidence as evidence_store

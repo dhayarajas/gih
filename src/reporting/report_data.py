@@ -11,7 +11,7 @@ from copy import deepcopy
 from typing import Any, Optional
 
 from src.correlation.linker import IDENTITY_ARTIFACT_TYPES
-from src.modules.external_tools import TOOL_ARTIFACT_TYPES
+from src.modules.external_tools import TOOL_ARTIFACT_TYPES, TOOL_INPUT_TYPES
 from src.storage import database as db
 
 logger = logging.getLogger(__name__)
@@ -91,6 +91,10 @@ def load_reporting_config() -> dict:
         "output_dir": cfg.get("output_dir") or "./reports",
         "template": template,
         "include_execution_stats": bool(cfg.get("include_execution_stats", True)),
+        # Named places are resolved to coordinates for the report map, which is
+        # the one network call report generation makes; off means only
+        # coordinates already in the data are plotted.
+        "geocode_locations": bool(cfg.get("geocode_locations", True)),
         "branding": {
             "enabled": bool(branding.get("enabled", True)),
             "organization_name": branding.get("organization_name") or "Ghost Identity Hunter",
@@ -945,11 +949,46 @@ def build_highlights(
     }
 
 
-def enrich_tool_status(tool_metrics: dict) -> dict:
-    """Annotate silent tools with host availability when possible."""
+def _silence_reason(tool: str, runs: list[dict], artifact_types: set[str]) -> str:
+    """Say why an installed tool contributed nothing.
+
+    A run is evidence that the tool was dispatched, so its exit status answers
+    the question; without one the tool either had nothing of its input type to
+    run against, or was never reached.
+    """
+    if runs:
+        statuses = {(run.get("exit_status") or "unknown") for run in runs}
+        if "timeout" in statuses:
+            return "ran but timed out before returning"
+        if statuses == {"exit 0"}:
+            return f"ran on {len(runs)} target(s) and found nothing"
+        failures = sorted(statuses - {"exit 0"})
+        return f"ran but failed ({', '.join(failures)})"
+
+    accepted = TOOL_INPUT_TYPES.get(tool) or []
+    if accepted and not (set(accepted) & artifact_types):
+        return "not dispatched — no " + "/".join(accepted) + " artifact in this investigation"
+    return "not dispatched — no run recorded"
+
+
+def enrich_tool_status(tool_metrics: dict, artifacts: list | None = None,
+                       evidence_runs: list | None = None) -> dict:
+    """Annotate silent tools with host availability and why they were silent.
+
+    Tools that are not installed are listed by name rather than given a row:
+    a table of absent binaries says nothing about this investigation.
+    """
     metrics = dict(tool_metrics)
     silent = list(metrics.get("silent_tools") or [])
-    status_rows = []
+    artifact_types = {
+        (a.get("artifact_type") or "") for a in (artifacts or [])
+    }
+    runs_by_tool: dict[str, list[dict]] = defaultdict(list)
+    for run in evidence_runs or []:
+        runs_by_tool[(run.get("tool") or "").lower()].append(run)
+
+    status_rows: list[dict] = []
+    not_installed: list[str] = []
     try:
         from src.utils.tool_checker import get_tool_checker
         checker = get_tool_checker()
@@ -960,19 +999,39 @@ def enrich_tool_status(tool_metrics: dict) -> dict:
                 for t in metrics.get("tools") or []
             )
             if produced:
-                state = "produced_output"
+                status_rows.append({
+                    "tool": tool,
+                    "available": available,
+                    "state": "produced_output",
+                    "reason": "",
+                })
             elif not available:
-                state = "not_installed"
+                not_installed.append(tool)
             else:
-                state = "silent_or_not_dispatched"
-            status_rows.append({"tool": tool, "available": available, "state": state})
+                status_rows.append({
+                    "tool": tool,
+                    "available": available,
+                    "state": "silent_or_not_dispatched",
+                    "reason": _silence_reason(
+                        tool, runs_by_tool.get(tool, []), artifact_types
+                    ),
+                })
     except Exception as exc:
         logger.debug("Tool status enrichment skipped: %s", exc)
         for tool in silent:
-            status_rows.append({"tool": tool, "available": None, "state": "silent_or_not_dispatched"})
+            status_rows.append({
+                "tool": tool,
+                "available": None,
+                "state": "silent_or_not_dispatched",
+                "reason": _silence_reason(
+                    tool, runs_by_tool.get(tool, []), artifact_types
+                ),
+            })
     metrics["tool_status"] = status_rows
-    metrics["not_installed"] = [r["tool"] for r in status_rows if r["state"] == "not_installed"]
-    metrics["silent_installed"] = [r["tool"] for r in status_rows if r["state"] == "silent_or_not_dispatched"]
+    metrics["not_installed"] = not_installed
+    metrics["silent_installed"] = [
+        r["tool"] for r in status_rows if r["state"] == "silent_or_not_dispatched"
+    ]
     return metrics
 
 

@@ -278,6 +278,11 @@ reporting:
   output_dir: "./reports"
   template: "standard"  # standard, executive, technical, legal
   include_execution_stats: true
+  # Resolve place names (phone regions, profile locations) to coordinates via
+  # OpenStreetMap so they can be plotted on the report map. Answers are cached
+  # in the database; set false to keep report generation entirely offline, in
+  # which case only coordinates already in the data are mapped.
+  geocode_locations: true
   branding:
     enabled: true
     organization_name: "Ghost Identity Hunter"
