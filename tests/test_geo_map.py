@@ -2,6 +2,7 @@
 
 import json
 import tempfile
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
@@ -125,6 +126,45 @@ class TestBuildMapPoints:
         assert build_map_points(conn, locations) == []
         assert calls == ["nowhere at all"]
 
+    def test_a_stale_miss_is_asked_again(self, conn, monkeypatch):
+        """A failure is often the network, so it must not silence a place forever."""
+        calls = []
+
+        def fake(place):
+            calls.append(place)
+            return None if len(calls) == 1 else (48.85, 2.29, "Paris, France")
+
+        monkeypatch.setattr(geo, "_geocode", fake)
+        locations = [{"type": "location", "value": "Paris", "source": "bio"}]
+        assert build_map_points(conn, locations) == []
+
+        stale = (datetime.now(timezone.utc) - geo.MISS_TTL - timedelta(days=1))
+        conn.execute("UPDATE geocode_cache SET resolved_at = ? WHERE place = 'paris'",
+                     (stale.isoformat(timespec="seconds"),))
+        conn.commit()
+
+        points = build_map_points(conn, locations)
+        assert [p["label"] for p in points] == ["Paris, France"]
+        assert calls == ["Paris", "Paris"]
+
+    def test_a_resolved_place_is_never_asked_again(self, conn, monkeypatch):
+        """A place does not move, so a hit does not expire the way a miss does."""
+        calls = []
+        monkeypatch.setattr(
+            geo, "_geocode",
+            lambda place: (calls.append(place), (1.0, 2.0, place))[1],
+        )
+        locations = [{"type": "location", "value": "Paris", "source": "bio"}]
+        build_map_points(conn, locations)
+
+        old = datetime.now(timezone.utc) - geo.MISS_TTL - timedelta(days=30)
+        conn.execute("UPDATE geocode_cache SET resolved_at = ? WHERE place = 'paris'",
+                     (old.isoformat(timespec="seconds"),))
+        conn.commit()
+
+        assert len(build_map_points(conn, locations)) == 1
+        assert calls == ["Paris"]
+
     def test_geocoding_off_keeps_report_generation_offline(self, conn, monkeypatch):
         monkeypatch.setattr(geo, "_geocode", lambda place: pytest.fail("network used"))
         points = build_map_points(
@@ -202,6 +242,19 @@ class TestMapInReport:
             conn, inv, str(tmp_path / "r.html"), template_type="standard", redact=True
         )).read_text()
         assert 'id="gih-map"' not in html
+
+    def test_a_place_named_by_a_tool_reaches_the_map(self, conn, monkeypatch, tmp_path):
+        """A city artifact is a location signal, whoever called it what."""
+        monkeypatch.setattr(geo, "_geocode", lambda place: (37.77, -122.41, "San Francisco"))
+        inv = db.create_investigation(conn, title="Named place")
+        db.add_artifact(conn, inv, "username", "someone", source="seed", confidence=1.0)
+        db.add_artifact(conn, inv, "city", "San Francisco", source="shodan",
+                        confidence=0.4, depth=1)
+        html = Path(generate_html_report(
+            conn, inv, str(tmp_path / "r.html"), template_type="standard"
+        )).read_text()
+        assert 'id="gih-map"' in html
+        assert "San Francisco" in html
 
     def test_no_location_signals_means_no_map(self, conn, tmp_path):
         inv = db.create_investigation(conn, title="No geo")

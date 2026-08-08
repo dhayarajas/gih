@@ -1324,13 +1324,22 @@ def _bio_countries(bio: str) -> list[str]:
     return found
 
 
+# Artifact types that say where something is: a coordinate pair, or a place
+# name a tool named (maigret's profile city, shodan's host city, a whois
+# registrant's country).
+GEOGRAPHIC_ARTIFACT_TYPES = frozenset({
+    "location", "gps_coordinates", "geolocation",
+    "city", "country", "address",
+})
+
+
 def _generate_geographic_data(artifacts: list, presences: list) -> dict:
     """Generate geographic data from artifacts and platform presences."""
     locations = []
 
     for artifact in artifacts:
         atype = artifact.get("artifact_type")
-        if atype in ("location", "gps_coordinates", "geolocation"):
+        if atype in GEOGRAPHIC_ARTIFACT_TYPES:
             locations.append({
                 "type": atype,
                 "value": artifact.get("value", ""),
