@@ -1,0 +1,30 @@
+sherlock elonmusk --print-found --timeout 5 --no-color --no-txt
+maigret elonmusk --top-sites 150 --timeout 5 --no-progressbar --no-color --no-recursion -J ndjson -fo /tmp/maigret
+usufy -n elonmusk -t social -T 32 -e json -o /tmp/osr --avoid_download
+holehe example@gmail.com --only-used --no-color --no-clear -C
+theHarvester -d tesla.com -b duckduckgo -f /tmp/report
+subfinder -d tesla.com -silent -json -timeout 10
+sublist3r -d tesla.com -n
+amass enum -passive -d tesla.com
+whois tesla.com
+dig +short tesla.com
+whatweb --color=never --no-errors -a 1 --open-timeout 10 --read-timeout 20 --max-threads 5 --log-json=/tmp/whatweb.json https://tesla.com
+nmap -Pn -F -sV --version-light -oX /tmp/scan.xml scanme.nmap.org
+shodan host 8.8.8.8
+exiftool -json ~/Pictures/photo.jpg
+python3 photon.py -u https://tesla.com -o /tmp/photon
+python3 sf.py -l 127.0.0.1:5001
+recon-ng
+ghunt email example@gmail.com
+social-analyzer --username elonmusk
+python3 metagoofil.py -d tesla.com -t pdf,docx,pptx,xlsx -o /tmp/metagoofil
+nikto -h https://tesla.com
+sqlmap -u "http://testphp.vulnweb.com/listproducts.php?cat=1" --batch
+masscan scanme.nmap.org -p1-1000 --rate 1000
+curl -L https://tesla.com
+wget https://tesla.com
+nslookup tesla.com
+torbrowser-launcher
+firefox https://tesla.com (for testing Wappalyzer, Flagfox, User-Agent Switcher extensions)
+xdg-open "https://web.archive.org/cdx/search/cdx?url=tesla.com/*&output=json&fl=timestamp,original,statuscode,mimetype&collapse=urlkey&limit=15" (Wayback Machine API)
+curl "https://web.archive.org/cdx/search/cdx?url=tesla.com/*&output=json&fl=timestamp,original,statuscode,mimetype&collapse=urlkey&limit=15" (Wayback Machine API via CLI)
