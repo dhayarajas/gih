@@ -495,15 +495,6 @@ def parse_whois(output: str, domain: str) -> tuple[Dict[str, Any], List[Dict[str
             "confidence": 0.6,
         })
 
-    for nameserver in record.get("name_servers") or []:
-        artifacts.append({
-            "type": "name_server",
-            "value": nameserver,
-            "domain": domain,
-            "source": "whois",
-            "confidence": 0.9,
-        })
-
     place = ", ".join(
         part for part in (record.get("registrant_city"),
                           record.get("registrant_country"))
@@ -512,6 +503,8 @@ def parse_whois(output: str, domain: str) -> tuple[Dict[str, Any], List[Dict[str
     if place:
         # Where the registrant said they are, which for a privacy-proxied
         # domain is the proxy's address -- worth plotting, not worth trusting.
+        # Before the name servers, of which a domain can have many; the cap
+        # would otherwise decide whether the place survives.
         artifacts.append({
             "type": "location",
             "value": place,
@@ -519,6 +512,15 @@ def parse_whois(output: str, domain: str) -> tuple[Dict[str, Any], List[Dict[str
             "source": "whois",
             "confidence": 0.4,
             "metadata": {"role": "registrant"},
+        })
+
+    for nameserver in record.get("name_servers") or []:
+        artifacts.append({
+            "type": "name_server",
+            "value": nameserver,
+            "domain": domain,
+            "source": "whois",
+            "confidence": 0.9,
         })
 
     return record, _capped(artifacts)
@@ -834,6 +836,21 @@ def parse_shodan_host(output: str, ip_address: str) -> tuple[Dict[str, Any], Lis
         "type": "host_info", "value": ip_address, "data": parsed,
         "source": "shodan", "confidence": 0.9,
     }]
+
+    place = _shodan_place(parsed)
+    if place:
+        # Where the host is, which is not where its owner is -- hence the low
+        # confidence -- but it is the only location an address investigation
+        # ever yields, and the map says a geocoded name is indicative only.
+        #
+        # Ahead of the ports because there is one of it and there are many of
+        # them: appended last, the per-tool cap would drop it from exactly the
+        # well-exposed hosts worth mapping.
+        artifacts.append({
+            "type": "location", "value": place, "source": "shodan",
+            "confidence": 0.4, "metadata": {"address": ip_address},
+        })
+
     for port in dict.fromkeys(ports):
         artifacts.append({
             "type": "open_port", "value": f"{ip_address}:{port}",
@@ -848,16 +865,6 @@ def parse_shodan_host(output: str, ip_address: str) -> tuple[Dict[str, Any], Lis
         artifacts.append({
             "type": "hostname", "value": hostname, "source": "shodan",
             "confidence": 0.8, "metadata": {"address": ip_address},
-        })
-
-    place = _shodan_place(parsed)
-    if place:
-        # Where the host is, which is not where its owner is -- hence the low
-        # confidence -- but it is the only location an address investigation
-        # ever yields, and the map says a geocoded name is indicative only.
-        artifacts.append({
-            "type": "location", "value": place, "source": "shodan",
-            "confidence": 0.4, "metadata": {"address": ip_address},
         })
 
     return parsed, _capped(artifacts)
