@@ -11,7 +11,12 @@ from copy import deepcopy
 from typing import Any, Optional
 
 from src.correlation.linker import IDENTITY_ARTIFACT_TYPES
-from src.modules.external_tools import TOOL_ARTIFACT_TYPES, TOOL_INPUT_TYPES
+from src.modules.external_tools import (
+    STATUS_NO_RECORD,
+    STATUS_REPORTED,
+    TOOL_ARTIFACT_TYPES,
+    TOOL_INPUT_TYPES,
+)
 from src.storage import database as db
 
 logger = logging.getLogger(__name__)
@@ -949,6 +954,11 @@ def build_highlights(
     }
 
 
+# A run that answered, whatever it exited with: some tools report their result
+# and then exit non-zero, and the integration records what actually happened.
+ANSWERED_STATUSES = {"exit 0", STATUS_NO_RECORD, STATUS_REPORTED}
+
+
 def _silence_reason(tool: str, runs: list[dict], artifact_types: set[str]) -> str:
     """Say why an installed tool contributed nothing.
 
@@ -960,9 +970,9 @@ def _silence_reason(tool: str, runs: list[dict], artifact_types: set[str]) -> st
         statuses = {(run.get("exit_status") or "unknown") for run in runs}
         if "timeout" in statuses:
             return "ran but timed out before returning"
-        if statuses == {"exit 0"}:
+        if statuses <= ANSWERED_STATUSES:
             return f"ran on {len(runs)} target(s) and found nothing"
-        failures = sorted(statuses - {"exit 0"})
+        failures = sorted(statuses - ANSWERED_STATUSES)
         return f"ran but failed ({', '.join(failures)})"
 
     accepted = TOOL_INPUT_TYPES.get(tool) or []

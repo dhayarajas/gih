@@ -169,22 +169,35 @@ FROM evidence WHERE investigation_id = 'INV-fb2b248d' AND tool = 'whois';
 `python3 -m src.cli evidence --id INV-fb2b248d` re-hashes those files against
 the recorded digests and exits non-zero if any no longer match.
 
-Breach records, which are stored as artifact metadata rather than a table of
-their own:
+Breach records, which are artifacts with metadata rather than a table of their
+own. Three types carry them, depending on which source found it: `breach_data`
+(Have I Been Pwned via the breach module), `breach` (the email-breach plugin)
+and `leak_record` (LeakOSINT) — so filter on all three rather than guessing one:
 
 ```sql
-SELECT value, json_extract(metadata, '$.database') AS breach,
-       json_extract(metadata, '$.breach_date') AS breach_date
+SELECT artifact_type, value,
+       json_extract(metadata, '$.breach_date') AS breach_date,
+       json_extract(metadata, '$.pwn_count') AS accounts,
+       json_extract(metadata, '$.database') AS leak_database
 FROM artifacts
-WHERE investigation_id = 'INV-fb2b248d' AND artifact_type = 'breach_record';
+WHERE investigation_id = 'INV-fb2b248d'
+  AND artifact_type IN ('breach_data', 'breach', 'leak_record');
+```
+
+`breach_date` and `pwn_count` are on `breach_data`/`breach`; a `leak_record`
+carries `database`, `info`, `query` and `fields` instead and has no date. Which
+types a given run actually holds is worth checking before filtering on one:
+
+```sql
+SELECT DISTINCT artifact_type FROM artifacts WHERE investigation_id = 'INV-fb2b248d';
 ```
 
 `metadata` is JSON *text*; `json_extract` reads into it, and `json_each` expands
-a list:
+a list — the classes of data a breach exposed, for instance:
 
 ```sql
-SELECT a.value, j.value AS port
-FROM artifacts a, json_each(json_extract(a.metadata, '$.open_ports')) j
+SELECT a.value, j.value AS data_class
+FROM artifacts a, json_each(json_extract(a.metadata, '$.data_classes')) j
 WHERE a.investigation_id = 'INV-fb2b248d';
 ```
 

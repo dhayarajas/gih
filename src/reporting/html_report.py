@@ -1294,13 +1294,34 @@ def _generate_priority_queue(artifacts: list, links: list, correlation) -> list:
 
 
 _BIO_COUNTRY_NAMES = {
-    "usa": "United States", "us": "United States", "uk": "United Kingdom",
+    "united states": "United States", "united kingdom": "United Kingdom",
     "india": "India", "germany": "Germany", "france": "France",
     "canada": "Canada", "australia": "Australia",
 }
 _BIO_COUNTRY = re.compile(
     r"\b(" + "|".join(_BIO_COUNTRY_NAMES) + r")\b", re.IGNORECASE
 )
+# A two-letter abbreviation is a word before it is a country: "Follow us" and
+# "DM us" are not places. Only a locational cue makes one a claim about where
+# somebody is, and only in the upper case a country is written in.
+_BIO_COUNTRY_ABBREV = {"USA": "United States", "US": "United States",
+                       "UK": "United Kingdom"}
+_BIO_ABBREV = re.compile(
+    r"\b(?:in|from|based in|living in|located in)\s+(?:the\s+)?("
+    + "|".join(_BIO_COUNTRY_ABBREV) + r")\b"
+)
+
+
+def _bio_countries(bio: str) -> list[str]:
+    """The countries a bio names, once each, in the order they are written."""
+    found: list[str] = []
+    for name in (
+        [_BIO_COUNTRY_NAMES[m.lower()] for m in _BIO_COUNTRY.findall(bio)]
+        + [_BIO_COUNTRY_ABBREV[m] for m in _BIO_ABBREV.findall(bio)]
+    ):
+        if name not in found:
+            found.append(name)
+    return found
 
 
 def _generate_geographic_data(artifacts: list, presences: list) -> dict:
@@ -1335,11 +1356,11 @@ def _generate_geographic_data(artifacts: list, presences: list) -> dict:
 
     for presence in presences:
         # The country a bio names is the signal; the platform it was written on
-        # is not a place. Word boundaries keep "us" out of "just" and "trust".
-        for match in _BIO_COUNTRY.findall(presence.get("bio") or ""):
+        # is not a place.
+        for country in _bio_countries(presence.get("bio") or ""):
             locations.append({
                 "type": "location",
-                "value": _BIO_COUNTRY_NAMES[match.lower()],
+                "value": country,
                 "source": f"bio on {presence.get('platform_name') or 'a platform'}",
                 "confidence": 0.5,
             })

@@ -22,6 +22,7 @@ from enum import Enum
 from src.config.loader import get_config
 from src.modules import tool_parsers
 from src.storage import evidence
+from src.storage.evidence import EvidenceCapture
 from src.utils.concurrency import io_slot
 from src.utils.tool_checker import (
     check_tool_availability,
@@ -86,7 +87,25 @@ class ToolResult:
     error_message: Optional[str] = None
     execution_time: float = 0.0
     artifacts_discovered: List[Dict[str, Any]] = field(default_factory=list)
+    # The preserved run, so an integration that knows better than the exit code
+    # can correct the status the report reads. None when preservation is off.
+    capture: Optional[EvidenceCapture] = None
 
+
+def _restate(result: ToolResult, exit_status: str) -> None:
+    """Record what a run actually did, over what its exit code implied.
+
+    The report derives its verdict from the preserved run, not from this
+    object, so correcting one without the other says two different things.
+    """
+    if result.capture is not None:
+        result.capture.exit_status = exit_status
+
+
+# Statuses for a run whose exit code misreports it. They are not "exit 0":
+# what happened is worth keeping, and the report reads them as answers.
+STATUS_NO_RECORD = "no record"
+STATUS_REPORTED = "reported results"
 
 # A tool that never stops printing would otherwise be held in memory in full.
 MAX_TOOL_OUTPUT_BYTES = 32 * 1024 * 1024
@@ -233,7 +252,7 @@ class ExternalToolsIntegration:
         result.execution_time = time.monotonic() - started
         # The raw output is what a reviewer has to be able to re-read months
         # later; the parsed artifacts alone cannot be re-derived or challenged.
-        evidence.record(
+        result.capture = evidence.record(
             tool_name,
             result.output or (result.error_message or ""),
             command=" ".join(command),
@@ -441,6 +460,7 @@ class HoleheIntegration(ExternalToolsIntegration):
             if report and not result.success:
                 result.success = True
                 result.error_message = ""
+                _restate(result, STATUS_REPORTED)
 
         if report:
             result.artifacts_discovered = tool_parsers.parse_holehe_csv(report, email)
@@ -746,6 +766,7 @@ class WhoisIntegration(ExternalToolsIntegration):
             result.success = True
             result.error_message = ""
             result.parsed_data = {}
+            _restate(result, STATUS_NO_RECORD)
             return result
 
         if result.success:
