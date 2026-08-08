@@ -32,6 +32,10 @@ class IntegrationPlugin(OSINTPlugin):
 
     tool_name: str = ""
     analysis_type: str = ""
+    # Tools whose integration splits one target across several analyses (e.g.
+    # theHarvester harvests emails and subdomains separately) name the rest
+    # here, so a plugin run covers as much as the orchestrator's own dispatch.
+    additional_analysis_types: ClassVar[list[str]] = []
     artifact_types: ClassVar[list[str]] = []
     description: str = ""
     version: str = "1.0.0"
@@ -63,24 +67,39 @@ class IntegrationPlugin(OSINTPlugin):
         return check_tool_availability(self.tool_name)
 
     def execute(self, artifact: Artifact) -> PluginResult:
-        result = run_tool_analysis(self.tool_name, self.analysis_type, artifact.value)
+        artifacts: list[Artifact] = []
+        parsed: dict[str, Any] = {}
+        errors: list[str] = []
+        elapsed = 0.0
 
-        if not result.success:
+        for analysis in [self.analysis_type, *self.additional_analysis_types]:
+            result = run_tool_analysis(self.tool_name, analysis, artifact.value)
+            elapsed += result.execution_time or 0.0
+            if not result.success:
+                errors.append(result.error_message or f"{self.tool_name} failed")
+                continue
+            artifacts.extend(self._to_artifact(found)
+                             for found in result.artifacts_discovered)
+            if result.parsed_data:
+                parsed[analysis] = result.parsed_data
+
+        # Every analysis failing is a failure; one of several is not, or a tool
+        # that has nothing to say about one aspect of a target would discard
+        # what it found about the others.
+        if errors and not artifacts:
             return PluginResult(
                 plugin_name=self.name,
                 status=PluginStatus.FAILURE,
-                error=result.error_message or f"{self.tool_name} failed",
+                error="; ".join(errors),
                 metadata={"target": artifact.value},
             )
-
-        artifacts = [self._to_artifact(found) for found in result.artifacts_discovered]
 
         return PluginResult(
             plugin_name=self.name,
             status=PluginStatus.SUCCESS,
             artifacts=artifacts,
-            raw_data=result.parsed_data,
-            execution_time=result.execution_time,
+            raw_data=parsed.get(self.analysis_type, parsed) if parsed else None,
+            execution_time=elapsed,
             metadata={"target": artifact.value, "artifacts_found": len(artifacts)},
         )
 
@@ -97,8 +116,9 @@ class IntegrationPlugin(OSINTPlugin):
     def check_wiring(cls) -> None:
         """Fail loudly if a subclass names an analysis the integration lacks."""
         available = ANALYSIS_METHODS.get(cls.tool_name, {})
-        if cls.analysis_type not in available:
-            raise ValueError(
-                f"{cls.__name__} requests {cls.tool_name}/{cls.analysis_type}, "
-                f"but the integration only offers {sorted(available)}"
-            )
+        for analysis in [cls.analysis_type, *cls.additional_analysis_types]:
+            if analysis not in available:
+                raise ValueError(
+                    f"{cls.__name__} requests {cls.tool_name}/{analysis}, "
+                    f"but the integration only offers {sorted(available)}"
+                )

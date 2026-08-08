@@ -404,10 +404,7 @@ Re-exports 19 plugin classes in `__all__`. Note: `ImageMatchPlugin` and `Leakosi
 
 | File | Class | Accepts | Tool | How | Produces |
 | --- | --- | --- | --- | --- | --- |
-| `sherlock_plugin.py` | `SherlockPlugin` | `username` | Sherlock | `sherlock … --format json`; keep `status==found` | `platform_presence` |
-| `theharvester_plugin.py` | `TheHarvesterPlugin` | `domain` | theHarvester | `-b google` JSON/text parse | `email`, `domain` |
 | `shodan_plugin.py` | `ShodanPlugin` | `ip_address`, `domain` | Shodan | API key required; host/domain search | `host_info`, `open_port` / `service` |
-| `whois_plugin.py` | `WhoisPlugin` | `domain`, `ip_address` | `whois` | Line-scan registrant/org/email | `organization`, `email` |
 | `profile_image_plugin.py` | `ProfileImagePlugin` | `platform_presence` | HTTP + BeautifulSoup | CSS/og:image/twitter:image heuristics | `image` |
 
 ### `IntegrationPlugin` wrappers (delegate to `external_tools`)
@@ -423,9 +420,16 @@ Re-exports 19 plugin classes in `__all__`. Note: `ImageMatchPlugin` and `Leakosi
 | `nmap_plugin.py` | `NmapPlugin` | `nmap` / `host_scan` | `ip_address` | `open_port` |
 | `exiftool_plugin.py` | `ExifToolPlugin` | `exiftool` / `metadata_extract` | `image` (local path) | `gps_coordinates`, `camera_info`, `creation_date` |
 | `wayback_plugin.py` | `WaybackMachinePlugin` | `wayback_machine` / `historical_urls` | `domain` | `historical_url` |
-| `osrframework_plugin.py` | `OsrframeworkPlugin` | `osrframework` / `username_search` | `username` | `username_presence` |
+| `osrframework_plugin.py` | `OsrframeworkPlugin` | `osrframework` / `username_search` | `username` | `username_presence` (disabled in `config.yaml`: ~139s, exit 1, no findings) |
+| `sherlock_plugin.py` | `SherlockPlugin` | `sherlock` / `username_search` | `username` | `username_presence` |
+| `whois_plugin.py` | `WhoisPlugin` | `whois` / `domain_lookup` | `domain` | `domain_info`, `email`, `fullname`, `name_server`, `location` |
+| `theharvester_plugin.py` | `TheHarvesterPlugin` | `theharvester` / `email_harvest` **and** `subdomain_harvest` | `domain` | `email`, `subdomain`, `ip_address`, `url` |
 
-> Several tools exist both as orchestrator `external_tools` integrations **and** as plugins. Artifact type names can differ (`platform_presence` vs `username_presence`).
+`additional_analysis_types` lets one plugin cover a tool whose integration
+splits a target across several analyses, as theHarvester does; one failing
+analysis does not discard what the others found.
+
+> Several tools exist both as orchestrator `external_tools` integrations **and** as plugins. Artifact type names can differ (`platform_presence` vs `username_presence`). No plugin may run an integrated tool with its own `subprocess` call — a test enforces this, after the sherlock plugin was found passing a flag sherlock does not have and the whois plugin reporting a registrar's abuse mailbox as the registrant's email.
 
 ---
 

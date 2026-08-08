@@ -53,6 +53,20 @@ def _get_tool_timeout(tool_name: str, default: int = DEFAULT_TOOL_TIMEOUT) -> in
         return default
 
 
+def tool_enabled(tool_name: str) -> bool:
+    """Whether ``plugins.<tool_name>.enabled`` permits running this tool.
+
+    Checked here rather than at each caller because a tool is dispatched from
+    two places -- the orchestrator's own fan-out and the plugin manager -- and
+    a switch that only one of them honours is worse than no switch.
+    """
+    try:
+        plugins_cfg = get_config().get("plugins", {}) or {}
+        return bool((plugins_cfg.get(tool_name) or {}).get("enabled", True))
+    except Exception:
+        return True
+
+
 # Port selection for nmap; "common" maps to nmap's own -F top-100 list.
 DEFAULT_NMAP_PORTS = "common"
 
@@ -1076,6 +1090,15 @@ def run_tool_analysis(tool_name: str, analysis_type: str, target: str) -> ToolRe
     if cached is not None:
         logger.debug("Tool analysis cache hit: %s/%s for %s", tool_name, analysis_type, target)
         return cached
+
+    if not tool_enabled(tool_name):
+        logger.debug("%s is disabled in configuration", tool_name)
+        return ToolResult(
+            tool_name=tool_name,
+            success=False,
+            output="",
+            error_message=f"{tool_name} is disabled in configuration",
+        )
 
     integrations = get_tool_integrations()
     
