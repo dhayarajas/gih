@@ -513,7 +513,7 @@ The default report template, kept as a file rather than a string so its CSS is e
 
 ### `src/reporting/exports.py`
 
-**Purpose:** Non-HTML outputs. `export_artifacts_csv` / `export_presences_csv` flatten rows to CSV; `generate_pdf_from_html` renders a report through WeasyPrint, with `_simplify_html_for_pdf` stripping the interactive graph and dark styling that do not survive print.
+**Purpose:** Non-HTML outputs. `export_artifacts_csv` / `export_presences_csv` flatten rows to CSV; `generate_pdf_from_html` converts a report with pandoc, preferring whichever of `xelatex`, `pdflatex`, `lualatex` or `wkhtmltopdf` is on PATH as the engine and raising if pandoc itself is missing; `_open_all_details` expands every collapsed section first so nothing the screen hides is dropped, and `_simplify_html_for_pdf` strips `<script>` and `<iframe>` elements as a second attempt when the first conversion fails.
 
 ### `src/graph/__init__.py`
 

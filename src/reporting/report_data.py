@@ -853,7 +853,7 @@ def build_highlights(
     band_counts: Counter = Counter()
     for value in confidences:
         for label, low, high, _color in CONFIDENCE_BANDS:
-            if low < value <= high or (value == 0 and low < 0):
+            if low <= value < high:
                 band_counts[label] += 1
                 break
 
