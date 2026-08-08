@@ -179,7 +179,7 @@ Package docstring only.
 
 | Function | Role |
 | --- | --- |
-| `get_connection` | WAL + FKs + schema init; default `~/.ghost_hunter/investigations.db` |
+| `get_connection` | WAL + FKs + schema init; default `~/.ghost_hunter/investigations.db` (see [SQLITE_QUERIES.md](SQLITE_QUERIES.md) for reading it directly; the `database.path` config key is not read by anything) |
 | `create_investigation` / `complete_investigation` / `get_investigation` / `list_investigations` | Investigation lifecycle |
 | `add_artifact` / `add_artifacts_bulk` / `get_artifacts` | Dedupe on `(investigation_id, type, value)` |
 | `add_link` / `get_links` | Dedupe on source/target pair |
