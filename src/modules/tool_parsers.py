@@ -20,7 +20,7 @@ import json
 import logging
 import re
 import xml.etree.ElementTree as ET
-from typing import Any, Dict, Iterable, List
+from typing import Any, Dict, Iterable, List, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -43,6 +43,10 @@ _MAIGRET_IDENTITY_KEYS = {
     "avatar": ("image_url", 0.6),
     "location": ("location", 0.5),
     "country": ("location", 0.45),
+    "city": ("location", 0.5),
+    "region": ("location", 0.45),
+    "place": ("location", 0.5),
+    "hometown": ("location", 0.45),
     "email": ("email", 0.7),
     "phone": ("phone", 0.7),
 }
@@ -417,6 +421,8 @@ _WHOIS_FIELDS = {
     "registrant name": "registrant_name",
     "registrant email": "registrant_email",
     "registrant country": "registrant_country",
+    "registrant city": "registrant_city",
+    "registrant state/province": "registrant_state",
     "admin email": "admin_email",
     "tech email": "tech_email",
     "registrar abuse contact email": "abuse_email",
@@ -496,6 +502,23 @@ def parse_whois(output: str, domain: str) -> tuple[Dict[str, Any], List[Dict[str
             "domain": domain,
             "source": "whois",
             "confidence": 0.9,
+        })
+
+    place = ", ".join(
+        part for part in (record.get("registrant_city"),
+                          record.get("registrant_country"))
+        if part
+    )
+    if place:
+        # Where the registrant said they are, which for a privacy-proxied
+        # domain is the proxy's address -- worth plotting, not worth trusting.
+        artifacts.append({
+            "type": "location",
+            "value": place,
+            "domain": domain,
+            "source": "whois",
+            "confidence": 0.4,
+            "metadata": {"role": "registrant"},
         })
 
     return record, _capped(artifacts)
@@ -827,7 +850,35 @@ def parse_shodan_host(output: str, ip_address: str) -> tuple[Dict[str, Any], Lis
             "confidence": 0.8, "metadata": {"address": ip_address},
         })
 
+    place = _shodan_place(parsed)
+    if place:
+        # Where the host is, which is not where its owner is -- hence the low
+        # confidence -- but it is the only location an address investigation
+        # ever yields, and the map says a geocoded name is indicative only.
+        artifacts.append({
+            "type": "location", "value": place, "source": "shodan",
+            "confidence": 0.4, "metadata": {"address": ip_address},
+        })
+
     return parsed, _capped(artifacts)
+
+
+def _shodan_place(parsed: Dict[str, Any]) -> Optional[str]:
+    """The most specific place shodan named, as one line for a geocoder.
+
+    A JSON answer nests these under ``location``; the printed summary has them
+    at the top level.
+    """
+    source = parsed.get("location") if isinstance(parsed.get("location"), dict) else parsed
+    parts = [
+        str(source.get(key) or "").strip()
+        for key in ("city", "region_name", "country_name", "country")
+    ]
+    named = [part for part in parts if part and part.lower() not in ("none", "null")]
+    if not named:
+        return None
+    # City plus the country it is in; a bare region or country on its own.
+    return ", ".join(dict.fromkeys(named[:1] + named[-1:]))
 
 
 def parse_wayback_cdx(rows: Iterable[Any], domain: str) -> List[Dict[str, Any]]:

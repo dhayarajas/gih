@@ -327,6 +327,20 @@ class TestWhois:
         record, _ = tool_parsers.parse_whois(WHOIS_OUTPUT, "example.com")
         assert not any("iana whois server" in str(v).lower() for v in record.values())
 
+    def test_the_registrant_s_address_becomes_a_location(self):
+        output = WHOIS_OUTPUT + "   Registrant City: Los Angeles\n" \
+                               "   Registrant Country: US\n"
+        _, artifacts = tool_parsers.parse_whois(output, "example.com")
+        places = [a for a in artifacts if a["type"] == "location"]
+
+        assert [a["value"] for a in places] == ["Los Angeles, US"]
+        # A privacy proxy's address is the proxy's, not the registrant's.
+        assert places[0]["confidence"] < 0.5
+
+    def test_a_redacted_registrant_claims_no_place(self):
+        _, artifacts = tool_parsers.parse_whois(WHOIS_OUTPUT, "example.com")
+        assert not [a for a in artifacts if a["type"] == "location"]
+
 
 class TestWhatWeb:
 
@@ -447,6 +461,53 @@ class TestShodan:
 
     def test_empty_answer_yields_nothing(self):
         assert tool_parsers.parse_shodan_host("", "45.33.32.156") == ({}, [])
+
+    def test_the_host_s_city_becomes_a_location(self):
+        """Otherwise an address investigation never has anything to map."""
+        _, artifacts = tool_parsers.parse_shodan_host(SHODAN_TEXT, "45.33.32.156")
+        places = [a for a in artifacts if a["type"] == "location"]
+
+        assert [a["value"] for a in places] == ["Fremont, United States"]
+        # A host's city is not its owner's city.
+        assert places[0]["confidence"] < 0.5
+
+    def test_a_json_answer_nests_the_place(self):
+        report = json.dumps({"location": {"city": "Fremont", "region_name": "California",
+                                          "country_name": "United States"}})
+        _, artifacts = tool_parsers.parse_shodan_host(report, "45.33.32.156")
+
+        assert [a["value"] for a in artifacts if a["type"] == "location"] == [
+            "Fremont, United States",
+        ]
+
+    def test_a_country_alone_is_still_a_place(self):
+        report = json.dumps({"location": {"city": None, "country_name": "Germany"}})
+        _, artifacts = tool_parsers.parse_shodan_host(report, "1.2.3.4")
+
+        assert [a["value"] for a in artifacts if a["type"] == "location"] == ["Germany"]
+
+    def test_a_host_with_no_place_claims_none(self):
+        report = json.dumps({"org": "Linode", "ports": [22]})
+        _, artifacts = tool_parsers.parse_shodan_host(report, "45.33.32.156")
+
+        assert not [a for a in artifacts if a["type"] == "location"]
+
+
+class TestMaigretPlaces:
+    """A profile names where somebody is under whichever key its site uses."""
+
+    def test_a_city_key_is_a_location(self):
+        report = json.dumps({
+            "username": "octocat", "sitename": "Site",
+            "status": {"site_name": "Site", "url": "https://site/octocat",
+                       "status": "Claimed",
+                       "ids": {"city": "Bengaluru", "region": "Karnataka"}},
+        })
+        artifacts = tool_parsers.parse_maigret_ndjson(report, "octocat")
+
+        assert sorted(a["value"] for a in artifacts if a["type"] == "location") == [
+            "Bengaluru", "Karnataka",
+        ]
 
 
 class TestWayback:

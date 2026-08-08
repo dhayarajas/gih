@@ -315,7 +315,7 @@ Package docstring only.
 | Parser | Reads | Recovers |
 | --- | --- | --- |
 | `parse_sherlock` | `[+] Platform: url` lines | `username_presence` |
-| `parse_maigret_ndjson` | Maigret NDJSON report | platform, URL, plus fullname / image / location / bio / follower counts from site extractors |
+| `parse_maigret_ndjson` | Maigret NDJSON report | platform, URL, plus fullname / image / bio / follower counts from site extractors, and a place under whichever key the site used (`location`, `city`, `region`, `country`, `place`, `hometown`) |
 | `parse_usufy_profiles` | OSRFramework JSON | `username_presence` |
 | `parse_holehe_csv` / `parse_holehe_text` | CSV report, else stdout | `email_presence` |
 | `parse_theharvester_json` | theHarvester JSON | emails, hosts, IPs, URLs, ASNs — contacts and host/network capped **independently**, so a large email set cannot suppress subdomains |
@@ -324,7 +324,7 @@ Package docstring only.
 | `parse_whatweb_json` / `parse_whatweb_summary` | `--log-json`, else stdout | `web_technology`, `ip_address` |
 | `parse_nmap_xml` / `parse_nmap_text` | XML report, else stdout | `open_port` with service/product |
 | `parse_exiftool_json` | ExifTool JSON | GPS, camera, creation dates, identity tags |
-| `parse_shodan_host` | Shodan host JSON | ports, services, hostnames (list *or* string form, without Python list punctuation) |
+| `parse_shodan_host` | Shodan host JSON | ports, services, hostnames (list *or* string form, without Python list punctuation), and the host's city/country as a low-confidence `location` — the only place an address investigation ever yields |
 | `parse_wayback_cdx` | CDX rows | `historical_url` |
 
 ### `src/modules/correlation.py`
@@ -525,7 +525,7 @@ Evidence chains are a fixed-layout table (`.chain-table`): the path column absor
 | --- | --- |
 | `parse_coordinates` | Reads a decimal pair or ExifTool's degrees/minutes/seconds; rejects anything outside the earth's range, which is how a version string gives itself away |
 | `build_map_points` | Coordinates first, then place names (phone regions, profile locations), deduplicated to 4 decimal places and marked `precise` only when read from an artifact |
-| `_geocode` / `_cached_geocode` | Nominatim lookup, one request a second, at most `_GEOCODE_BUDGET` unseen names per report; every answer including a miss is cached in `geocode_cache` so a place is asked once ever |
+| `_geocode` / `_cached_geocode` | Nominatim lookup, one request a second, at most `_GEOCODE_BUDGET` unseen names per report; a resolved place is cached forever, a failure only for `MISS_TTL` (7 days) so a name that failed while the geocoder was unreachable is asked again rather than suppressed in every later report |
 
 **Failure behaviour:** an unreachable or empty geocoder costs the map a point and nothing else. `reporting.geocode_locations: false` keeps report generation entirely offline, plotting only coordinates already in the data; redacted reports plot nothing, since the masking exists to remove exactly those values.
 

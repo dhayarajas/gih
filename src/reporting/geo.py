@@ -35,7 +35,7 @@ import logging
 import re
 import sqlite3
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 logger = logging.getLogger(__name__)
 
@@ -47,6 +47,11 @@ _GEOCODE_TIMEOUT = 5
 # A report is not worth a long stall: only this many unseen place names are
 # looked up, the rest are left to the textual list.
 _GEOCODE_BUDGET = 8
+# How long a failure to resolve a name is trusted. A miss is usually the name
+# (a platform's "Earth", a joke), but it is sometimes the network or a rate
+# limit, and caching that forever means one bad report suppresses the place in
+# every later one -- silently, since the name is never sent again.
+MISS_TTL = timedelta(days=7)
 
 _DECIMAL_PAIR = re.compile(
     r"^\s*(-?\d{1,3}(?:\.\d+)?)\s*[,;/]\s*(-?\d{1,3}(?:\.\d+)?)\s*$"
@@ -100,10 +105,16 @@ def parse_coordinates(value: str) -> tuple[float, float] | None:
 
 
 def _cached_geocode(conn: sqlite3.Connection, place: str) -> tuple | None:
-    """Return (lat, lon, display_name) or (None, None, None) for a known miss."""
+    """Return (lat, lon, display_name), or None when the name must be asked.
+
+    A hit is kept for good -- a place does not move. A miss expires, so a name
+    that failed while the geocoder was unreachable is tried again rather than
+    being written off permanently.
+    """
     try:
         row = conn.execute(
-            "SELECT latitude, longitude, display_name FROM geocode_cache WHERE place = ?",
+            "SELECT latitude, longitude, display_name, resolved_at "
+            "FROM geocode_cache WHERE place = ?",
             (place.lower(),),
         ).fetchone()
     except sqlite3.Error as exc:
@@ -111,7 +122,22 @@ def _cached_geocode(conn: sqlite3.Connection, place: str) -> tuple | None:
         return None
     if row is None:
         return None
+    if row["latitude"] is None and _miss_expired(row["resolved_at"]):
+        return None
     return row["latitude"], row["longitude"], row["display_name"]
+
+
+def _miss_expired(resolved_at: str | None) -> bool:
+    """Whether a recorded failure is old enough to be worth retrying."""
+    if not resolved_at:
+        return True
+    try:
+        recorded = datetime.fromisoformat(resolved_at)
+    except ValueError:
+        return True
+    if recorded.tzinfo is None:
+        recorded = recorded.replace(tzinfo=timezone.utc)
+    return datetime.now(timezone.utc) - recorded > MISS_TTL
 
 
 def _store_geocode(conn: sqlite3.Connection, place: str, lat, lon, display_name) -> None:
