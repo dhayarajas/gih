@@ -23,7 +23,7 @@ plugins:
     priority: 1
     timeout: 30
     max_retries: 3
-    api_key: null  # Optional: HaveIBeenPwned API key
+    api_key: 00000000000000000000000000000000
   
   phone_validation:
     enabled: true
