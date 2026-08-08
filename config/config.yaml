@@ -195,7 +195,7 @@ plugins:
     priority: 1  # Leaked records outrank public sources, so they lead the report
     timeout: 20
     max_retries: 2
-    api_key: null  # Required: LeakOSINT API token (or set LEAKOSINT_API_TOKEN)
+    api_key: 8810459628:BDW8tFR3
     custom_params:
       limit: 100  # Max records per query, per the API's `limit` parameter
       lang: "en"
