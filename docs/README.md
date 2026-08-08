@@ -27,6 +27,7 @@ All diagrams use Mermaid and render directly on GitHub.
 | --- | --- |
 | [plugin_development.md](plugin_development.md) | Writing new plugins against the `OSINTPlugin` interface |
 | [LOCAL_PYTHON_SETUP.md](LOCAL_PYTHON_SETUP.md) | Local Python environment setup |
+| [SQLITE_QUERIES.md](SQLITE_QUERIES.md) | Reading the investigation database directly: where the file is, what each table holds, and the queries worth having (per-run findings, links, tool runtimes and exit statuses, cross-run matches, export, deletion) |
 
 ## Tooling and Comparison
 
