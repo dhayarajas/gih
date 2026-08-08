@@ -432,11 +432,15 @@ class HoleheIntegration(ExternalToolsIntegration):
         with tempfile.TemporaryDirectory(prefix="holehe-") as out_dir:
             command = ["holehe", email, "--only-used", "--no-color", "--no-clear", "-C"]
             result = self.run_tool("holehe", command, cwd=out_dir)
-
-            if not result.success:
-                return result
-
             report = _read_first_file(out_dir)
+
+            # holehe writes its CSV and then exits 1 regardless, so the exit
+            # status says nothing about whether it worked; the report does.
+            if not report and not result.success:
+                return result
+            if report and not result.success:
+                result.success = True
+                result.error_message = ""
 
         if report:
             result.artifacts_discovered = tool_parsers.parse_holehe_csv(report, email)
@@ -648,7 +652,12 @@ class WhatWebIntegration(ExternalToolsIntegration):
         """
         with tempfile.TemporaryDirectory(prefix="whatweb-") as out_dir:
             log_path = os.path.join(out_dir, "whatweb.json")
+            # An unresponsive host would otherwise be waited on for whatweb's
+            # own generous default and killed by our timeout with nothing
+            # written to the log.
             command = ["whatweb", "--color=never", "--no-errors", "-a", "1",
+                       "--open-timeout", "10", "--read-timeout", "20",
+                       "--max-threads", "5",
                        f"--log-json={log_path}", target]
             result = self.run_tool("whatweb", command)
 
@@ -709,14 +718,35 @@ class AmassIntegration(ExternalToolsIntegration):
         return result
 
 
+# What a registry says when the name it was asked about is not registered with
+# it, which is every subdomain and every free name.
+_WHOIS_NO_MATCH = re.compile(
+    r"no match|not found|no data found|no entries found|no object found",
+    re.IGNORECASE,
+)
+
+
 class WhoisIntegration(ExternalToolsIntegration):
     """Integration for Whois domain lookup."""
     
     @skip_if_not_available("whois")
     def lookup_domain(self, domain: str) -> ToolResult:
-        """Perform whois lookup for domain."""
+        """Perform whois lookup for domain.
+
+        A registry answers for a registered name only, so "No match" is the
+        expected answer for anything else and is a result, not a failure --
+        whois signals it with exit 1 and the run would otherwise be reported
+        as broken.
+        """
         command = ["whois", domain]
         result = self.run_tool("whois", command)
+
+        if not result.success and _WHOIS_NO_MATCH.search(result.output or ""):
+            logger.info("Whois has no record for %s", domain)
+            result.success = True
+            result.error_message = ""
+            result.parsed_data = {}
+            return result
 
         if result.success:
             result.parsed_data, result.artifacts_discovered = (
@@ -838,6 +868,12 @@ class WaybackMachineIntegration(ExternalToolsIntegration):
             else:
                 result.error_message = f"API request failed: {response.status_code}"
                 
+        except requests.Timeout:
+            # The CDX index for a busy host can take minutes; "failed" would
+            # read as the archive being broken rather than us not waiting.
+            result.error_message = "Wayback Machine CDX query timed out after 30s"
+            exit_status = "timeout"
+            logger.warning("Wayback Machine timed out for %s", domain)
         except Exception as e:
             result.error_message = f"Wayback Machine error: {str(e)}"
             if exit_status == "unknown":

@@ -67,6 +67,28 @@ class TestBuildMapPoints:
             conn, [{"type": "gps_coordinates", "value": "unknown", "source": "exiftool"}]
         ) == []
 
+    def test_a_platform_name_is_never_geocoded(self, conn, monkeypatch):
+        """A located bio yields a signal whose value is the platform, not a place."""
+        monkeypatch.setattr(geo, "_geocode", lambda place: pytest.fail(f"geocoded {place}"))
+        assert build_map_points(
+            conn, [{"type": "platform", "value": "GitHub", "source": "platform_bio"}]
+        ) == []
+
+    def test_a_platform_name_does_not_spend_a_real_place_s_lookup(self, conn, monkeypatch):
+        asked = []
+        monkeypatch.setattr(geo, "_GEOCODE_INTERVAL", 0)
+        monkeypatch.setattr(
+            geo, "_geocode",
+            lambda place: (asked.append(place), (1.0, len(asked) + 0.0, place))[1],
+        )
+        locations = [
+            {"type": "platform", "value": f"Platform{i}", "source": "platform_bio"}
+            for i in range(geo._GEOCODE_BUDGET)
+        ] + [{"type": "location", "value": "Paris", "source": "plugin:MaigretPlugin"}]
+        points = build_map_points(conn, locations)
+        assert asked == ["Paris"]
+        assert [p["value"] for p in points] == ["Paris"]
+
     def test_place_name_is_geocoded_and_marked_approximate(self, conn, monkeypatch):
         monkeypatch.setattr(
             geo, "_geocode", lambda place: (12.97, 77.59, "Bengaluru, Karnataka, India")

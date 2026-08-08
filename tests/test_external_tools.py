@@ -401,3 +401,95 @@ class TestDamagedReports:
         result = integration.fingerprint("example.com")
 
         assert any(a["value"] == "93.184.216.34" for a in result.artifacts_discovered)
+
+
+class TestAnExitCodeIsNotTheResult:
+    """Three tools reported failure on runs that had in fact answered."""
+
+    @staticmethod
+    def _fails(monkeypatch, integration, output="", write=None):
+        """Run the tool as if it exited non-zero, having written ``write``."""
+        def fake_run_tool(tool_name, command, timeout=None, cwd=None):
+            if write is not None and cwd is not None:
+                write(cwd)
+            return ToolResult(
+                tool_name=tool_name, success=False, output=output,
+                error_message="Tool exited with code 1",
+            )
+
+        monkeypatch.setattr(integration, "run_tool", fake_run_tool)
+        monkeypatch.setattr(tool_checker, "check_tool_availability", lambda name: True)
+
+    def test_holehe_results_survive_its_exit_code(self, monkeypatch):
+        """holehe writes its CSV and then exits 1 whatever it found."""
+        from src.modules.external_tools import HoleheIntegration
+
+        integration = HoleheIntegration()
+        self._fails(
+            monkeypatch, integration,
+            write=lambda cwd: Path(cwd, "results.csv").write_text(
+                "name,domain,method,frequent_rate_limit,rateLimit,exists,"
+                "emailrecovery,phoneNumber,others\n"
+                "github,github.com,register,False,False,True,,,\n"
+            ),
+        )
+
+        result = integration.check_email("octocat@github.com")
+
+        assert result.success
+        assert [a["platform"] for a in result.artifacts_discovered] == ["github.com"]
+
+    def test_holehe_writing_nothing_is_still_a_failure(self, monkeypatch):
+        from src.modules.external_tools import HoleheIntegration
+
+        integration = HoleheIntegration()
+        self._fails(monkeypatch, integration)
+
+        assert not integration.check_email("octocat@github.com").success
+
+    def test_a_name_no_registry_holds_is_an_answer(self, monkeypatch):
+        """Every subdomain returns "No match" and exit 1; that is not a fault."""
+        from src.modules.external_tools import WhoisIntegration
+
+        integration = WhoisIntegration()
+        self._fails(
+            monkeypatch, integration,
+            output='No match for "SUPPORT.GOOGLE.COM".\n',
+        )
+
+        result = integration.lookup_domain("support.google.com")
+
+        assert result.success
+        assert not result.error_message
+        assert result.artifacts_discovered == []
+
+    def test_a_broken_whois_still_fails(self, monkeypatch):
+        from src.modules.external_tools import WhoisIntegration
+
+        integration = WhoisIntegration()
+        self._fails(monkeypatch, integration, output="connect: Network is unreachable\n")
+
+        assert not integration.lookup_domain("example.com").success
+
+    def test_an_archive_that_did_not_answer_in_time_says_so(self, monkeypatch):
+        """The CDX index for a busy host outlasts the request; the archive is fine."""
+        import requests
+
+        from src.modules.external_tools import WaybackMachineIntegration
+
+        recorded = {}
+
+        def fake_get(url, timeout=None):
+            raise requests.Timeout("read timed out")
+
+        monkeypatch.setattr(requests, "get", fake_get)
+        monkeypatch.setattr(
+            "src.modules.external_tools.evidence.record",
+            lambda *args, **kwargs: recorded.update(kwargs),
+        )
+
+        result = WaybackMachineIntegration().get_historical_urls("support.google.com")
+
+        assert not result.success
+        assert "timed out" in result.error_message
+        assert recorded["exit_status"] == "timeout"

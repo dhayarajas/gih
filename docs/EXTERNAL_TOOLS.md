@@ -37,11 +37,17 @@ Cross-cutting rules:
   resolved by `_get_tool_timeout()` and passed to `subprocess.run(timeout=...)`.
   No integration hardcodes a timeout any more; the fallback is
   `DEFAULT_TOOL_TIMEOUT = 60`. The one exception is `wayback_machine`, which is
-  an HTTP call with its own 30s `requests` timeout.
+  an HTTP call with its own 30s `requests` timeout; the CDX index for a busy host
+  can outlast it, and that is reported as a timeout rather than as an error, since
+  the archive is not at fault.
 - **Failure handling**: `run_tool` catches `TimeoutExpired`, `FileNotFoundError`
   and any other exception, returning `ToolResult(success=False, error_message=...)`.
-  A non-zero exit code is also a soft failure (`whois` exits 1 for unregistered
-  domains, for example). Parsers only run when `success` is true.
+  A non-zero exit code is a soft failure by default, and parsers only run when
+  `success` is true -- but an exit code is not a verdict, so two integrations
+  overrule it: `holehe` writes its CSV and then exits 1 whatever it found, so the
+  report wins over the code; and `whois` exits 1 with "No match" for every name a
+  registry does not hold (which is every subdomain), which is an answer, not a
+  fault, and is recorded as a run that found nothing.
 - **Output caps**: each tool run contributes at most
   `MAX_ARTIFACTS_PER_TOOL = 15` artifacts, so a noisy enumeration cannot blow up
   the BFS frontier or the report.
@@ -64,7 +70,7 @@ Cross-cutting rules:
 | sublist3r | `sublist3r -d <domain> -n` | `-n` disables the brute-force/portscan phase | `subdomain` |
 | amass | `amass enum -passive -d <domain>` | passive mode only: active enumeration is slow and touches the target | `subdomain` |
 | whois | `whois <domain>` | no flags needed | every label, including the repeated ones: all name servers and all status codes rather than the first of each, plus registrar, dates, DNSSEC and the registrant/admin/tech contacts → `domain_info`, `name_server`, `email`, `fullname` |
-| whatweb | `whatweb --color=never --no-errors -a 1 --log-json=<tmpdir>/whatweb.json <target>` | aggression level 1 = passive single request; `--no-errors` keeps unreachable hosts from failing the run; the JSON log gives each plugin its own fields instead of one `Plugin[detail]` string to unpick | plugin map → `web_technology`, `ip_address`, any address found in the page, plus HTTP status, title, server and country on `parsed_data`; the printed summary is the fallback |
+| whatweb | `whatweb --color=never --no-errors -a 1 --open-timeout 10 --read-timeout 20 --max-threads 5 --log-json=<tmpdir>/whatweb.json <target>` | aggression level 1 = passive single request; `--no-errors` keeps unreachable hosts from failing the run; the network timeouts stop an unresponsive host being waited on until our own timeout kills the run with nothing logged; the JSON log gives each plugin its own fields instead of one `Plugin[detail]` string to unpick. Matching every plugin against a large page costs about a minute of CPU, so its configured timeout is 120s | plugin map → `web_technology`, `ip_address`, any address found in the page, plus HTTP status, title, server and country on `parsed_data`; the printed summary is the fallback |
 | nmap | `nmap -Pn -F -sV --version-light -oX <tmpdir>/scan.xml <target>`, or `-p <ports>` instead of `-F` when `plugins.nmap.custom_params.ports` is set to something other than `common` | `-Pn` skips host discovery (ICMP is usually filtered), `-F` is the top-100-ports scan and `--version-light` keeps service detection cheap; no `-sS`, so no root privileges are required; the XML always separates state, service and version, where the text table omits the version column entirely when nothing was identified | `<port>` elements in state `open` → `open_port` with service, version and extra info kept apart, plus host state and `hostname`; the text table is the fallback |
 | shodan | `shodan host <ip>` | the CLI reads its key from `shodan init`, so no key appears on the command line | JSON when available, otherwise the human summary → `host_info`, `open_port`, `hostname`, with organisation, city, country and OS on `parsed_data` |
 | exiftool | `exiftool -json <file>` | `-json` gives a stable machine format; the integration refuses non-local paths up front because image artifacts are often URLs | the whole tag set on `parsed_data`, and `gps_coordinates`, `camera_info`, `creation_date`, plus the owner (`Artist`/`Creator`/`OwnerName`), `device_serial`, `software` and `copyright` as artifacts |

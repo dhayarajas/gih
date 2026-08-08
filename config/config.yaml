@@ -118,7 +118,10 @@ plugins:
   whatweb:
     enabled: true  # Enabled by default - skipped automatically if the tool is not installed
     priority: 2
-    timeout: 60
+    # Fingerprinting follows the redirect to the real page, and matching every
+    # plugin against a large one costs about a minute of CPU; 60s killed it just
+    # short of finishing, so it reported a timeout on hosts it could have read.
+    timeout: 120
     max_retries: 2
   
   wappalyzer:
