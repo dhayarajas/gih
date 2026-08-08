@@ -326,6 +326,8 @@
             color: #4a5568;
         }
         .report-banner strong { color: #2d3748; }
+        /* Wider than a 200px column, so it takes the row rather than wrapping. */
+        .report-banner .banner-wide { grid-column: 1 / -1; }
 
         /* Expand / collapse controls */
         .drilldown-controls { margin: 0.5rem 0 1rem 0; }
@@ -685,7 +687,7 @@
         <div><strong>Report generated:</strong> {{ generated_at }}</div>
         <div><strong>Artifacts / links:</strong> {{ artifacts | length }} / {{ links | length }}</div>
         <div><strong>Identity profiles:</strong> {{ correlation.identities | length }}</div>
-        <div><strong>Handling:</strong> Automated analysis &mdash; requires analyst review</div>
+        <div class="banner-wide"><strong>Handling:</strong> Automated analysis &mdash; requires analyst review</div>
     </div>
 
     {% if redacted %}
@@ -695,7 +697,7 @@
     {% if highlights %}
     <!-- Executive overview: always expanded; everything below it is collapsed. -->
     <div class="exec-band">
-        <h2>Executive Overview</h2>
+        <h2>OSINT Overview</h2>
         <div class="kpi-grid">
             {% for kpi in highlights.kpis %}
             <div class="kpi kpi-{{ kpi.tone }}">

@@ -599,8 +599,8 @@ class TestExecutiveOverview:
     def test_highlights_lead_the_report_and_sections_are_collapsed(self, conn, investigation, tmp_path):
         html = render(conn, investigation, tmp_path)
 
-        assert "Executive Overview" in html
-        assert html.index("Executive Overview") < html.index('<details class="report-section"')
+        assert "OSINT Overview" in html
+        assert html.index("OSINT Overview") < html.index('<details class="report-section"')
 
         # Key numbers are outside any <details>, so they are readable as rendered.
         head = html[:html.index('<details class="report-section"')]
