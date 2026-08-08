@@ -895,11 +895,13 @@
             {% if 'geo' in sections and (geographic_data.points or geographic_data.unplotted) %}
             <div class="chart-card chart-wide">
                 <h3>Where the subject appears</h3>
+                {# No map at all when nothing could be placed: an empty frame
+                   would report a network failure over having nothing to draw. #}
+                {% if geographic_data.points %}
                 <p class="subsection-blurb">{{ geographic_data.points | length }} plotted location signal(s). A solid marker is a coordinate read from an artifact (EXIF GPS); a hollow one is a named place resolved to the centre of the area it covers, so it is indicative only.</p>
                 <!-- Single-quoted: tojson escapes ' but leaves " as JSON needs it. -->
                 <div id="gih-map" class="map-frame" data-points='{{ geographic_data.points | tojson }}'></div>
                 <p class="empty-note" id="gih-map-fallback" hidden>Map tiles could not be loaded (the report is open without network access).</p>
-                {% if geographic_data.points %}
                 <ul class="map-list">
                 {% for point in geographic_data.points %}
                     <li><strong>{{ point.label }}</strong> <span class="summary-meta">{{ "%.4f" | format(point.lat) }}, {{ "%.4f" | format(point.lon) }} &middot; {{ point.source }}{% if not point.precise %} &middot; approximate{% endif %}</span></li>
@@ -907,6 +909,7 @@
                 </ul>
                 {% endif %}
                 {% if geographic_data.unplotted %}
+                {% if not geographic_data.points %}<p class="subsection-blurb">No location signal could be placed on a map: none carried coordinates and none of the named places resolved.</p>{% endif %}
                 <p class="empty-note">Not plottable ({{ geographic_data.unplotted | length }}): {% for loc in geographic_data.unplotted %}{{ loc.value }} <span class="summary-meta">({{ loc.source }})</span>{% if not loop.last %}, {% endif %}{% endfor %}</p>
                 {% endif %}
             </div>

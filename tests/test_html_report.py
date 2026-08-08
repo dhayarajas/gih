@@ -13,6 +13,7 @@ from src.reporting.html_report import (
     HTML_TEMPLATE,
     LEGAL_TEMPLATE,
     TECHNICAL_TEMPLATE,
+    _bio_countries,
     _format_metadata_value,
     _generate_geographic_data,
     _generate_identity_images,
@@ -787,6 +788,22 @@ class TestToolRunStatus:
             "sherlock", [{"exit_status": "exit 1"}], {"username"}
         ) == "ran but failed (exit 1)"
 
+    def test_a_corrected_status_reads_as_an_answer(self):
+        """The integrations restate a run their exit code misreported."""
+        from src.modules.external_tools import STATUS_NO_RECORD, STATUS_REPORTED
+        from src.reporting.report_data import _silence_reason
+
+        assert _silence_reason(
+            "whois", [{"exit_status": STATUS_NO_RECORD}], {"domain"}
+        ) == "ran on 1 target(s) and found nothing"
+        assert _silence_reason(
+            "holehe", [{"exit_status": STATUS_REPORTED}], {"email"}
+        ) == "ran on 1 target(s) and found nothing"
+        assert _silence_reason(
+            "whois", [{"exit_status": STATUS_NO_RECORD}, {"exit_status": "exit 2"}],
+            {"domain"},
+        ) == "ran but failed (exit 2)"
+
     def test_a_tool_with_nothing_to_run_against_says_so(self):
         from src.reporting.report_data import _silence_reason
 
@@ -913,3 +930,45 @@ class TestABioIsNotAPlace:
         )
         data = _generate_geographic_data([], db.get_platform_presences(conn, inv_id))
         assert data["locations"] == []
+
+    @pytest.mark.parametrize("bio", [
+        "Follow us for updates",
+        "DM us, we reply",
+        "join us",
+        "us",
+    ])
+    def test_an_invitation_is_not_a_country(self, bio):
+        """"Follow us" placed every such account in the United States."""
+        assert _bio_countries(bio) == []
+
+    @pytest.mark.parametrize("bio,expected", [
+        ("Based in the UK", ["United Kingdom"]),
+        ("Writing from the USA", ["United States"]),
+        ("living in US", ["United States"]),
+        ("Moved from India to Germany", ["India", "Germany"]),
+        ("Germany, Germany, Germany", ["Germany"]),
+        ("Team in the uk", []),
+    ])
+    def test_a_country_is_read_once_and_only_when_claimed(self, bio, expected):
+        assert _bio_countries(bio) == expected
+
+
+class TestAMapWithNothingToPlot:
+    """An empty frame reported a network failure over having nothing to draw."""
+
+    def test_an_unplottable_signal_does_not_claim_the_map_broke(
+        self, conn, tmp_path, monkeypatch
+    ):
+        from src.reporting import geo
+
+        monkeypatch.setattr(geo, "_geocode", lambda place: None)
+        inv_id = db.create_investigation(conn, title="Unplottable")
+        db.add_artifact(conn, inv_id, "location", "Nowhere in particular",
+                        source="plugin:MaigretPlugin", confidence=0.5)
+        html = render(conn, inv_id, tmp_path)
+
+        assert "Where the subject appears" in html
+        assert "Map tiles could not be loaded" not in html
+        assert 'id="gih-map"' not in html
+        assert "No location signal could be placed on a map" in html
+        assert "Nowhere in particular" in html

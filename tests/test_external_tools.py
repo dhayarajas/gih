@@ -21,6 +21,7 @@ from src.modules.tool_parsers import (
 )
 from src.orchestrator import _artifact_metadata
 from src.storage import database as db
+from src.storage.evidence import EvidenceCapture
 from src.utils import tool_checker
 
 SHERLOCK_OUTPUT = """[*] Checking username octocat on:
@@ -403,6 +404,16 @@ class TestDamagedReports:
         assert any(a["value"] == "93.184.216.34" for a in result.artifacts_discovered)
 
 
+def _capture(tool: str, exit_status: str = "exit 1") -> EvidenceCapture:
+    """The evidence row run_tool would have written for a failing run."""
+    return EvidenceCapture(
+        investigation_id="INV-test", tool=tool, operation=None, target=None,
+        command=tool, tool_version=None, captured_at="2026-01-01T00:00:00+00:00",
+        duration_seconds=0.0, exit_status=exit_status, sha256="0" * 64,
+        byte_size=0, stored_path="/dev/null",
+    )
+
+
 class TestAnExitCodeIsNotTheResult:
     """Three tools reported failure on runs that had in fact answered."""
 
@@ -415,6 +426,7 @@ class TestAnExitCodeIsNotTheResult:
             return ToolResult(
                 tool_name=tool_name, success=False, output=output,
                 error_message="Tool exited with code 1",
+                capture=_capture(tool_name),
             )
 
         monkeypatch.setattr(integration, "run_tool", fake_run_tool)
@@ -493,3 +505,48 @@ class TestAnExitCodeIsNotTheResult:
         assert not result.success
         assert "timed out" in result.error_message
         assert recorded["exit_status"] == "timeout"
+
+
+class TestTheReportReadsThePreservedRun:
+    """Correcting only the result object leaves the report saying "failed"."""
+
+    @staticmethod
+    def _fails(monkeypatch, integration, output="", write=None):
+        return TestAnExitCodeIsNotTheResult._fails(
+            monkeypatch, integration, output=output, write=write
+        )
+
+    def test_a_no_match_lookup_is_recorded_as_an_answer(self, monkeypatch):
+        from src.modules.external_tools import STATUS_NO_RECORD, WhoisIntegration
+
+        integration = WhoisIntegration()
+        self._fails(monkeypatch, integration, output='No match for "A.B.COM".\n')
+
+        result = integration.lookup_domain("a.b.com")
+
+        assert result.capture.exit_status == STATUS_NO_RECORD
+
+    def test_a_holehe_run_that_reported_is_recorded_as_one(self, monkeypatch):
+        from src.modules.external_tools import STATUS_REPORTED, HoleheIntegration
+
+        integration = HoleheIntegration()
+        self._fails(
+            monkeypatch, integration,
+            write=lambda cwd: Path(cwd, "results.csv").write_text(
+                "name,domain,method,frequent_rate_limit,rateLimit,exists,"
+                "emailrecovery,phoneNumber,others\n"
+                "github,github.com,register,False,False,True,,,\n"
+            ),
+        )
+
+        result = integration.check_email("octocat@github.com")
+
+        assert result.capture.exit_status == STATUS_REPORTED
+
+    def test_a_genuine_failure_keeps_its_exit_code(self, monkeypatch):
+        from src.modules.external_tools import WhoisIntegration
+
+        integration = WhoisIntegration()
+        self._fails(monkeypatch, integration, output="connect: refused\n")
+
+        assert integration.lookup_domain("example.com").capture.exit_status == "exit 1"

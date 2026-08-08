@@ -47,7 +47,11 @@ Cross-cutting rules:
   overrule it: `holehe` writes its CSV and then exits 1 whatever it found, so the
   report wins over the code; and `whois` exits 1 with "No match" for every name a
   registry does not hold (which is every subdomain), which is an answer, not a
-  fault, and is recorded as a run that found nothing.
+  fault, and is recorded as a run that found nothing. Overruling the exit code on
+  the `ToolResult` alone would not be enough: the report's tool status is derived
+  from the preserved run, so `_restate()` also corrects the recorded
+  `exit_status` to `no record` or `reported results`, which
+  `report_data.ANSWERED_STATUSES` reads as an answer rather than a failure.
 - **Output caps**: each tool run contributes at most
   `MAX_ARTIFACTS_PER_TOOL = 15` artifacts, so a noisy enumeration cannot blow up
   the BFS frontier or the report.
