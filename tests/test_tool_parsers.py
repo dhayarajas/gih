@@ -337,6 +337,15 @@ class TestWhois:
         # A privacy proxy's address is the proxy's, not the registrant's.
         assert places[0]["confidence"] < 0.5
 
+    def test_a_domain_with_many_name_servers_keeps_its_place(self):
+        output = (WHOIS_OUTPUT
+                  + "   Registrant Country: US\n"
+                  + "".join(f"   Name Server: NS{i}.EXAMPLE.COM\n" for i in range(30)))
+        _, artifacts = tool_parsers.parse_whois(output, "example.com")
+
+        assert len(artifacts) == tool_parsers.MAX_ARTIFACTS_PER_TOOL
+        assert [a["value"] for a in artifacts if a["type"] == "location"] == ["US"]
+
     def test_a_redacted_registrant_claims_no_place(self):
         _, artifacts = tool_parsers.parse_whois(WHOIS_OUTPUT, "example.com")
         assert not [a for a in artifacts if a["type"] == "location"]
@@ -485,6 +494,19 @@ class TestShodan:
         _, artifacts = tool_parsers.parse_shodan_host(report, "1.2.3.4")
 
         assert [a["value"] for a in artifacts if a["type"] == "location"] == ["Germany"]
+
+    def test_a_busy_host_keeps_its_place(self):
+        """The per-tool cap must not spend the one place on the many ports."""
+        report = json.dumps({
+            "ports": list(range(1, 100)),
+            "location": {"city": "Fremont", "country_name": "United States"},
+        })
+        _, artifacts = tool_parsers.parse_shodan_host(report, "45.33.32.156")
+
+        assert len(artifacts) == tool_parsers.MAX_ARTIFACTS_PER_TOOL
+        assert [a["value"] for a in artifacts if a["type"] == "location"] == [
+            "Fremont, United States",
+        ]
 
     def test_a_host_with_no_place_claims_none(self):
         report = json.dumps({"org": "Linode", "ports": [22]})
