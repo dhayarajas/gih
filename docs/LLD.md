@@ -29,10 +29,11 @@ Click group `cli` with options `--verbose/-v` and `--db` (stored in the Click co
 | Command | Key options | Behaviour |
 | --- | --- | --- |
 | `investigate` | `-p/--phone`, `-e/--email`, `-u/--username`, `-i/--image`, `-n/--name`, `-d/--depth`, `--no-breach`, `--no-username-search`, `--no-images`, `--use-external-tools/--no-external-tools`, `--check-tools`, `--use-neo4j`, `--neo4j-uri/-user/-password/-database`, `--use-google-dorks`, `--google-api-key`, `--google-cx`, `--use-google-api`, `--search-engine`, `--auto-report/--no-auto-report`, `--report-format` | Builds a `seeds` list of `{"type", "value"}` dicts, constructs `InvestigationConfig`, opens a connection with `db.get_connection(db_path)`, calls `run_investigation`, prints a summary and optionally generates reports |
-| `report` | `--id`, `--format {html,json,both}`, `--output` | Calls `generate_html_report` and/or `generate_json_report` |
-| `graph` | `--id`, `--output` | Calls `generate_interactive_graph` and prints `get_graph_stats` |
+| `report` | `--id`, `--format {html,json,both,pdf,csv}`, `--output`, `--template {standard,executive,technical,legal}`, `--sections`, `--redact`, `--compare` | Calls `generate_html_report` / `generate_json_report`, then `exports.py` for PDF or CSV |
+| `graph` | `--id`, `--output`, `--layout {organic,hierarchical,circular}`, `--collection-threshold` | Calls `generate_interactive_graph` and prints `get_graph_stats` |
 | `list` | — | `db.list_investigations` in a table |
 | `correlate` | `--id` | `correlate_identities` and prints identity profiles |
+| `evidence` | `--id`, `--show-path` | Re-hashes every preserved capture against its recorded digest; exits non-zero if anything was altered or is missing |
 | `plugins` | `list`, `info <name>`, `enable <name>`, `disable <name>` | Wraps `PluginRegistry` (see gaps) |
 
 `--check-tools` short-circuits `investigate`: it instantiates `ToolChecker`, prints available and missing tools and returns without running an investigation.
@@ -101,17 +102,20 @@ Phases:
 
 ```python
 queue: deque[dict] = deque()
-seen: set[str] = set()
+seen: dict[str, str] = {}   # "type:value" -> artifact_id
 ...
 while queue:
-    batch_size = min(max_concurrent, len(queue))
-    batch = [queue.popleft() for _ in range(batch_size)]
+    current_level = list(queue)   # one whole BFS level at a time
+    queue.clear()
     ...
 ```
 
-- **Single-artifact batch** — processed inline on the caller's connection via `_process_artifact`.
-- **Multi-artifact batch** — a `ThreadPoolExecutor(max_workers=batch_size)` runs `_process_artifacts_generator`-style workers; each worker opens its **own** `db.get_connection()` so SQLite objects are not shared across threads, and closes it in a `finally` block.
-- Results are merged back on the main thread, where dedup and persistence happen.
+The loop runs **level by level**, in two phases:
+
+- **Parallel phase (no DB writes).** A `ThreadPoolExecutor(max_workers=min(max_parallel_workers, len(level)))` runs `_process_artifact` over the level. Workers do network and subprocess work only, so no SQLite object is shared across threads and abandoning a worker is safe. A worker that raises is logged against its artifact and costs only that artifact.
+- **Serial phase (main thread).** Results are applied in order: source metadata, platform presences, then dedup and expansion.
+
+The wall-clock budget is enforced both at level boundaries and *inside* a level, via `as_completed(futures, timeout=remaining)` — a single large level could otherwise run for hours. On the deadline the executor is shut down with `cancel_futures=True` and whatever completed in time is processed.
 
 Dedup and expansion, for each discovered artifact of a processed artifact `current_id` at `current_depth`:
 
@@ -145,7 +149,7 @@ if current_depth < config.max_depth:
         )
 ```
 
-`metadata` values that arrive as dicts (plugin results) are JSON-encoded before insertion. Artifacts discovered at `current_depth == max_depth` are discarded entirely — they are neither persisted nor linked.
+`metadata` values that arrive as dicts (plugin results) are JSON-encoded before insertion. Artifacts discovered at `current_depth == max_depth` are not expanded further. An artifact already in `seen` is not re-added, but the edge to it *is* recorded — otherwise a seed IP rediscovered via DNS stays disconnected from the identity that found it and its nmap findings are attributed to nobody. `max_total_artifacts` bounds enqueueing without discarding the metadata and presence writes for results already in hand.
 
 ### 2.4 `_process_artifact`
 
@@ -209,10 +213,15 @@ Only results with `status.value == "success"` contribute; each plugin artifact b
 
 ### 2.7 Correlation and finalization
 
-- Non-Neo4j path: `correlation.analyze_correlation(artifacts, links)` (lightweight metrics only).
+- Non-Neo4j path: `_safe_correlation` → `correlation.analyze_correlation(artifacts, links)` (lightweight metrics only). Everything is already stored by this point, so a failure here costs the metrics rather than the run and its report — bare counts are returned instead.
 - Neo4j path (`config.use_neo4j`): `Neo4jCorrelation(uri, user, password, database)`; artifacts and links are pushed to Neo4j and analysed with Cypher, with fallback to the NetworkX path on failure.
 - The resulting dict is stored as `investigation_metadata` key `correlation_analysis`.
+- The metadata insert is itself guarded: a failure to persist the analysis is logged, not raised, since the findings it summarises are already on disk.
 - `risk_indicators` are collected by scanning artifact metadata for `risk_indicators` entries and de-duplicated.
+
+### 2.8 Stopping early
+
+An investigation costs minutes and dispatches dozens of tools, so `run_investigation` wraps `_run_investigation` and re-raises ordinary failures as `InvestigationAborted(investigation_id, cause)` — `KeyboardInterrupt` is preserved. Findings are written as they are made, so the CLI catches it, rebuilds the counts from the database with `_partial_result`, and reports on what was found under an "Investigation Stopped Early" header rather than printing a traceback over it. Worker exceptions inside a BFS level are isolated per artifact and become a failed `ToolResult`.
 
 ## 3. OSINT Modules
 
@@ -265,9 +274,17 @@ All modules live in `src/modules/` and follow the same contract: an `analyze_*`/
 - Execution: patterns are truncated to `max_patterns` (default 3 from config), executed in a thread pool, and routed by `_determine_search_engine()` to Google scraping (the `auto` default), DuckDuckGo, or the Google Custom Search API when `use_api` and credentials are present. Retries use exponential backoff with jitter; results are cached on disk when `cache_dir` is set; total results are capped by `max_results_per_search`.
 - `run_google_dorks_search(...)` flattens `DorkResult.artifacts_discovered` across patterns; `check_google_dorks_availability(...)` returns `True` unconditionally.
 
-### 3.8 `external_tools.py`
+### 3.8 `external_tools.py` and `tool_parsers.py`
 
 See [§5](#5-external-tools).
+
+### 3.8.1 `leakosint.py`
+
+Keyed breach-record lookup against `https://leakosintapi.com/`, whose records lead the report when present. The token comes from the `leakosint` plugin config or `LEAKOSINT_API_KEY`. The API rejects a `limit` outside 100–10000 *and* temporarily blocks the token for it, so requests are clamped to `MIN_LIMIT`/`MAX_LIMIT` and throttled to one per `MIN_REQUEST_INTERVAL`. Non-200 replies keep the body's explanation rather than reporting a bare status code, and every failure path logs the query and reason — the token never reaches a log, report or database row. `search()` returns `LeakOsintResult` of `LeakRecord`s grouped by source database.
+
+### 3.8.2 `utils/matching.py`
+
+The strict-match policy shared by the orchestrator and the modules: a finding must carry the target's exact handle on a token boundary (`contains_exact`) or as a host label, or it is not attributed to them. `filter_full_matches` applies it to `ACCOUNT_ARTIFACT_TYPES`, and the dropped count is logged per artifact.
 
 ### 3.9 `correlation.py` and `correlation_neo4j.py`
 
@@ -347,6 +364,7 @@ Execution of a single plugin:
 | `ShodanPlugin` | `Shodan` | `ip_address`, `domain` | `check_tool_availability("shodan")` | `shodan` CLI subprocess |
 | `ProfileImagePlugin` | `profile_image` | `platform_presence` | `bs4` importable | HTML scraping for avatar URLs |
 | `ImageMatchPlugin` | `image_match` | `fullname` | `face_recognition` importable | `image_match.search_and_match_identity` |
+| `LeakosintPlugin` | `leakosint` | `email`, `phone`, `username`, `fullname` | API token configured | `leakosint.search`; records lead the report |
 | `MaigretPlugin` | `maigret` | `username` | `check_tool_availability("maigret")` | `MaigretIntegration.search_username` |
 | `OsrframeworkPlugin` | `osrframework` | `username` | `check_tool_availability("osrframework")` (resolves `usufy`) | `OsrframeworkIntegration.search_username` |
 | `HolehePlugin` | `holehe` | `email` | `check_tool_availability("holehe")` | `HoleheIntegration.check_email` |
@@ -380,40 +398,50 @@ class NmapPlugin(IntegrationPlugin):
 ### 5.1 `ToolChecker` (`src/utils/tool_checker.py`)
 
 - Holds 35 `ToolInfo` entries: `sherlock`, `maigret`, `social_analyzer`, `holehe`, `emailharvester`, `theharvester`, `whois`, `dig`, `amass`, `subfinder`, `sublist3r`, `nmap`, `masscan`, `whatweb`, `wappalyzer`, `recon-ng`, `spiderfoot`, `osrframework`, `shodan`, `ghunt`, `photon`, `metagoofil`, `exiftool`, `wayback_machine`, `etherscan`, `google_dorks`, `geonames`, `curl`, `wget`, `nslookup`, `nikto`, `sqlmap`, `tor_browser`, `flagfox`, `user_agent_switcher`.
+- `UNIMPLEMENTED_TOOLS` records, per declared-but-undispatched tool, *why* it is not run, so `--check-tools` can say so rather than implying an install would help. `dig` and `nslookup` sit here deliberately: given an email seed they resolve the mail provider, so their records would be attributed to the subject.
 - Availability is resolved with `shutil.which` plus an optional version probe, cached per process. `check_all_tools()`, `get_available_tools()`, `get_missing_tools()` and `print_tool_status()` support the CLI's `--check-tools`.
 - `check_tool_availability(name)` is the module-level convenience used by the orchestrator and by tool-backed plugins. `skip_if_not_available(name)` is a decorator that returns a skipped `ToolResult` instead of executing.
 
 ### 5.2 Implemented integrations
 
-`ExternalToolsIntegration` provides `run_tool(tool_name, command, timeout=60)` (a `subprocess.run` wrapper capturing stdout/stderr, exit code and duration into `ToolResult`), plus JSON and regex-based artifact extraction helpers.
+`ExternalToolsIntegration` provides `run_tool(tool_name, command, timeout=…)`, which delegates to `_run_subprocess` and records the raw output as evidence before parsing it.
 
-`get_tool_integrations()` returns exactly nine singletons:
+**Process lifetime.** `subprocess.run(timeout=…)` signals only the process it started. Tools that fork (amass, theHarvester) left children holding the pipes, and the cleanup read after the kill then blocked with no deadline — the timeout silently stopped applying and the investigation hung. So each tool is started with `start_new_session=True` (POSIX) and the whole group is signalled: SIGTERM, then SIGKILL 5s later. What the tool printed before its deadline is kept rather than discarded, bytes are decoded with `errors="replace"` (tools echo filenames in whatever encoding they were handed, and strict decoding threw away whole runs), and the combined output is capped at `MAX_TOOL_OUTPUT_BYTES` (32 MB).
+
+`get_tool_integrations()` returns 14 singletons:
 
 ```python
 {
-    "sherlock": _sherlock,
-    "theharvester": _theharvester,
-    "shodan": _shodan,
-    "amass": _amass,
-    "whois": _whois,
-    "nmap": _nmap,
-    "exiftool": _exiftool,
-    "wayback_machine": _wayback,
+    "sherlock": _sherlock, "maigret": _maigret, "holehe": _holehe,
+    "osrframework": _osrframework, "theharvester": _theharvester,
+    "subfinder": _subfinder, "sublist3r": _sublist3r, "whatweb": _whatweb,
+    "shodan": _shodan, "amass": _amass, "whois": _whois, "nmap": _nmap,
+    "exiftool": _exiftool, "wayback_machine": _wayback,
 }
 ```
 
 | Tool | Method | Command / transport | Artifacts produced |
 | --- | --- | --- | --- |
-| `sherlock` | `search_username` | `sherlock <user> --json --folderoutput /tmp` | `platform_presence` |
-| `theharvester` | `harvest_email`, `harvest_subdomains` | `theHarvester -d <domain> -b google -e all` / `-h all` | `email`, `domain` |
-| `shodan` | `search_host` | `shodan host <ip>` | host/service facts |
-| `amass` | `enumerate_subdomains` | `amass enum -passive -d <domain>` | `domain` |
-| `whois` | `lookup_domain` | `whois <domain>` | registrar, dates, `email` |
-| `nmap` | `scan_host` | `nmap` with a common-ports profile | open ports/services |
-| `exiftool` | `extract_metadata` | `exiftool -json <file>` | EXIF metadata, `location` |
-| `wayback_machine` | `get_historical_urls` | HTTP GET to the Wayback CDX API (no binary) | historical `url` entries |
+| `sherlock` | `search_username` | `sherlock <user> --print-found --no-color --no-txt` | `username_presence` |
+| `maigret` | `search_username` | `maigret <user> --top-sites N -J ndjson -fo <dir>` | `username_presence`, plus fullname / image / location / bio / counts |
+| `osrframework` | `search_username` | `usufy -n <user> -t social -e json -o <dir>` | `username_presence` |
+| `holehe` | `check_email` | `holehe <email> --only-used --no-color --csv` | `email_presence` |
+| `theharvester` | `harvest_email`, `harvest_subdomains` | `theHarvester -d <domain> -b <source> -f <report>` | `email`, `subdomain`, `ip_address`, `url` |
+| `subfinder` | `enumerate_subdomains` | `subfinder -d <domain> -silent -json` | `subdomain` |
+| `sublist3r` | `enumerate_subdomains` | `sublist3r -d <domain>` | `subdomain` |
+| `whatweb` | `fingerprint` | `whatweb --log-json=<file> <target>` | `web_technology`, `ip_address` |
+| `shodan` | `search_host` | `shodan host <ip>` | ports, services, hostnames |
+| `amass` | `enumerate_subdomains` | `amass enum -passive -d <domain>` | `subdomain` |
+| `whois` | `lookup_domain` | `whois <domain>` | registrar, dates, org, `email`, every name server |
+| `nmap` | `scan_host` | `nmap` with a common-ports profile (XML report) | `open_port` with service/product |
+| `exiftool` | `extract_metadata` | `exiftool -json <file>` | EXIF metadata, GPS, `location` |
+| `wayback_machine` | `get_historical_urls` | HTTP GET to the Wayback CDX API (no binary) | `historical_url` |
 
 Everything else in the `ToolChecker` registry is **detection-only**: it can be reported as installed or missing, but no code path executes it.
+
+### 5.2.1 `src/modules/tool_parsers.py`
+
+Each integration hands its output to that tool's own parser rather than to one shared regex; a sherlock-shaped `[+] Platform: url` pattern applied to maigret, nmap or whois under-collected badly. Structured output (Maigret NDJSON, WhatWeb JSON, Nmap XML) falls back to stdout parsing when the file is absent, malformed or empty. `MAX_ARTIFACTS_PER_TOOL` (15) caps each tool, and theHarvester counts contacts and host/network findings against separate caps so a large email set cannot suppress subdomains.
 
 ### 5.3 `run_tool_analysis`
 
@@ -421,17 +449,15 @@ Everything else in the `ToolChecker` registry is **detection-only**: it can be r
 def run_tool_analysis(tool_name: str, analysis_type: str, target: str) -> ToolResult:
 ```
 
-It looks up the integration, then builds a dispatch dictionary that dereferences **all** integration methods for **all** tools off the single selected `integration` object:
+Results are memoized on `(tool_name, analysis_type, target)` under a lock, and the cache is cleared per investigation. The method is resolved lazily off the class-level `ANALYSIS_METHODS[tool][analysis]` name, so only the selected tool's own method is dereferenced:
 
 ```python
-analysis_methods = {
-    "sherlock": {"username_search": integration.search_username},
-    "theharvester": {"email_harvest": integration.harvest_email, ...},
-    ...
-}
+method = getattr(integration, ANALYSIS_METHODS[tool_name][analysis_type])
+with evidence.analysing(analysis_type, target):
+    result = method(target)
 ```
 
-Because each integration class implements only its own method, building this dictionary raises `AttributeError` for every tool (verified: `run_tool_analysis("wayback_machine", "historical_urls", "example.com")` raises `'WaybackMachineIntegration' object has no attribute 'search_username'`). The orchestrator's broad `except Exception` swallows it, so external-tool discovery currently contributes no artifacts. Fixing this requires resolving the method lazily, for example `getattr(integration, method_name)` only for the selected tool.
+An unknown tool or analysis type returns a failed `ToolResult` rather than raising, and `skip_if_not_available` returning `None` becomes a `ToolResult` naming the missing binary. `check_wiring()` (§4.5) fails the test suite for any plugin naming an analysis type `ANALYSIS_METHODS` does not define.
 
 ## 6. Correlation Engine
 
@@ -508,8 +534,13 @@ File: `src/storage/database.py`. Full ER diagram in [ARCHITECTURE.md §5](ARCHIT
 | `platform_presence` | `presence_id` PK, `investigation_id` FK, `artifact_id` FK, `platform_name`, `profile_url`, `username`, `display_name`, `bio`, `profile_image_url`, `account_created`, `last_active`, `follower_count`, `is_verified` |
 | `investigation_metadata` | `metadata_id` PK, `investigation_id` FK, `key`, `value`, `created_at` |
 | `audit_trail` | `audit_id` PK, `investigation_id` FK, `action`, `entity_type`, `entity_id`, `details`, `performed_at` |
+| `evidence` | `evidence_id` PK, `investigation_id` FK, `tool`, `operation`, `target`, `command`, `captured_at`, `duration_seconds`, `exit_status`, `sha256`, `byte_size`, `stored_path`, `truncated` |
 
-Indexes cover `artifacts(investigation_id)`, `artifacts(artifact_type)`, `artifact_links(investigation_id)` and `platform_presence(investigation_id)`.
+Indexes cover `artifacts(investigation_id)`, `artifacts(artifact_type)`, `artifact_links(investigation_id)` and `platform_presence(investigation_id)`. `_add_missing_columns` adds columns introduced after a database was created, so an older file keeps working.
+
+### 7.2.1 Preserved evidence (`src/storage/evidence.py`)
+
+Raw tool output is written verbatim to `<evidence.directory>/<investigation_id>/<sha256>.txt` and its digest, byte size, command, duration and `tool_version` recorded, so a finding can be re-verified against the material it came from. `begin`/`end` bracket an investigation, `record` preserves one output (a no-op when disabled or outside an investigation, so unit tests and plugin dry-runs are safe), `flush` writes the rows and `verify` re-hashes them. Captures are truncated at `MAX_CAPTURE_BYTES` (2 MB) and written `0700`/`0600` since they hold subject data. The `analysing(operation, target)` context manager labels captures taken deep inside an integration.
 
 ### 7.3 Key functions
 
@@ -537,6 +568,9 @@ def generate_html_report(
     investigation_id: str,
     output_path: Optional[str] = None,
     template_type: str = "standard",
+    sections: Optional[str] = None,
+    redact: bool = False,
+    compare_id: Optional[str] = None,
 ) -> str:
 ```
 
@@ -545,8 +579,9 @@ Steps:
 1. Read investigation, artifacts, links, platform presences and audit trail from SQLite.
 2. `correlate_identities(conn, investigation_id)` for identity profiles; per-profile risk score and level from `scorer`.
 3. Build derived sections: investigation timeline, key findings, confidence metrics, risk matrix, recommendations, priority queue, geographic data, platform heatmap, correlation strength, verification status, anomaly detection and automatic escalation flags.
-4. `_generate_embedded_graph(...)` calls `generate_interactive_graph` into a temporary file and inlines the resulting HTML.
-5. `_select_template(template_type)` chooses between `HTML_TEMPLATE` (standard), `EXECUTIVE_TEMPLATE`, `TECHNICAL_TEMPLATE` and `LEGAL_TEMPLATE` — all module-level strings, not files on disk.
+4. Build the `report_data` sections: prioritised leak records, per-artifact detail views, preserved-evidence verification, source citations, evidence chains, orphan findings, tool-status enrichment, cross-investigation hits and the delta against `compare_id`.
+5. `_generate_embedded_graph(...)` calls `generate_interactive_graph` into a temporary file and inlines the resulting HTML, with node links pointing at each artifact's detail anchor.
+6. `_select_template(template_type)` chooses between the standard template (read from `src/reporting/templates/standard.html`) and the module-level `EXECUTIVE_TEMPLATE`, `TECHNICAL_TEMPLATE` and `LEGAL_TEMPLATE` strings.
 6. Render and write:
 
 ```python
@@ -556,6 +591,10 @@ html = template.render(...)
 ```
 
 Default output path is `reports/{investigation_id}_report.html`; the function returns the path written.
+
+**Redaction (`redact=True`).** `report_data` masks `REDACT_TYPES` (phone, email, image, fullname, GPS, location) and replaces `REDACT_URL_TYPES` values with `[REDACTED_URL]` — masking characters out of an avatar or profile URL leaves the handle standing. Platform biographies are masked too, and the walk recurses through nested metadata. Ordering matters: cross-investigation matching queries the database with the *stored* values and masks only the rows it returns, since looking up `[REDACTED]` finds nothing.
+
+**PDF and CSV.** `src/reporting/exports.py` renders the generated HTML through WeasyPrint (`_simplify_html_for_pdf` first strips the interactive graph and dark styling) and writes artifact/presence CSVs.
 
 ### 8.2 `generate_json_report`
 
@@ -571,7 +610,9 @@ Serialises `metadata` (generator, version, timestamp), `investigation`, `summary
 
 ### 8.3 `src/graph/visualizer.py`
 
-- `generate_interactive_graph(conn, investigation_id, output_path=None)` builds the identity graph via `build_identity_graph`, converts it into a pyvis `Network` (forceAtlas2Based physics, per-type node styling, edge width scaled by confidence) and writes standalone HTML to `reports/{investigation_id}_graph.html`.
+- `generate_interactive_graph(conn, investigation_id, output_path=None, layout=None, collection_threshold=None)` builds the identity graph via `build_identity_graph`, converts it into a pyvis `Network` (per-type node styling, edge width scaled by confidence) and writes standalone HTML to `reports/{investigation_id}_graph.html`.
+- `LAYOUTS` = `organic` (forceAtlas2Based), `hierarchical`, `circular`; `--layout` or `graph.layout` selects one.
+- `build_collections` collapses a node's same-type leaf neighbours into one labelled count node once there are `collection_threshold` of them (default 8, `0` disables), which keeps a large investigation legible; `_interaction_script` expands a collection on click.
 - `get_graph_stats(conn, investigation_id)` returns node and edge counts, connected components, density, artifact-type distribution and degree statistics.
 - Node/edge styling in this module uses colour, which is a runtime visual concern and independent of the colourless Mermaid diagrams in this documentation set.
 
@@ -593,12 +634,12 @@ Serialises `metadata` (generator, version, timestamp), `investigation`, `summary
 | `/api/v1/investigations` | POST | Builds `InvestigationConfig` from the JSON `config` block and runs `run_investigation` synchronously; returns 201 with counts |
 | `/api/v1/investigations` | GET | `list_investigations` |
 | `/api/v1/investigations/<id>` | GET | `get_investigation`, 404 when absent |
-| `/api/v1/investigations/<id>/report` | GET | `?format=json` → `generate_json_report`, otherwise `generate_html_report` |
+| `/api/v1/investigations/<id>/report` | GET | `?format=json\|html\|pdf\|csv`, with `template`, `sections`, `redact` and `compare` query parameters; PDF and CSV are served through `exports.py` as attachments |
 | `/api/v1/investigations/<id>/artifacts` | GET | Direct SQL over `artifacts` |
 | `/api/v1/investigations/<id>/links` | GET | Direct SQL over `artifact_links` |
-| `/api/v1/investigations/<id>/risk` | GET | Direct SQL over a `risk_indicators` table |
+| `/api/v1/investigations/<id>/risk` | GET | Risk indicators read from `investigation_metadata` |
 
-Defects in this layer are listed in [§12](#12-known-gaps); the API is the least code-consistent subsystem in the repository.
+Caveats for this layer are listed in [§12](#12-known-gaps).
 
 ## 11. Collaboration
 
@@ -620,21 +661,21 @@ Defects in this layer are listed in [§12](#12-known-gaps); the API is the least
 
 | # | Area | Gap |
 | --- | --- | --- |
-| 1 | External tools | `run_tool_analysis` dereferences every tool's method on the selected integration and raises `AttributeError` before dispatch; the orchestrator's `except Exception` hides it, so no external tool currently yields artifacts |
-| 2 | External tools | 35 tools are declared in `ToolChecker`, 9 have integrations; the remainder are detection-only |
+| 1 | External tools | Output is held in memory in full before the 32 MB cap is applied, and the cap is not applied to the partial output of a timed-out tool |
+| 2 | External tools | 35 tools are declared in `ToolChecker`, 14 have integrations; the remainder are detection-only, each with a recorded reason |
 | 3 | Correlation | `IdentityProfile` exposes only phones, emails, usernames, images and platforms; `fullname` artifacts join the graph but never appear on a profile |
 | 4 | Correlation | Undirected `nx.Graph` and `connected_components`, despite "weakly connected components" wording elsewhere |
 | 5 | Breach data | `check_email_breaches` returns mock breaches when no HIBP key is configured, and the orchestrator never passes one |
 | 6 | Email OSINT | Gravatar, GitHub and HIBP checks are nested under the `is_corporate` branch and are skipped for free-provider domains |
 | 7 | Google Dorks | `check_google_dorks_availability` always returns `True`, so dorking runs for usernames even when `--use-google-dorks` is not passed |
-| 8 | Orchestrator | BFS completion log lives inside the `while` loop; `processed_count` is double-incremented on the single-artifact path |
-| 9 | Orchestrator | Dedup via `seen` is applied after concurrent workers return, so intra-batch duplicates rely on `add_artifact`'s non-transactional existence check |
-| 10 | Storage | `investigation_metadata` inserts omit the `metadata_id` primary key |
-| 11 | Storage | `audit_trail` helpers exist and reports read them, but nothing writes audit rows |
-| 12 | API | `InvestigationConfig(use_external_tools=...)` is not a valid field (`check_external_tools`), the `risk_indicators` table does not exist, `artifact_links` columns are misnamed, connections are closed before report generation, and `generate_json_report`'s return value is a path being `jsonify`d |
+| 8 | Orchestrator | A run that exhausts its runtime or artifact budget completes and reports normally, so a report can describe a partial investigation |
+| 9 | Evidence | One process-global capture session: concurrent investigations in the same process (the HTTP API) share it, and captures have no retention policy |
+| 10 | Reporting | The legal template's chain-of-custody claim covers the external tools and the web-archive query only — the built-in HTTP modules are not preserved |
+| 11 | LeakOSINT | A failed API call is reported as `silent_or_not_dispatched`, the same status as never having run; the reason is only in the log |
+| 12 | API | Investigations run synchronously inside the Flask request, sharing the process-global evidence session and tool-analysis cache |
 | 13 | CLI | `plugins list/info` call `registry.get_plugin`, `plugin.version`, `plugin.description` and `plugin.is_enabled()`, none of which exist; `plugins enable/disable` only mutate memory |
 | 14 | Plugins | `PluginManager` reads config by class name while `config.yaml` uses snake_case tool names, so per-plugin YAML settings never apply; `get_plugin_config` also maps `timeout` onto `plugin_settings.rate_limit_seconds` (0.1 s in the shipped config) |
-| 15 | Reporting | `_select_template` and `_generate_key_findings` are each defined twice in `html_report.py` |
+| 15 | Reporting | Report output paths are relative (`reports/...`), so files land under the current working directory |
 
 ## 13. Sequence Diagrams
 

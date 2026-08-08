@@ -38,16 +38,21 @@ CLI / API
    ▼
 orchestrator.run_investigation
    │  BFS by depth level
-   ├─► modules/*          (phone, email, username, image, breach, dorks)
+   ├─► modules/*          (phone, email, username, image, breach, dorks, leakosint)
    ├─► modules/external_tools.py  (subprocess OSINT CLIs)
+   │        └─► modules/tool_parsers.py  (one parser per tool's own format)
    ├─► plugins/manager.py → builtins/*
-   └─► storage/database.py (artifacts, links, presence)
+   ├─► storage/evidence.py (hashed raw-output captures)
+   └─► storage/database.py (artifacts, links, presence, evidence)
          │
          ▼
 correlation/linker.py + scorer.py
          │
          ▼
-reporting/html_report.py + graph/visualizer.py
+reporting/report_data.py (derived sections, redaction)
+         │
+         ▼
+reporting/html_report.py + templates/standard.html + graph/visualizer.py
 ```
 
 ---
@@ -67,10 +72,11 @@ Package marker for Ghost Identity Hunter. Docstring only; no runtime logic.
 | Command | Role |
 | --- | --- |
 | `investigate` | Build seeds → `InvestigationConfig` → `run_investigation` → optional auto-report |
-| `report` | HTML and/or JSON report for an investigation ID |
-| `graph` | Interactive pyvis identity graph HTML |
+| `report` | HTML / JSON / PDF / CSV report for an investigation ID (`--template`, `--sections`, `--redact`, `--compare`) |
+| `graph` | Interactive pyvis identity graph HTML (`--layout`, `--collection-threshold`) |
 | `list` | List investigations in the SQLite DB |
 | `correlate` | Print identity profiles and risk scores |
+| `evidence` | Re-hash every preserved capture against its recorded digest; exits non-zero if anything was altered |
 | `plugins list\|info\|enable\|disable` | Plugin discovery / in-memory enable toggles |
 
 **How it works:**
@@ -79,8 +85,11 @@ Package marker for Ghost Identity Hunter. Docstring only; no runtime logic.
 2. `investigate` requires at least one seed (`-p/-e/-u/-n/-i/-d/--ip`) or `--check-tools`. Seeds become typed dicts (`phone`, `email`, `username`, `fullname`, `image`, `domain`, `ip_address`).
 3. Opens SQLite via `get_connection`, runs the orchestrator, prints summary stats, optionally generates reports (`--report-format html|json|both`).
 4. Other commands load an investigation by ID and call linker, visualizer, or report generators.
+5. A run that stops early raises `InvestigationAborted`; the CLI catches it, summarises what was stored from the DB and still generates the report, rather than printing a traceback over the findings.
 
-**Key helpers:** `_json_output_path` (avoid HTML/JSON path collision), `_print_tool_coverage` (integrated vs available tools).
+**Key helpers:** `_json_output_path` (avoid HTML/JSON path collision), `_partial_result` (counts for an aborted run), `_print_tool_coverage` (integrated vs available tools).
+
+**Report flags:** `--report-format html|json|both|pdf|csv`, `--report-template standard|executive|technical|legal`, `--report-sections`, `--redact-report`, `--strict-match/--no-strict-match`.
 
 **Calls:** `orchestrator`, `storage.database`, `correlation.linker/scorer`, `graph.visualizer`, `reporting.html_report`, `external_tools.get_tool_coverage`, `tool_checker`, plugins, `config.loader`.
 
@@ -98,6 +107,8 @@ Package marker for Ghost Identity Hunter. Docstring only; no runtime logic.
 | --- | --- |
 | `InvestigationConfig` | Depth, breach/username/image toggles, Neo4j, Google Dorks, runtime/artifact budgets, worker count |
 | `InvestigationResult` | Investigation id, counts, risk indicators |
+| `InvestigationAborted` | Raised when a run stops early, naming the investigation so the caller can still report on it |
+| `_safe_correlation` | Graph metrics, or bare counts if the analysis fails — never the run |
 | `ArtifactProcessResult` | Deferred DB writes: `discovered`, `source_metadata`, `platform_presences` |
 | `run_investigation` | Main pipeline |
 | `_process_artifact` | Type dispatcher |
@@ -114,14 +125,16 @@ Package marker for Ghost Identity Hunter. Docstring only; no runtime logic.
 3. Main thread applies metadata/presence updates, dedups via `seen[type:value]`, adds links (including to already-seen nodes), and re-queues only expandable types up to `max_depth` / `max_total_artifacts`.
 4. Wall-clock budget (`max_runtime_minutes`) enforced at level boundaries and mid-level via `as_completed(timeout=…)`.
 5. After BFS: `complete_investigation`, NetworkX or Neo4j correlation into `investigation_metadata`, risk indicators harvested from artifact metadata.
+6. Findings are stored as they are made and every stage after the BFS is guarded, so nothing a tool or module does can cost the run its report — worker exceptions are logged per artifact, correlation failure degrades to counts, and any other failure surfaces as `InvestigationAborted`.
+7. Findings are filtered by `utils/matching` when strict matching is on, so a tool result that does not carry the target's exact handle is dropped rather than attributed.
 
 **Artifact routing:**
 
 | Type | Native module | External tools | Plugins |
 | --- | --- | --- | --- |
-| `phone` | `phone_osint` | — | phone_validation |
-| `email` | `email_osint` + `breach_check` | holehe | email_breach, holehe |
-| `username` | `username_search` (+ profile image scrape) | sherlock, maigret, osrframework, google_dorks | matching builtins |
+| `phone` | `phone_osint` | — | phone_validation, leakosint |
+| `email` | `email_osint` + `breach_check` | holehe | email_breach, holehe, leakosint |
+| `username` | `username_search` (+ profile image scrape) | sherlock, maigret, osrframework, google_dorks | matching builtins, leakosint |
 | `fullname` | `image_match` + username variants | google_dorks | image_match (if registered) |
 | `image` | `image_search` | exiftool | exiftool |
 | `domain` / `subdomain` | — | whois, subfinder, amass, whatweb, wayback, theHarvester | matching builtins |
@@ -170,10 +183,22 @@ Package docstring only.
 | `add_link` / `get_links` | Dedupe on source/target pair |
 | `add_platform_presence` / `get_platform_presences` | Platform account rows (`is_verified`) |
 | `add_audit_log` / `get_audit_trail` | Audit helpers (write path little-used today) |
+| `add_evidence` / `get_evidence` | Preserved raw-output captures (path, sha256, byte size, tool, command) |
+| `_add_missing_columns` | Idempotent additive migration for older databases |
 
 **How it works:** `sqlite3.Row` factory, WAL journaling, foreign keys on. Schema is idempotent `CREATE TABLE IF NOT EXISTS`. IDs are prefixed short UUIDs: `INV-`, `ART-`, `LNK-`, `PRS-`, `AUD-`. Artifact `metadata` is JSON text.
 
-**Tables:** `investigations`, `artifacts`, `artifact_links`, `platform_presence`, `investigation_metadata`, `audit_trail` (+ `comments` created by collaboration module).
+**Tables:** `investigations`, `artifacts`, `artifact_links`, `platform_presence`, `investigation_metadata`, `audit_trail`, `evidence` (+ `comments` created by collaboration module).
+
+### `src/storage/evidence.py`
+
+**Purpose:** Preserve the raw output behind every finding, hashed, so a report can be defended rather than merely asserted.
+
+**How it works:** `begin(investigation_id)` opens a capture session, `record(...)` writes each tool's stdout or response body to `<directory>/<INV>/<sha256>.txt` with its digest, byte size, command line, duration, exit status and `tool_version`, and `flush(conn)` writes the rows. The `analysing(operation, target)` context manager labels captures taken deep inside an integration with what asked for them. Captures are truncated at `MAX_CAPTURE_BYTES` (2 MB) with a notice, and written `0700`/`0600` since they hold subject data. `verify(rows)` re-hashes stored files and reports `verified` / `modified` / `missing` — what `ghost-hunter evidence` prints.
+
+**Caveat:** the session is process-global, so two investigations run concurrently in one process (the HTTP API, not the CLI) share it. Captures also accumulate indefinitely; there is no retention policy yet.
+
+**Config:** `evidence.{enabled,directory}`.
 
 ---
 
@@ -243,6 +268,16 @@ Package docstring only.
 
 **Key API:** `search_images_by_name`, `extract_profile_image_from_url`, `extract_face_encoding`, `match_faces`, `search_and_match_identity`, `get_discovered_artifacts`.
 
+**Native safety:** dlib is neither thread-safe nor tolerant of the buffer it is handed, and scraped candidates include palette, grayscale and 16-bit images. Every call into it is serialised by `_FACE_LOCK` and given a contiguous `uint8` RGB array; without both the process aborts with `free(): invalid size` mid-investigation.
+
+### `src/modules/leakosint.py`
+
+**Purpose:** Keyed breach-record lookup against `leakosintapi.com`, whose records lead the report when present.
+
+**How it works:** Token from the `leakosint` plugin config or `LEAKOSINT_API_KEY`. The API rejects a `limit` outside 100–10000 *and* temporarily blocks the token for it, so the request limit is clamped to `MIN_LIMIT`/`MAX_LIMIT`. Requests are throttled to one per `MIN_REQUEST_INTERVAL`. Non-200 replies keep the body's explanation rather than reporting a bare status code, and every failure path (transport, non-JSON, unexpected shape, API error) logs the query and reason — the token never appears in a log, report or database row.
+
+**Key API:** `LeakRecord`, `LeakOsintResult`, `get_settings`, `get_api_token`, `is_configured`, `search`.
+
 ### `src/modules/google_dorks.py`
 
 **Purpose:** Username/name discovery via Google dork patterns (CSE API or DuckDuckGo/Google/Bing scrape).
@@ -255,18 +290,40 @@ Package docstring only.
 
 **Purpose:** Unified subprocess/API integrations for installed OSINT CLIs and Wayback CDX.
 
-**Integrated tools:** Sherlock, Maigret, Holehe, OSRFramework, theHarvester, Subfinder, Sublist3r, WhatWeb, Shodan, Amass, Whois, Nmap, ExifTool, Wayback Machine.
+**Integrated tools:** Sherlock, Maigret, Holehe, OSRFramework, theHarvester, Subfinder, Sublist3r, WhatWeb, Shodan, Amass, Whois, Nmap, ExifTool, Wayback Machine. (`dig` is deliberately not dispatched: for an email seed it profiles the mail provider, not the subject.)
 
 **How it works:**
 
-1. Each `*Integration` class builds a CLI (or HTTP for Wayback), runs under timeout inside `io_slot`, parses stdout/JSON into artifact dicts (capped at `MAX_ARTIFACTS_PER_TOOL=15`).
+1. Each `*Integration` class builds a CLI (or HTTP for Wayback), runs it under timeout inside `io_slot`, and hands the output to that tool's parser in `tool_parsers.py` (capped at `MAX_ARTIFACTS_PER_TOOL=15`).
 2. `@skip_if_not_available` short-circuits missing tools.
 3. `run_tool_analysis(tool, analysis_type, target)` dispatches + memoizes on `(tool, analysis, target)` (cache cleared per investigation).
 4. Orchestrator selects analysis by artifact type (username → sherlock/maigret/…; domain → whois/enum; ip → nmap/shodan; email → holehe; image → exiftool).
+5. Structured output (Maigret NDJSON, WhatWeb JSON, Nmap XML) falls back to stdout parsing when the file is absent, malformed, or yields nothing.
+
+**Subprocess safety (`_run_subprocess` / `_terminate` / `_decode`):** `subprocess.run(timeout=…)` kills only the process it started, so a tool that forks (amass, theHarvester) left children holding the pipes and the cleanup read blocked forever. Each tool now leads its own process group (`start_new_session=True`) and the group is signalled as a whole (SIGTERM, then SIGKILL after 5s), so the deadline is always enforced. What a tool printed before its deadline is kept, output is decoded with `errors="replace"`, and capped at `MAX_TOOL_OUTPUT_BYTES` (32 MB) since it is held in memory. Every failure stays inside the returned `ToolResult`.
 
 **Key maps:** `ANALYSIS_METHODS`, `TOOL_ARTIFACT_TYPES`, `UNIMPLEMENTED_TOOLS`, `get_tool_integrations`, `get_tool_coverage`.
 
 **Output artifact types include:** `username_presence`, `email_presence`, `subdomain`, `open_port`, `historical_url`, `web_technology`, `domain_info`, `gps_coordinates`, …
+
+### `src/modules/tool_parsers.py`
+
+**Purpose:** One parser per tool, reading that tool's own output format. Previously a single sherlock-shaped regex was applied to every tool, which under-collected badly.
+
+| Parser | Reads | Recovers |
+| --- | --- | --- |
+| `parse_sherlock` | `[+] Platform: url` lines | `username_presence` |
+| `parse_maigret_ndjson` | Maigret NDJSON report | platform, URL, plus fullname / image / location / bio / follower counts from site extractors |
+| `parse_usufy_profiles` | OSRFramework JSON | `username_presence` |
+| `parse_holehe_csv` / `parse_holehe_text` | CSV report, else stdout | `email_presence` |
+| `parse_theharvester_json` | theHarvester JSON | emails, hosts, IPs, URLs, ASNs — contacts and host/network capped **independently**, so a large email set cannot suppress subdomains |
+| `parse_subfinder_json` / `parse_subdomains` | JSONL, else plain lines | `subdomain` |
+| `parse_whois` | Key/value text | registrar, dates, org, emails, and *every* repeated label (all name servers, not just the first) |
+| `parse_whatweb_json` / `parse_whatweb_summary` | `--log-json`, else stdout | `web_technology`, `ip_address` |
+| `parse_nmap_xml` / `parse_nmap_text` | XML report, else stdout | `open_port` with service/product |
+| `parse_exiftool_json` | ExifTool JSON | GPS, camera, creation dates, identity tags |
+| `parse_shodan_host` | Shodan host JSON | ports, services, hostnames (list *or* string form, without Python list punctuation) |
+| `parse_wayback_cdx` | CDX rows | `historical_url` |
 
 ### `src/modules/correlation.py`
 
@@ -328,7 +385,7 @@ Public exports: `OSINTPlugin`, `PluginResult`, `PluginConfig`, `Artifact`, `Plug
 
 ### `src/plugins/builtins/__init__.py`
 
-Re-exports 20 plugin classes in `__all__`. Note: `ImageMatchPlugin` exists on disk but is **not** exported here (registry still discovers it via filesystem import).
+Re-exports 19 plugin classes in `__all__`. Note: `ImageMatchPlugin` and `LeakosintPlugin` exist on disk but are **not** exported here (the registry still discovers them via filesystem import).
 
 ### Module-backed plugins (wrap `src/modules/*`)
 
@@ -339,6 +396,7 @@ Re-exports 20 plugin classes in `__all__`. Note: `ImageMatchPlugin` exists on di
 | `phone_validation_plugin.py` | `PhoneValidationPlugin` | `phone` | `phone_osint.analyze_phone` | `location`, `carrier` |
 | `google_dorks_plugin.py` | `GoogleDorksPlugin` | `username` | `google_dorks.run_google_dorks_search` | `username`, `email`, `domain` |
 | `image_match_plugin.py` | `ImageMatchPlugin` | `fullname` | `image_match` + optional `face_recognition` | `image_url`, `face_match` |
+| `leakosint_plugin.py` | `LeakosintPlugin` | `email`, `phone`, `username`, `fullname` | `leakosint.search` | `leak_record` (sorted to the top of the report) |
 
 ### Direct CLI / HTTP plugins
 
@@ -414,18 +472,48 @@ Package docstring only.
 
 **Purpose:** Jinja2 HTML (4 templates) and JSON investigation reports.
 
-**Templates:** `standard`, `executive`, `technical`, `legal` (in-module template strings + Jinja2 `BaseLoader`).
+**Templates:** `standard` (loaded from `templates/standard.html`), plus in-module `EXECUTIVE_TEMPLATE`, `TECHNICAL_TEMPLATE`, `LEGAL_TEMPLATE` strings rendered through a Jinja2 `BaseLoader`.
 
 **How it works:**
 
 1. Load investigation + artifacts/links/presences.
 2. Run `correlate_identities`; score each identity via scorer.
-3. Build derived views: timeline, key findings, confidence metrics, risk matrix, platform heatmap, anomalies, tool metrics, recommendations, priority queue, geographic data, verification status, auto-escalation.
-4. Embed a pyvis graph HTML snippet.
+3. Build derived views: timeline, key findings, confidence metrics, risk matrix, platform heatmap, anomalies, tool metrics, recommendations, priority queue, geographic data, verification status, auto-escalation — plus the `report_data` sections (leaks, per-artifact detail, evidence, citations, cross-investigation hits, run-to-run delta).
+4. Embed a navigable pyvis graph snippet; inline or link images, skipping known placeholder avatars.
 5. Render selected template → write `reports/{INV}_report.html` (or custom path).
 6. `generate_json_report` mirrors meta/summary/identities/artifacts/links/presences/graph/tool_metrics.
 
+**Redaction order matters:** cross-investigation matching queries the database with the *stored* values (`stored_artifacts`) and masks only the hits it returns — masking first would look up `[REDACTED]` and silently lose the section.
+
+**Key helpers:** `_select_template`, `_build_artifact_views`, `_confidence_basis`, `_build_identity_artifacts`, `_prepare_graph_embed_html`, `_resolve_image_src`.
+
 **Called by:** CLI `investigate` / `report`, workflow API.
+
+### `src/reporting/templates/standard.html`
+
+The default report template, kept as a file rather than a string so its CSS is editable and diffable. Carries the light/dark branding rules, the section layout, per-artifact drill-downs (`<details>`) and the responsive tables. Every surface has an explicit colour — the template previously inherited the reader's scheme, which rendered text on same-coloured backgrounds.
+
+### `src/reporting/report_data.py`
+
+**Purpose:** The derived sections of a report and, importantly, the redaction that shareable copies depend on.
+
+**Sections built here:** `DEFAULT_SECTIONS` = leaks, identities, summary, tools, platforms, graph, artifacts, evidence, orphans, geo, audit, comments, cross, delta, filters. `parse_sections` resolves `--sections`.
+
+| Function | Role |
+| --- | --- |
+| `build_timeline` / `parse_event_date` | Plot *when things happened* — breach, EXIF, Wayback and registration dates — not when they were found; Wayback `YYYYMMDDhhmmss`, EXIF `YYYY:MM:DD` and ISO forms all parsed |
+| `build_preserved_evidence` | Re-hash captures and report verified/modified/missing |
+| `build_source_citations` | The exact command, run time and tool version behind each artifact |
+| `build_evidence_chains` | Discovery path from seed to artifact |
+| `build_leak_findings` | Leak records, ordered, reduced to their database name when masked |
+| `build_orphan_findings`, `build_actionable_recommendations`, `build_cross_investigation`, `find_previous_investigation` | Remaining sections |
+| `enrich_tool_status` | Distinguishes productive / silent / unavailable / failed tools, counting presences as output rather than only artifacts |
+
+**Redaction:** `REDACT_TYPES` masks phone, email, image, fullname, GPS and location; `REDACT_URL_TYPES` replaces avatar and profile URLs with `[REDACTED_URL]`, since masking characters out of a URL leaves the handle standing; platform biographies are redacted too, and masking recurses through nested metadata rather than only top-level values.
+
+### `src/reporting/exports.py`
+
+**Purpose:** Non-HTML outputs. `export_artifacts_csv` / `export_presences_csv` flatten rows to CSV; `generate_pdf_from_html` renders a report through WeasyPrint, with `_simplify_html_for_pdf` stripping the interactive graph and dark styling that do not survive print.
 
 ### `src/graph/__init__.py`
 
@@ -436,6 +524,10 @@ Package docstring only.
 **Purpose:** Interactive pyvis HTML identity network + graph statistics.
 
 **How it works:** `build_identity_graph` → map nodes to colored/shaped pyvis nodes (`TYPE_COLORS` / `TYPE_SIZES` / `TYPE_SHAPES`) with tooltips → edges from links → standalone HTML. `get_graph_stats` returns nodes, edges, components, density, type distribution.
+
+**Collections:** same-type leaf neighbours are collapsed into one labelled count node once they reach `DEFAULT_COLLECTION_THRESHOLD` (8, `0` disables), which keeps a large investigation legible; `build_collections` decides, `_interaction_script` expands one on click. `LAYOUTS` offers `organic`, `hierarchical` and `circular`, and nodes link through to their detail section in the report.
+
+**Config:** `graph.{layout,collection_threshold}`.
 
 **Called by:** CLI `graph`, html_report embed helper.
 
@@ -468,6 +560,12 @@ Re-exports tool-checker API: `ToolChecker`, `ToolInfo`, `ToolStatus`, `get_tool_
 **How it works:** Registers ~30–35 known tools; `shutil.which` + optional `--version` (memoized once per process under a lock). API-based tools (`wayback_machine`, `google_dorks`) marked available without a binary. `@skip_if_not_available` decorator returns `None` if missing.
 
 **Key API:** `check_tool`, `check_all_tools`, `is_available`, `get_available_tools`, `get_missing_tools`, `print_status`, `get_tool_checker`.
+
+### `src/utils/matching.py`
+
+**Purpose:** Decide whether a tool's finding really belongs to the target, so a partial or substring match is not attributed to them.
+
+**How it works:** `MatchPolicy` (from `investigation.strict_match`, overridable with `--strict-match/--no-strict-match`) requires the target's exact handle to appear on a token boundary — `contains_exact` — or as a host label in a URL. `filter_full_matches` applies this to account-type findings (`username_presence`, `email_presence`, `platform_presence`); dropped counts are logged per artifact.
 
 ---
 
@@ -519,8 +617,10 @@ Re-exports tool-checker API: `ToolChecker`, `ToolInfo`, `ToolStatus`, `get_tool_
 | --- | --- |
 | `plugins` | Per-plugin `enabled`, `priority`, `timeout`, `max_retries`, optional `api_key` |
 | `plugin_settings` | Parallelism, caching, rate limit |
-| `investigation` | `max_depth`, `max_runtime_minutes`, `max_total_artifacts`, `max_concurrent_io`, feature flags, Neo4j |
-| `reporting` | Auto-generate, format, output_dir, template |
+| `investigation` | `max_depth`, `max_runtime_minutes`, `max_total_artifacts`, `max_concurrent_io`, `strict_match`, feature flags, Neo4j |
+| `reporting` | Auto-generate, format, output_dir, template, sections, redact |
+| `graph` | Default `layout` and `collection_threshold` |
+| `evidence` | Preservation on/off, capture directory, capture size cap |
 | `database` | SQLite path, backup |
 | `http_client` | Timeouts, pool, retries, user agents |
 | `google_dorks` | Pattern/rate limits, scrapers |
@@ -528,6 +628,7 @@ Re-exports tool-checker API: `ToolChecker`, `ToolInfo`, `ToolStatus`, `get_tool_
 | `email_osint` | Disposable/privacy domain lists |
 | `breach_check` | HIBP base URL + rate limit |
 | `orchestrator` | BFS batch size, depth, parallel workers |
+| `investigation.strict_match` | `enabled`, `require_validated_presence`, name-variant expansion |
 
 ### `config/docker-compose.yml`
 
@@ -555,11 +656,11 @@ Cross-platform Python launcher; warns if not in venv; invokes `src.cli.cli()` af
 
 ### `pyproject.toml`
 
-Package `ghost-identity-hunter` 0.1.0 (Python ≥3.10). Console script: `ghost-hunter = src.cli:cli`. Core deps: click, networkx, phonenumbers, requests, bs4, Pillow, pyvis, Jinja2, tabulate. Optional `dev`: pytest, pytest-cov, ruff.
+Package `ghost-identity-hunter` 0.1.0 (Python ≥3.10). Console script: `ghost-hunter = src.cli:cli`. Core deps: click, networkx, phonenumbers, requests, bs4, Pillow, pyvis, Jinja2, tabulate. Optional `dev`: pytest, pytest-cov, ruff; optional `face`: face_recognition plus `setuptools<81`. The build requirement is capped the same way — `face_recognition_models` still imports `pkg_resources`, which setuptools 81 removed, so an uncapped install fails on Python 3.13. Lift both once that package is fixed upstream.
 
-### `requirements.txt`
+### `requirements.txt` / `requirements-optional.txt`
 
-Runtime install list including extras vs pyproject: Brotli, neo4j, pyyaml, face_recognition, numpy, urllib3 (plus pytest/ruff for local use).
+`requirements.txt` is the runtime install list, including extras vs pyproject: Brotli, neo4j, pyyaml, numpy, urllib3 (plus pytest/ruff for local use). `requirements-optional.txt` holds the face-matching extra and its `setuptools<81` cap.
 
 ---
 
@@ -583,6 +684,19 @@ Runtime install list including extras vs pyproject: Brotli, neo4j, pyyaml, face_
 | `test_html_report.py` | HTML/JSON reports, templates, tool metrics |
 | `test_perf_tier1.py` | I/O semaphore, tool-analysis memoization, rate-limit concurrency |
 | `test_tool_checker_cache.py` | ToolChecker per-process memoization |
+| `test_tool_parsers.py` | Each tool's own output format, including malformed structured reports falling back to stdout |
+| `test_resilience.py` | Real subprocesses: a tool that never returns, a forking tool (and that its grandchild is gone), invalid UTF-8, unbounded output, a missing binary, correlation failure, and an aborted run that still reports |
+| `test_face_encoding.py` | What dlib is handed for palette/grayscale/RGBA/16-bit input, and that threads never reach it together |
+| `test_redaction.py` | Personal detail, biographies and profile/avatar URLs masked everywhere; cross-investigation matching still works under `--redact` |
+| `test_evidence.py` | Capture, hashing, truncation, permissions, verification |
+| `test_timeline.py` | Event-date parsing across Wayback/EXIF/ISO forms |
+| `test_delta.py` | Run-to-run comparison, including masked leak records |
+| `test_source_citations.py` | Command/version/run attribution per artifact |
+| `test_confidence_provenance.py` | Why a score is what it is |
+| `test_graph_visualizer.py` | Layouts, collections, node/edge mapping |
+| `test_leakosint.py` | Limit clamping, failure logging, token never emitted |
+| `test_strict_match.py` | Exact-handle matching and dropped partial findings |
+| `test_cli_seeds.py` / `test_cli_full_name.py` | CLI seed handling and report paths |
 
 ---
 

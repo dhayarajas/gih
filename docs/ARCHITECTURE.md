@@ -343,39 +343,51 @@ graph TD
 ```mermaid
 graph TD
     CHK["ToolChecker (~35 declared tool entries, shutil.which detection)"]
-    INT["ExternalToolsIntegration base (run_tool, parse_json_output, extract_artifacts_from_text)"]
+    INT["ExternalToolsIntegration base (run_tool, _run_subprocess, _terminate)"]
+    PARSE["tool_parsers.py — one parser per tool's own output format"]
     RUN["run_tool_analysis(tool_name, analysis_type, target)"]
+    EV["storage.evidence.record — hashed capture of the raw output"]
 
-    subgraph Implemented["get_tool_integrations() — 9 implemented integrations"]
+    subgraph Implemented["get_tool_integrations() — 14 implemented integrations"]
         S["SherlockIntegration (username_search)"]
+        M["MaigretIntegration (username_search, NDJSON)"]
+        O["OsrframeworkIntegration (username_search)"]
+        H["HoleheIntegration (email_check)"]
         T["TheHarvesterIntegration (email_harvest, subdomain_harvest)"]
-        SH["ShodanIntegration (host_search)"]
+        SF["SubfinderIntegration / Sublist3rIntegration (subdomain_enum)"]
         A["AmassIntegration (subdomain_enum)"]
+        WW["WhatWebIntegration (tech_fingerprint)"]
+        SH["ShodanIntegration (host_search)"]
         W["WhoisIntegration (domain_lookup)"]
         N["NmapIntegration (host_scan)"]
         E["ExifToolIntegration (metadata_extract)"]
         WB["WaybackMachineIntegration (historical_urls, HTTP CDX API)"]
     end
 
-    DETECTONLY["Detection-only entries: maigret, holehe, social_analyzer, subfinder, sublist3r, masscan, whatweb, recon-ng, spiderfoot, ghunt, photon, metagoofil, etherscan, geonames, nikto, sqlmap, curl, wget, nslookup and others"]
+    DETECTONLY["Detection-only entries (never dispatched, reason recorded in UNIMPLEMENTED_TOOLS): dig, nslookup, social_analyzer, emailharvester, wappalyzer, masscan, recon-ng, spiderfoot, ghunt, photon, metagoofil, etherscan, geonames, nikto, sqlmap, curl, wget and others"]
 
     CHK --> DETECTONLY
     CHK --> Implemented
     RUN --> Implemented
     Implemented --> INT
+    INT --> PARSE
+    INT --> EV
 ```
+
+Each tool leads its own process group, so a deadline is enforced on the whole tree rather than the direct child alone; output is decoded leniently, bounded, and every failure stays inside the returned `ToolResult`.
 
 ### 4.6 Storage
 
 ```mermaid
 graph TD
     CONN["get_connection(db_path) — WAL mode, foreign_keys ON, schema bootstrap"]
-    SCHEMA["_init_schema (6 tables + indexes)"]
+    SCHEMA["_init_schema (7 tables + indexes, additive column migration)"]
     INVOPS["create_investigation, complete_investigation, get_investigation, list_investigations"]
     ARTOPS["add_artifact, add_artifacts_bulk, get_artifacts"]
     LNKOPS["add_link, get_links"]
     PRSOPS["add_platform_presence, get_platform_presences"]
     AUDOPS["add_audit_log, get_audit_trail"]
+    EVOPS["add_evidence, get_evidence (hashed raw-output captures)"]
     METAOPS["investigation_metadata (written directly by orchestrator SQL)"]
 
     CONN --> SCHEMA
@@ -384,6 +396,7 @@ graph TD
     SCHEMA --> LNKOPS
     SCHEMA --> PRSOPS
     SCHEMA --> AUDOPS
+    SCHEMA --> EVOPS
     SCHEMA --> METAOPS
 ```
 
@@ -418,8 +431,10 @@ graph TD
     READ["db.get_investigation / get_artifacts / get_links / get_platform_presences / get_audit_trail"]
     CORR["correlate_identities + risk scoring"]
     SECTIONS["Section builders: timeline, key findings, confidence metrics, risk matrix, recommendations, priority queue, geographic data, platform heatmap, correlation strength, verification status, anomaly detection, auto escalation"]
+    RDATA["report_data.py: leaks, per-artifact detail, preserved evidence, source citations, cross-investigation hits, run-to-run delta, redaction"]
     EMBED["_generate_embedded_graph -> generate_interactive_graph into a temp file"]
-    TPL["_select_template -> HTML_TEMPLATE | EXECUTIVE_TEMPLATE | TECHNICAL_TEMPLATE | LEGAL_TEMPLATE"]
+    TPL["_select_template -> templates/standard.html | EXECUTIVE_TEMPLATE | TECHNICAL_TEMPLATE | LEGAL_TEMPLATE"]
+    EXPORT["exports.py: PDF via WeasyPrint, artifacts/presences CSV"]
     RENDER["Jinja2 Environment(BaseLoader).from_string(...).render(...)"]
     OUT["reports/{id}_report.html"]
 
@@ -430,7 +445,9 @@ graph TD
     STATS["get_graph_stats -> nodes, edges, components, density, type distribution, degree stats"]
 
     GEN --> READ --> CORR --> SECTIONS --> TPL --> RENDER --> OUT
+    CORR --> RDATA --> TPL
     SECTIONS --> EMBED --> RENDER
+    OUT --> EXPORT
     JSONGEN --> READ
     JSONGEN --> CORR
     JSONGEN --> JSONOUT
@@ -577,7 +594,9 @@ graph LR
 | REST API | Flask + flask-cors | `src/api/workflow_api.py` |
 | Graph analysis | NetworkX (`Graph`, `connected_components`, `density`) | `src/correlation/linker.py`, `src/modules/correlation.py`, `src/graph/visualizer.py` |
 | Graph visualization | pyvis `Network` (forceAtlas2Based physics, standalone HTML) | `src/graph/visualizer.py` |
-| Templating | Jinja2 `Environment(BaseLoader)` with in-module template strings | `src/reporting/html_report.py` |
+| Templating | Jinja2 `Environment(BaseLoader)`; the standard template is a file, the other three are in-module strings | `src/reporting/html_report.py`, `src/reporting/templates/standard.html` |
+| PDF export | WeasyPrint over the generated HTML | `src/reporting/exports.py` |
+| Evidence integrity | `hashlib` SHA-256 over preserved captures | `src/storage/evidence.py` |
 | Persistence | SQLite (WAL journal, foreign keys on) | `src/storage/database.py` |
 | Optional graph store | Neo4j via the `neo4j` bolt driver | `src/modules/correlation_neo4j.py` |
 | Phone parsing | `phonenumbers` | `src/modules/phone_osint.py` |
@@ -592,16 +611,16 @@ graph LR
 
 Documented so the diagrams above are not read as aspirational:
 
-1. **Declared vs. implemented external tools.** `ToolChecker` declares roughly 35 tools; only nine have real integrations in `get_tool_integrations()`. Everything else is detection-only and never executed. See [LLD §5](LLD.md#5-external-tools).
+1. **Declared vs. implemented external tools.** `ToolChecker` declares roughly 35 tools; 14 have real integrations in `get_tool_integrations()`. Everything else is detection-only and never executed, each with a recorded reason in `UNIMPLEMENTED_TOOLS` — `dig` and `nslookup` deliberately so, since for an email seed they profile the mail provider rather than the subject. See [LLD §5](LLD.md#5-external-tools) and [TOOL_COVERAGE.md](TOOL_COVERAGE.md).
 2. **Correlation profile coverage.** `IdentityProfile` only fills `phones`, `emails`, `usernames`, `images` and derives `platforms` from `platform_presence` nodes and presence rows. `fullname` is accepted into the graph by `IDENTITY_ARTIFACT_TYPES` but has no branch that stores it on a profile, so full names contribute to `artifact_count` and confidence only.
 3. **Undirected graph.** Correlation uses `networkx.Graph` and `nx.connected_components`, not a directed graph with weakly connected components; link direction from `artifact_links` is discarded when the graph is built.
-4. **BFS logging.** The `logger.info("BFS processing complete...")` line sits inside the `while queue` loop, so it is emitted once per batch rather than once per run, and `processed_count` is incremented twice per artifact on the single-artifact path.
-5. **Cross-thread dedup.** In the concurrent batch path, `seen` is only consulted after the workers return, so two workers in the same batch can persist the same discovered artifact concurrently; `add_artifact`'s existence check absorbs most of this but the check is not transactional.
-6. **`investigation_metadata` insert.** The orchestrator inserts `(investigation_id, key, value, created_at)` without `metadata_id`, leaving the primary key `NULL`; a second insert with a `NULL` primary key would fail.
-7. **API drift.** `WorkflowAPI` passes `use_external_tools=` to `InvestigationConfig` (the field is `check_external_tools`), queries a non-existent `risk_indicators` table, selects `source_artifact_id`/`target_artifact_id`/`metadata` from `artifact_links` (actual columns are `source_artifact`, `target_artifact`, `evidence`), closes the connection before generating reports, and `jsonify`s the file path returned by `generate_json_report`.
+4. **Partial runs.** A run that stops early raises `InvestigationAborted` and the CLI reports on what was already stored, so a report may describe an incomplete investigation; the header says so.
+5. **Correlation degradation.** If graph analysis fails after the findings are stored, `_safe_correlation` returns bare counts — the report is produced, but without identity clustering or risk scores.
+6. **Evidence session scope.** `storage/evidence.py` keeps one process-global capture session, so two investigations running concurrently in the same process (the HTTP API, not the CLI) share it. Captures also have no retention policy and accumulate indefinitely.
+7. **API concurrency.** `WorkflowAPI` serves reports in every format the CLI does, but runs investigations in the Flask process, where the process-global evidence session (gap 6) and the shared tool-analysis cache are not per-request.
 8. **CLI plugin commands.** `ghost-hunter plugins list|info` call `registry.get_plugin(...)` and read `plugin.version`, `plugin.description`, `plugin.is_enabled()`; the registry exposes `get_plugin_class`/`get_plugin_instance` and the base class exposes `get_version()`/`get_description()` with no `is_enabled`. `plugins enable|disable` mutate an in-memory dict and print a note that `config.yaml` must be edited manually.
 9. **Plugin config keys.** `PluginManager` looks up config by registered class name (for example `SherlockPlugin`), while `config/config.yaml` keys are snake_case tool names (`sherlock`, `username_search`), so per-plugin YAML settings are not applied and merged defaults are used instead.
-10. **Duplicate definitions.** `html_report.py` defines `_select_template` and `_generate_key_findings` twice; the later definitions win.
+10. **Legal template scope.** The legal report's chain-of-custody claim covers the external tools and the web-archive query only, since those are what evidence preservation captures; the built-in HTTP modules are not preserved.
 11. **Reports directory.** Default output paths are relative (`reports/...`), so artifacts land under the current working directory.
 
 ## 9. Source Map
@@ -618,9 +637,16 @@ Documented so the diagrams above are not read as aspirational:
 | `src/modules/image_match.py` | Name-driven image search and optional face matching |
 | `src/modules/breach_check.py` | HaveIBeenPwned breach and password exposure checks |
 | `src/modules/google_dorks.py` | Dork pattern search over API, DuckDuckGo or scraping, with cache and backoff |
-| `src/modules/external_tools.py` | Subprocess integrations for nine external tools |
+| `src/modules/external_tools.py` | Subprocess integrations for 14 external tools, with process-group lifetime control |
+| `src/modules/tool_parsers.py` | One parser per tool's own output format |
+| `src/modules/leakosint.py` | Keyed breach-record lookup, prioritised in the report |
 | `src/modules/correlation.py` | Lightweight in-memory correlation metrics used by the orchestrator |
 | `src/modules/correlation_neo4j.py` | Optional Neo4j-backed correlation and cross-investigation queries |
+| `src/storage/evidence.py` | Hashed captures of raw tool output, and their verification |
+| `src/reporting/report_data.py` | Derived report sections and redaction |
+| `src/reporting/exports.py` | PDF and CSV output |
+| `src/reporting/templates/standard.html` | Default report template |
+| `src/utils/matching.py` | Strict exact-handle matching for tool findings |
 | `src/plugins/base.py` | Plugin ABC and dataclasses |
 | `src/plugins/registry.py` | Plugin discovery and registration |
 | `src/plugins/manager.py` | Plugin execution, parallelism, statistics |
