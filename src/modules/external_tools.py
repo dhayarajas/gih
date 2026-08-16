@@ -24,6 +24,7 @@ from src.modules import tool_parsers
 from src.storage import evidence
 from src.storage.evidence import EvidenceCapture
 from src.utils.concurrency import io_slot
+from src.utils.text import has_control_characters, is_textual
 from src.utils.tool_checker import (
     check_tool_availability,
     get_tool_checker,
@@ -130,6 +131,14 @@ def _restate(result: ToolResult, exit_status: str) -> None:
 STATUS_NO_RECORD = "no record"
 STATUS_REPORTED = "reported results"
 
+# A run whose capture is not text, or whose findings are fragments of bytes
+# rather than values. It answered nothing, and the report says so.
+STATUS_UNPARSABLE = "unparsable output"
+
+# A run that answered, whatever it exited with: some tools report their result
+# and then exit non-zero, and the integration records what actually happened.
+ANSWERED_STATUSES = frozenset({"exit 0", STATUS_NO_RECORD, STATUS_REPORTED})
+
 # A tool that never stops printing would otherwise be held in memory in full.
 MAX_TOOL_OUTPUT_BYTES = 32 * 1024 * 1024
 
@@ -145,6 +154,42 @@ def _decode(raw: Any) -> str:
     if isinstance(raw, bytes):
         return raw.decode("utf-8", errors="replace")
     return str(raw)
+
+
+def _reject_unparsable(result: ToolResult) -> None:
+    """Refuse to read findings out of a capture that is not text.
+
+    A tool handed a TLS record or a compressed body prints those bytes back,
+    and a parser reading them lifts fragments of them into artifact values.
+    Such a run is then reported as productive while what it contributed is
+    unreadable, so it is recorded for what it was instead: it ran, and what it
+    returned could not be parsed.
+    """
+    findings = result.artifacts_discovered
+    readable = [
+        artifact for artifact in findings
+        if not has_control_characters(str(artifact.get("value") or ""))
+    ]
+    if len(readable) != len(findings):
+        logger.warning(
+            "%s: discarding %d finding(s) whose value carries control characters",
+            result.tool_name, len(findings) - len(readable),
+        )
+
+    if is_textual(result.output) and (readable or not findings):
+        result.artifacts_discovered = readable
+        return
+
+    logger.warning("%s returned unparsable output; no findings taken from it",
+                   result.tool_name)
+    result.artifacts_discovered = []
+    result.parsed_data = {}
+    result.success = False
+    result.error_message = f"{result.tool_name} returned unparsable output"
+    # A run that timed out or could not be started already has a better
+    # explanation recorded than this one.
+    if result.capture is not None and result.capture.exit_status in ANSWERED_STATUSES:
+        _restate(result, STATUS_UNPARSABLE)
 
 
 def _run_subprocess(
@@ -1133,6 +1178,8 @@ def run_tool_analysis(tool_name: str, analysis_type: str, target: str) -> ToolRe
             output="",
             error_message=f"{tool_name} is not available",
         )
+
+    _reject_unparsable(result)
 
     with _analysis_cache_lock:
         _analysis_cache[cache_key] = result

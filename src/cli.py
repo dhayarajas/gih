@@ -82,6 +82,7 @@ from src.reporting.html_report import generate_html_report, generate_json_report
 from src.storage.database import get_connection, list_investigations, get_investigation
 from src.plugins.manager import PluginRegistry, PluginManager
 from src.utils.matching import get_match_policy
+from src.utils.text import ControlSafeFormatter
 
 
 def setup_logging(verbose: bool = False) -> None:
@@ -102,16 +103,19 @@ def setup_logging(verbose: bool = False) -> None:
     log_format = "%(asctime)s [%(levelname)s] %(name)s: %(message)s"
     date_format = "%H:%M:%S"
     
+    # A tool prints whatever the target served it, and those bytes reach log
+    # records through the values built from them; escaped here, the log file
+    # stays a text file that grep and a reviewer can still read.
+    formatter = ControlSafeFormatter(fmt=log_format, datefmt=date_format)
+    handlers: list[logging.Handler] = [
+        logging.FileHandler(log_file),
+        logging.StreamHandler(sys.stdout),
+    ]
+    for handler in handlers:
+        handler.setFormatter(formatter)
+
     # Configure root logger
-    logging.basicConfig(
-        level=level,
-        format=log_format,
-        datefmt=date_format,
-        handlers=[
-            logging.FileHandler(log_file),
-            logging.StreamHandler(sys.stdout)
-        ]
-    )
+    logging.basicConfig(level=level, handlers=handlers)
     
     logging.info("Logging to file: %s", log_file)
 
