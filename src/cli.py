@@ -81,6 +81,7 @@ from src.graph.visualizer import LAYOUTS, generate_interactive_graph, get_graph_
 from src.reporting.html_report import generate_html_report, generate_json_report
 from src.storage.database import get_connection, list_investigations, get_investigation
 from src.plugins.manager import PluginRegistry, PluginManager
+from src.config.loader import get_config
 from src.utils.matching import get_match_policy
 from src.utils.text import ControlSafeFormatter
 
@@ -799,10 +800,30 @@ def plugins():
     pass
 
 
-@plugins.command()
+def _resolve_plugin_name(registry: PluginRegistry, wanted: str) -> Optional[str]:
+    """Find the registry name of a plugin the user named.
+
+    The registry knows plugins by class name (`SherlockPlugin`) while config.yaml
+    and the tools themselves use the tool name (`sherlock`), so both are accepted.
+    """
+    names = registry.list_plugins()
+    if wanted in names:
+        return wanted
+
+    target = wanted.replace("_", "").replace("-", "").lower()
+    for name in names:
+        if name.removesuffix("Plugin").lower() == target:
+            return name
+        instance = registry.get_plugin_instance(name)
+        if instance and instance.get_name().replace("_", "").replace("-", "").lower() == target:
+            return name
+    return None
+
+
+@plugins.command("list")
 @click.option("--verbose", "-v", is_flag=True, help="Show detailed plugin information")
-def list(verbose: bool):
-    """List all available plugins.
+def plugins_list(verbose: bool):
+    """List all registered plugins.
 
     Examples:
         ghost-hunter plugins list
@@ -810,28 +831,30 @@ def list(verbose: bool):
     """
     registry = PluginRegistry()
     registry.discover_plugins()
-    
-    available_plugins = registry.get_available_plugins()
-    
-    if not available_plugins:
+    manager = PluginManager(registry)
+
+    plugin_names = sorted(registry.list_plugins())
+    if not plugin_names:
         click.echo("No plugins found.")
         return
-    
-    click.echo(f"\nAvailable Plugins ({len(available_plugins)}):")
+
+    click.echo(f"\nRegistered Plugins ({len(plugin_names)}):")
     click.echo("=" * 50)
-    
-    for plugin_name in available_plugins:
-        plugin_class = registry.get_plugin(plugin_name)
-        if plugin_class:
-            plugin = plugin_class()
-            status = "✓" if plugin.is_enabled() else "✗"
-            click.echo(f"  [{status}] {plugin_name}")
-            click.echo(f"      Version: {plugin.version}")
-            click.echo(f"      Description: {plugin.description}")
-            click.echo(f"      Supported artifacts: {', '.join(plugin.supported_artifacts)}")
-            if verbose:
-                click.echo(f"      Author: {plugin.author}")
-            click.echo()
+
+    for plugin_name in plugin_names:
+        plugin = registry.get_plugin_instance(plugin_name)
+        if not plugin:
+            continue
+        enabled = manager.is_plugin_enabled(plugin_name)
+        click.echo(f"  [{'✓' if enabled else '✗'}] {plugin_name} ({plugin.get_name()})")
+        click.echo(f"      Enabled in config: {'yes' if enabled else 'no'}")
+        click.echo(f"      Artifact types: {', '.join(plugin.get_supported_artifact_types()) or '-'}")
+        if verbose:
+            click.echo(f"      Version: {plugin.get_version()}")
+            click.echo(f"      Description: {plugin.get_description() or '-'}")
+            click.echo(f"      Installed now: {'yes' if plugin.is_available() else 'no'}")
+            click.echo(f"      Requires: {', '.join(plugin.get_required_dependencies()) or '-'}")
+        click.echo()
 
 
 @plugins.command()
@@ -839,77 +862,82 @@ def list(verbose: bool):
 def info(plugin_name: str):
     """Show detailed information about a specific plugin.
 
+    The plugin may be named by its class (SherlockPlugin) or by its tool name
+    as it appears in config.yaml (sherlock).
+
     Examples:
-        ghost-hunter plugins info username_search
+        ghost-hunter plugins info sherlock
+        ghost-hunter plugins info SherlockPlugin
     """
     registry = PluginRegistry()
     registry.discover_plugins()
-    
-    plugin_class = registry.get_plugin(plugin_name)
-    if not plugin_class:
+
+    resolved = _resolve_plugin_name(registry, plugin_name)
+    plugin = registry.get_plugin_instance(resolved) if resolved else None
+    if not plugin:
         click.echo(f"Error: Plugin '{plugin_name}' not found")
         sys.exit(1)
-    
-    plugin = plugin_class()
-    
-    click.echo(f"\nPlugin: {plugin_name}")
+
+    manager = PluginManager(registry)
+    enabled = manager.is_plugin_enabled(resolved)
+
+    click.echo(f"\nPlugin: {resolved}")
     click.echo("=" * 50)
-    click.echo(f"  Version: {plugin.version}")
-    click.echo(f"  Description: {plugin.description}")
-    click.echo(f"  Author: {plugin.author}")
-    click.echo(f"  Status: {'Enabled' if plugin.is_enabled() else 'Disabled'}")
-    click.echo(f"  Supported artifacts: {', '.join(plugin.supported_artifacts)}")
+    click.echo(f"  Tool name: {plugin.get_name()}")
+    click.echo(f"  Version: {plugin.get_version()}")
+    click.echo(f"  Description: {plugin.get_description() or '-'}")
+    click.echo(f"  Enabled in config: {'yes' if enabled else 'no'}")
+    click.echo(f"  Installed now: {'yes' if plugin.is_available() else 'no'}")
+    click.echo(f"  Artifact types: {', '.join(plugin.get_supported_artifact_types()) or '-'}")
+    click.echo(f"  Requires: {', '.join(plugin.get_required_dependencies()) or '-'}")
     click.echo()
+
+
+def _report_toggle(plugin_name: str, enabled: bool) -> None:
+    """Tell the caller how to switch a plugin on or off.
+
+    The setting lives in config.yaml, which is hand-written and commented, so
+    the command points at the edit instead of rewriting the file.
+    """
+    plugins_config = get_config().list_plugins()
+    if plugin_name not in plugins_config:
+        click.echo(f"Error: Plugin '{plugin_name}' not found in configuration")
+        click.echo(f"Known plugins: {', '.join(sorted(plugins_config))}")
+        sys.exit(1)
+
+    current = bool(plugins_config[plugin_name].get("enabled", True))
+    word = "enabled" if enabled else "disabled"
+    if current == enabled:
+        click.echo(f"Plugin '{plugin_name}' is already {word}.")
+        return
+
+    click.echo(f"Plugin '{plugin_name}' is currently {'enabled' if current else 'disabled'}.")
+    click.echo(
+        f"To {'enable' if enabled else 'disable'} it, set plugins.{plugin_name}.enabled: "
+        f"{str(enabled).lower()} in config/config.yaml"
+    )
 
 
 @plugins.command()
 @click.argument("plugin_name")
 def enable(plugin_name: str):
-    """Enable a plugin.
+    """Show how to enable a plugin in config.yaml.
 
     Examples:
         ghost-hunter plugins enable username_search
     """
-    from src.config.loader import get_config
-    
-    config = get_config()
-    plugin_settings = config.get("plugin_settings", {})
-    plugins_config = plugin_settings.get("plugins", {})
-    
-    if plugin_name not in plugins_config:
-        click.echo(f"Error: Plugin '{plugin_name}' not found in configuration")
-        sys.exit(1)
-    
-    plugins_config[plugin_name]["enabled"] = True
-    
-    # Save configuration (would need config save functionality)
-    click.echo(f"Plugin '{plugin_name}' enabled.")
-    click.echo("Note: Configuration changes require manual update to config.yaml")
+    _report_toggle(plugin_name, True)
 
 
 @plugins.command()
 @click.argument("plugin_name")
 def disable(plugin_name: str):
-    """Disable a plugin.
+    """Show how to disable a plugin in config.yaml.
 
     Examples:
         ghost-hunter plugins disable username_search
     """
-    from src.config.loader import get_config
-    
-    config = get_config()
-    plugin_settings = config.get("plugin_settings", {})
-    plugins_config = plugin_settings.get("plugins", {})
-    
-    if plugin_name not in plugins_config:
-        click.echo(f"Error: Plugin '{plugin_name}' not found in configuration")
-        sys.exit(1)
-    
-    plugins_config[plugin_name]["enabled"] = False
-    
-    # Save configuration (would need config save functionality)
-    click.echo(f"Plugin '{plugin_name}' disabled.")
-    click.echo("Note: Configuration changes require manual update to config.yaml")
+    _report_toggle(plugin_name, False)
 
 
 if __name__ == "__main__":

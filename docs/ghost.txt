@@ -1,39 +1,418 @@
-# Investigate an email
-python -m src.cli investigate --email "suspect@example.com"
+Ghost Identity Hunter -- CLI cookbook
+=====================================
 
-# Investigate a phone number
-python -m src.cli investigate --phone "+1-555-0123"
+Every command in this file was run against the current code before it was
+written down. Replace <INV-ID> with an investigation id (INV-4393216a and the
+like) and the seed values with your own.
 
-# Investigate a username
-python -m src.cli investigate --username "john_doe"
+Two files this one deliberately does not repeat:
 
-# Multiple seeds at once
-python -m src.cli investigate -p "+1-555-0123" -e "suspect@example.com" -u "john_doe"
-
-# Investigate a profile image
-python -m src.cli investigate --image "/path/to/profile.jpg"
-
-# Skip network-dependent checks (offline mode)
-python -m src.cli investigate -e "test@example.com" --no-breach --no-username-search
+  docs/TOOL_COMMANDS.md   the exact argv of every external tool gih runs
+  docs/SQLITE_QUERIES.md  how to read the database the run writes
 
 
-# Generate HTML report
-python -m src.cli report --id <INV-ID>
+Where things go
+---------------
 
-# Generate JSON report
-python -m src.cli report --id <INV-ID> --format json
+  Database   ~/.ghost_hunter/investigations.db   (override with --db)
+  Reports    ./reports                           (reporting.output_dir in config/config.yaml)
+  Logs       ./logs/<user>_<timestamp>.log       (written on every command)
+  Evidence   ~/.ghost_hunter/evidence/<INV-ID>/  (preserved raw tool output)
 
-# Generate both
-python -m src.cli report --id <INV-ID> --format both
+  # Keep a case in its own file instead of the shared database
+  python3 -m src.cli --db /tmp/case.db investigate --username octocat
 
-# Interactive identity graph (HTML)
-python -m src.cli graph --id <INV-ID>
+  # --db and --verbose belong to the group: they go before the subcommand
+  python3 -m src.cli --verbose --db /tmp/case.db list
 
-# Run correlation analysis
-python -m src.cli correlate --id <INV-ID>
-
-python -m src.cli list
-
-pytest tests/ -v
+  # --verbose turns on DEBUG logging for the run (console and log file)
+  python3 -m src.cli -v investigate --username octocat
 
 
+The commands
+------------
+
+  investigate   run a new investigation from one or more seeds
+  report        (re)generate a report for a finished investigation
+  evidence      re-hash the preserved tool output and check it is unaltered
+  graph         write the interactive identity graph and print graph stats
+  plugins       list plugins, show one, or find its config switch
+  list          list every investigation in the database
+  correlate     re-run correlation and print the identity profiles
+
+  python3 -m src.cli --help
+  python3 -m src.cli investigate --help
+
+
+investigate -- seeds
+--------------------
+
+Every seed option may be repeated, and they may be mixed freely. Dispatch is by
+seed type: a username seed never reaches nmap, an IP seed never reaches
+sherlock.
+
+  # Email
+  python3 -m src.cli investigate --email "suspect@example.com"
+  python3 -m src.cli investigate -e "suspect@example.com"
+
+  # Username
+  python3 -m src.cli investigate --username "octocat"
+  python3 -m src.cli investigate -u "octocat"
+
+  # Phone (any format phonenumbers can parse)
+  python3 -m src.cli investigate --phone "+1-202-555-0173"
+  python3 -m src.cli investigate -p "+1-202-555-0173"
+
+  # Full name -- see "Exact matching" below; a name reaches no tool directly
+  python3 -m src.cli investigate --full-name "Jane Doe"
+  python3 -m src.cli investigate -n "Jane Doe"
+
+  # Image file (EXIF, hashes, reverse-search links; face matching if installed)
+  python3 -m src.cli investigate --image /tmp/profile.jpg
+  python3 -m src.cli investigate -i /tmp/profile.jpg
+
+  # Domain
+  python3 -m src.cli investigate --domain example.com
+  python3 -m src.cli investigate -d example.com
+
+  # IP address (--ip has no short form; -i is --image)
+  python3 -m src.cli investigate --ip 45.33.32.156
+
+  # Several seeds in one investigation
+  python3 -m src.cli investigate -u "octocat" -e "octocat@github.com"
+  python3 -m src.cli investigate -p "+1-202-555-0173" -e "suspect@example.com" -u "john_doe"
+
+A run with no seed and no --check-tools exits 1 with
+"Error: At least one seed artifact required". An --image path that does not
+exist is warned about and skipped rather than aborting the run.
+
+Domain and IP seeds are worked almost entirely by external tools (whois, dig,
+amass, subfinder, nmap, whatweb, shodan). With --no-external-tools, or with
+none of those installed, such a run stores the seed and little else.
+
+
+investigate -- how the run behaves
+----------------------------------
+
+  # Depth of the BFS pivot chain (default 2). Seeds are depth 0, so --depth 1
+  # works the seeds and what they turn up, and pivots no further.
+  python3 -m src.cli investigate -u "octocat" --depth 1
+
+  # Title the case
+  python3 -m src.cli investigate -u "octocat" --title "Case 2026-04"
+
+  # External tools are used when installed. --no-external-tools wins over
+  # --use-external-tools, which is on by default.
+  python3 -m src.cli investigate -u "octocat" --use-external-tools
+  python3 -m src.cli investigate -u "octocat" --no-external-tools
+
+  # Skip the network-heavy modules
+  python3 -m src.cli investigate -e "test@example.com" --no-breach --no-username-search
+
+  # What is installed here, and what gih would do with it
+  python3 -m src.cli investigate --check-tools
+
+--check-tools prints the tool checker's status, then a coverage table (tool,
+available, integrated, artifact types, why a tool is not integrated) and a line
+like "Integrated: 14/36 | Integrated and available now: 1". It runs no
+investigation, so it needs no seed.
+
+Neo4j and Google Dorks are off unless asked for:
+
+  python3 -m src.cli investigate -u "octocat" --use-google-dorks --search-engine duckduckgo
+  python3 -m src.cli investigate -u "octocat" --use-neo4j --neo4j-uri bolt://localhost:7687
+
+--use-neo4j needs the optional driver (pip install -r requirements-optional.txt)
+and a reachable database. Without either, the run logs "Neo4j correlation
+failed, falling back to NetworkX", finishes on the default backend and keeps
+everything it found.
+
+  --use-google-api, --google-api-key, --google-cx  Google Custom Search instead
+      of scraping; the key and cx default to $GOOGLE_API_KEY and $GOOGLE_CX.
+  --search-engine  auto (default), duckduckgo, google, bing
+  --neo4j-user, --neo4j-password, --neo4j-database  default neo4j/password/neo4j
+
+
+investigate -- the report it writes at the end
+----------------------------------------------
+
+A report is generated automatically unless reporting.auto_generate is false in
+config/config.yaml or --no-auto-report is passed.
+
+  # Investigate and stop; report later with the report command
+  python3 -m src.cli investigate -u "octocat" --no-auto-report
+
+  # Formats: html (default), json, both, pdf, csv
+  python3 -m src.cli investigate -u "octocat" --report-format json
+  python3 -m src.cli investigate -u "octocat" --report-format both
+
+  # Templates: standard (default), executive, technical, legal
+  python3 -m src.cli investigate -u "octocat" --report-template executive
+
+  # Custom path. With "both" the JSON is written beside the HTML as case.json,
+  # so the two do not overwrite each other.
+  python3 -m src.cli investigate -u "octocat" --report-format both --report-output /tmp/case.html
+
+  # Only some sections of the standard template
+  python3 -m src.cli investigate -u "octocat" --report-sections summary,platforms
+
+  # Mask sensitive values in the report itself
+  python3 -m src.cli investigate -u "octocat" --redact-report
+
+  # Do not write the extra masked copy (it is written by default)
+  python3 -m src.cli investigate -u "octocat" --no-shareable-copy
+
+Unless --redact-report is given, every HTML report is written twice: the
+working copy and a masked twin named <name>_redacted.html beside it. The mask
+is applied while the file is generated -- a toggle inside the report could only
+hide what the file already contains -- which is why the shareable version is a
+separate file. --redact-report writes only the masked report, so no twin is
+produced.
+
+
+report -- (re)generate from what is stored
+------------------------------------------
+
+  python3 -m src.cli report --id <INV-ID>
+  python3 -m src.cli report --id <INV-ID> --format json
+  python3 -m src.cli report --id <INV-ID> --format both -o /tmp/out
+  python3 -m src.cli report --id <INV-ID> --format csv
+  python3 -m src.cli report --id <INV-ID> --template executive
+  python3 -m src.cli report --id <INV-ID> --template technical
+  python3 -m src.cli report --id <INV-ID> --template legal
+  python3 -m src.cli report --id <INV-ID> --sections summary,identities,platforms
+  python3 -m src.cli report --id <INV-ID> --redact
+  python3 -m src.cli report --id <INV-ID> --no-shareable-copy
+  python3 -m src.cli report --id <INV-ID> -o /tmp/mycase.html
+  python3 -m src.cli report --id <INV-ID> --format pdf
+
+  --format   html (default), json, both, pdf, csv
+  --template standard (default), executive, technical, legal
+  --sections comma-separated, standard template only. Valid names: leaks,
+             identities, summary, tools, platforms, graph, artifacts, evidence,
+             orphans, geo, audit, comments, cross, delta, filters. Unknown
+             names are ignored, and a list of nothing but unknown names falls
+             back to all sections rather than an empty report.
+  -o         a file for html/json/pdf, a directory for both.
+  --compare  a prior investigation id, or "auto".
+
+An unknown id prints "Error: Investigation '<id>' not found" and exits 1.
+
+CSV is two files, not one: <base>_artifacts.csv and <base>_presences.csv.
+
+PDF is rendered from the HTML by pandoc. Without pandoc on PATH the command
+prints "PDF export failed: PDF export requires pandoc on PATH", keeps the HTML
+it has already written, and exits 1.
+
+
+evidence -- was the raw tool output tampered with
+-------------------------------------------------
+
+  python3 -m src.cli evidence --id <INV-ID>
+  python3 -m src.cli evidence --id <INV-ID> --show-path
+
+Each preserved capture is re-hashed and compared with the digest recorded when
+it was collected, printing one line per capture (status, time, tool, size,
+sha256 prefix) and the command that produced it, then a
+"N verified, N modified, N missing" tally. --show-path adds the file on disk.
+The command exits 1 if anything is modified or missing, so it can gate a
+handover. An investigation whose run preserved nothing prints
+"No preserved evidence recorded for <INV-ID>".
+
+
+graph -- the interactive identity graph
+---------------------------------------
+
+  python3 -m src.cli graph --id <INV-ID>
+  python3 -m src.cli graph --id <INV-ID> -o /tmp/graph.html
+  python3 -m src.cli graph --id <INV-ID> --layout hierarchical
+  python3 -m src.cli graph --id <INV-ID> --collection-threshold 0
+
+  --layout                organic, hierarchical, circular (default: graph.layout
+                          in config/config.yaml, "organic"). Anything else is
+                          rejected by Click with exit code 2.
+  --collection-threshold  collapse a node's same-type leaf neighbours into one
+                          collection node once there are this many; 0 keeps
+                          every node separate (default: graph.collection_threshold, 8).
+
+Clicking a node opens that artifact in the report; clicking a collection node
+expands what it stands for. After writing the file the command prints nodes,
+edges, connected components, density and the type distribution.
+
+
+list and correlate
+------------------
+
+  # Every investigation in the database, newest first
+  python3 -m src.cli list
+
+  # Re-run correlation and print the identity profiles it produces
+  python3 -m src.cli correlate --id <INV-ID>
+
+correlate prints, per profile, the artifact count, confidence, risk level and
+the phones, emails, usernames, platforms and risk indicators it groups.
+
+
+plugins
+-------
+
+  # Every registered plugin, whether config.yaml enables it, what it accepts
+  python3 -m src.cli plugins list
+
+  # ...plus version, description, whether the tool is installed here, and what
+  # it needs
+  python3 -m src.cli plugins list --verbose
+
+  # One plugin, by class name or by the tool name used in config.yaml
+  python3 -m src.cli plugins info sherlock
+  python3 -m src.cli plugins info SherlockPlugin
+  python3 -m src.cli plugins info username_search
+
+  # Where the on/off switch for a plugin lives
+  python3 -m src.cli plugins disable sherlock
+  python3 -m src.cli plugins enable osrframework
+
+"Enabled in config" and "Installed now" are different things: a plugin can be
+enabled in config/config.yaml and still be skipped at run time because the tool
+it drives is not installed (plugins list --verbose shows both, and
+investigate --check-tools shows the same for every tool).
+
+enable and disable do not edit config/config.yaml -- it is hand-written and
+commented, and rewriting it would lose that. They report the current state and
+print the exact key to set, e.g.
+"To disable it, set plugins.sherlock.enabled: false in config/config.yaml".
+An unknown name exits 1 and lists the plugins config.yaml knows.
+
+
+Exact matching -- what ends up in a report
+------------------------------------------
+
+Strict matching is ON by default (investigation.strict_match.enabled in
+config/config.yaml). A finding is dropped unless it carries the seed's exact
+value:
+
+  python3 -m src.cli investigate -u "octocat"                     # strict (default)
+  python3 -m src.cli investigate -u "octocat" --strict-match      # explicit
+  python3 -m src.cli investigate -u "octocat" --no-strict-match   # allow partials
+
+"Exact" means the seed appears as a whole token (src/utils/matching.py):
+
+  - octocat matches https://github.com/octocat and github.com:octocat
+  - octocat does not match octocat99, the_octocat or octocat.dev, because a
+    match flanked by a character a handle may itself contain is part of a
+    longer, different handle
+  - a handle that is a hostname label counts: https://octocat.tumblr.com
+  - for an email seed the local part counts too, since a profile URL carries
+    "suspect", not "suspect@example.com"
+
+Only claims of the form "this account belongs to the target" are judged, and
+only when the seed is itself a handle (username or email):
+
+  - account findings (username_presence, email_presence, platform_presence)
+    must spell the seed out in their value, username, url, profile_url or in
+    the same keys inside their metadata
+  - a username or email derived from a page about the target is kept only when
+    it equals the target; a neighbouring handle on the same page belongs to
+    somebody else
+  - infrastructure findings (subdomains, ports, DNS records, breach records)
+    are never identity claims and are never dropped
+  - a domain or full-name seed legitimately yields handles and addresses that
+    look nothing like it, so those pivots survive strict matching
+
+Two further settings under investigation.strict_match, both applied only while
+strict matching is enabled:
+
+  require_validated_presence: true
+      Drops platform hits proven by nothing but an HTTP 200. A site with a soft
+      404 answers 200 for every name, so a presence carrying an is_verified
+      verdict must have it set to true to be kept. Tool-derived rows (sherlock,
+      holehe, ...) carry no such verdict and are exact by construction, so they
+      are unaffected. The count dropped is logged.
+
+  min_image_probability: 0.9
+      The lowest face-match probability that may be recorded as an
+      identity_match artifact. With strict matching off the floor is 0.7.
+
+The one exception to "exact value only":
+
+  allow_name_variants: true
+      No tool takes a person's name, so a --full-name seed is expanded into
+      guessed username candidates (first.last, flast, ...) which the BFS then
+      searches. These are guesses, not exact matches, which is why they are a
+      configurable exception. Each candidate still has to match exactly
+      wherever it is searched. Set it to false and a strict run logs
+      "Strict match: skipping guessed username variants" and a full-name seed
+      reaches no username tool at all. With --no-strict-match the variants are
+      always expanded.
+
+
+Recipes
+-------
+
+Single seed, everything default:
+
+  python3 -m src.cli investigate --username "octocat"
+
+Fast pass with no external tools and no report:
+
+  python3 -m src.cli investigate --username "octocat" --depth 1 --no-external-tools --no-auto-report
+
+One case, several seeds, its own database and title:
+
+  python3 -m src.cli --db /tmp/case.db investigate \
+      -u "octocat" -e "octocat@github.com" -p "+1-202-555-0173" --title "Case 2026-04"
+
+Something to hand over: masked report, no working copy:
+
+  python3 -m src.cli report --id <INV-ID> --redact
+
+Something to keep and something to share, in one go (the twin is written by
+default):
+
+  python3 -m src.cli report --id <INV-ID>
+  # -> reports/<INV-ID>_report.html and reports/<INV-ID>_report_redacted.html
+
+What changed since the last run of the same seeds:
+
+  python3 -m src.cli report --id <INV-ID> --compare auto
+  python3 -m src.cli report --id <INV-ID> --compare <PRIOR-INV-ID>
+
+"auto" resolves to the previous investigation with the same seeds; naming the
+prior id does the same thing explicitly. The result is the report's delta
+section (added, removed and changed artifacts), which is also in the JSON:
+
+  python3 -m src.cli report --id <INV-ID> --compare auto --format json
+
+Read a report in a browser -- it pulls its graph from a sibling file and its
+map tiles over the network, so serve the directory rather than opening the file
+from disk:
+
+  scripts/serve_reports.sh              # 127.0.0.1:8000 over ./reports
+  scripts/serve_reports.sh status
+  scripts/serve_reports.sh stop
+  scripts/serve_reports.sh start -p 8080 -d /tmp/out
+
+It binds to localhost on purpose; an unredacted report names people and carries
+breach records. Use "-b 0.0.0.0" only deliberately, and serve the redacted
+copy.
+
+Read the data behind the report:
+
+  sqlite3 ~/.ghost_hunter/investigations.db
+  # queries for artifacts, links, presences, evidence: docs/SQLITE_QUERIES.md
+
+Run a tool by hand and compare its answer with the report:
+
+  python3 -m src.cli investigate --check-tools   # what is installed here
+  # the exact argv gih uses for each tool: docs/TOOL_COMMANDS.md
+
+Check nothing has been altered before handing a case over:
+
+  python3 -m src.cli evidence --id <INV-ID> --show-path
+
+
+Tests
+-----
+
+  pytest
+  pytest tests/test_cli_plugins.py -v
