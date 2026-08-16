@@ -882,6 +882,7 @@ def generate_html_report(
         _generate_tool_metrics(artifacts, correlation),
         artifacts=artifacts,
         evidence_runs=db.get_evidence(conn, investigation_id),
+        redact=redact,
     )
     leak_findings = build_leak_findings(artifacts, redact=redact)
     orphan_findings = build_orphan_findings(artifacts, correlation)
@@ -2050,6 +2051,8 @@ def generate_json_report(
         _generate_tool_metrics(artifacts, correlation),
         artifacts=artifacts,
         evidence_runs=db.get_evidence(conn, investigation_id),
+        redact=redact,
+        include_logs=False,
     )
     orphans = build_orphan_findings(artifacts, correlation)
     leak_findings = build_leak_findings(artifacts, redact=redact)

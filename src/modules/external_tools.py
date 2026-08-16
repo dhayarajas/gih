@@ -53,6 +53,15 @@ def _get_tool_timeout(tool_name: str, default: int = DEFAULT_TOOL_TIMEOUT) -> in
         return default
 
 
+def tool_timeout(tool_name: str) -> int:
+    """The subprocess time budget a tool was given, for readers of the report.
+
+    A duration means little without the deadline it was measured against: two
+    seconds is fast for amass and a stall for dig.
+    """
+    return _get_tool_timeout(tool_name)
+
+
 def tool_enabled(tool_name: str) -> bool:
     """Whether ``plugins.<tool_name>.enabled`` permits running this tool.
 
