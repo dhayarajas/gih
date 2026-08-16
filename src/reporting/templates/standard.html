@@ -625,6 +625,8 @@
             }
             details.drilldown > summary { flex-wrap: wrap; }
             .timeline-event { flex-wrap: wrap; overflow: visible; }
+            /* A scrollbar has no meaning on paper: the whole log is printed. */
+            pre.tool-log { max-height: none; overflow: visible; }
             /* A PDF converter that does not run scripts leaves the map an empty
                box; Leaflet marks the container it took over, so only an
                initialised map is printed. */
@@ -686,6 +688,24 @@
         .citation-version { color: #4a5568; font-size: 0.78rem; }
         code.citation-command { display: inline-block; background: #edf2f7; color: #1a202c; padding: 0.15rem 0.35rem; border-radius: 3px; font-size: 0.78rem; overflow-wrap: anywhere; }
         .citation-meta { color: #718096; font-size: 0.78rem; }
+        /* Per-tool run detail: collapsed, so the table stays one line per tool
+           until a reader asks a row what it actually did. */
+        tr.tool-detail-row td.tool-detail-cell {
+            white-space: normal; overflow: visible; max-width: none;
+            padding: 0 0.75rem 0.6rem;
+        }
+        details.tool-detail > summary { cursor: pointer; font-size: 0.78rem; color: #2b6cb0; }
+        .tool-detail-body { padding: 0.4rem 0 0.2rem; }
+        table.tool-run-table { font-size: 0.8rem; margin-bottom: 0.4rem; }
+        table.tool-run-table td {
+            white-space: normal; overflow: visible; max-width: none; overflow-wrap: anywhere;
+        }
+        table.tool-run-table td:first-child { color: #4a5568; white-space: nowrap; width: 9rem; }
+        pre.tool-log {
+            margin: 0 0 1rem; padding: 0.6rem 0.75rem; max-height: 18rem; overflow: auto;
+            white-space: pre-wrap; overflow-wrap: anywhere; color: #1a202c;
+            background: #f7fafc; border: 1px solid #e2e8f0; border-radius: 4px;
+        }
         /* Run-to-run diff */
         table.delta-table td { vertical-align: top; }
         .delta-before { color: #9b2c2c; text-decoration: line-through; }
@@ -1636,7 +1656,7 @@
     <details class="report-section" data-section="tools">
     <summary><h2 class="section-title">{{ ns.n }}. Tool Run Status</h2><span class="section-count">{{ tool_metrics.tool_status | length }} tool(s)</span></summary>
     <div class="section-body">
-    <p class="section-blurb">Every installed tool and what it contributed, with a reason for each one that contributed nothing. Tools that are not installed on this host are named below the table rather than given a row of their own.</p>
+    <p class="section-blurb">Every installed tool and what it contributed, with a reason for each one that contributed nothing. Expand a row for the runs behind it: the command as it was executed, how long it took against its configured budget, how it exited, and the output it produced. Tools that are not installed on this host are named below the table rather than given a row of their own.</p>
     <div class="card">
         {% if tool_metrics.tool_status %}
         <table>
@@ -1647,6 +1667,32 @@
                 <td>{% if row.state == 'produced_output' %}{{ row.tool }}{% else %}<span class="tool-off">{{ row.tool }}</span>{% endif %}</td>
                 <td class="status-{{ row.state }}">{{ row.state }}</td>
                 <td title="{{ row.reason }}">{{ row.reason or 'produced output' }}</td>
+            </tr>
+            <tr class="tool-detail-row">
+                <td class="tool-detail-cell" colspan="3">
+                    <details class="tool-detail">
+                        <summary>Run detail{% if row.runs %} &mdash; {{ row.runs | length }} run(s){% endif %}</summary>
+                        <div class="tool-detail-body">
+                        {% if row.runs %}
+                            {% for run in row.runs %}
+                            <table class="kv-table tool-run-table">
+                                <tbody>
+                                    <tr><td>Command</td><td>{% if run.command %}<code class="citation-command">{{ run.command }}</code>{% else %}withheld from the redacted copy{% endif %}</td></tr>
+                                    {% if run.target %}<tr><td>Target</td><td>{{ run.target }}</td></tr>{% endif %}
+                                    <tr><td>Wait</td><td>{% if run.duration_seconds is not none %}{{ "%.1f" | format(run.duration_seconds) }} s{% else %}not recorded{% endif %}{% if run.timeout_seconds %} of a {{ run.timeout_seconds }} s budget{% endif %}</td></tr>
+                                    <tr><td>Exit status</td><td>{{ run.exit_status }}</td></tr>
+                                    <tr><td>Captured</td><td>{{ run.captured_at[:19].replace('T', ' ') }} UTC</td></tr>
+                                    <tr><td>Output</td><td>{{ run.byte_size }} byte(s){% if run.truncated %} &middot; capped at collection time{% endif %}{% if run.log_clipped %} &middot; only the first part is shown here{% endif %}{% if run.sha256 %} &middot; sha256 {{ run.sha256[:16] }}&hellip;{% endif %}</td></tr>
+                                </tbody>
+                            </table>
+                            {% if run.log %}<pre class="tool-log">{{ run.log }}</pre>{% else %}<p class="empty-note">Log: {{ run.log_note or 'not available' }}.</p>{% endif %}
+                            {% endfor %}
+                        {% else %}
+                            <p class="empty-note">No run was recorded for this tool &mdash; {{ row.reason or 'it produced output without a preserved capture' }}.</p>
+                        {% endif %}
+                        </div>
+                    </details>
+                </td>
             </tr>
             {% endfor %}
             </tbody>

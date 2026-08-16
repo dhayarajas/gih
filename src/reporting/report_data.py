@@ -10,6 +10,7 @@ from collections import Counter, defaultdict
 from copy import deepcopy
 from typing import Any, Optional
 
+from src.config.loader import get_config
 from src.correlation.linker import IDENTITY_ARTIFACT_TYPES
 from src.modules.external_tools import (
     STATUS_NO_RECORD,
@@ -17,8 +18,10 @@ from src.modules.external_tools import (
     TOOL_ARTIFACT_TYPES,
     TOOL_INPUT_TYPES,
     tool_enabled,
+    tool_timeout,
 )
 from src.storage import database as db
+from src.storage import evidence as evidence_store
 
 logger = logging.getLogger(__name__)
 
@@ -380,8 +383,6 @@ def build_preserved_evidence(
     chain of custody. Under redaction the command line and target are dropped:
     both embed the seed value, while the digest and timing do not.
     """
-    from src.storage import evidence as evidence_store
-
     try:
         rows = db.get_evidence(conn, investigation_id)
     except sqlite3.Error:
@@ -471,7 +472,7 @@ def _tool_citation(run: dict, redact: bool) -> dict:
         "kind": "tool",
         "tool": run.get("tool"),
         "tool_version": _version_only(run.get("tool"), run.get("tool_version")),
-        "command": None if redact else run.get("command"),
+        "command": None if redact else mask_secrets(str(run.get("command") or "")) or None,
         "target": None if redact else run.get("target"),
         "captured_at": run.get("captured_at"),
         "duration_seconds": run.get("duration_seconds"),
@@ -985,12 +986,130 @@ def _silence_reason(tool: str, runs: list[dict], artifact_types: set[str]) -> st
     return "not dispatched — no run recorded"
 
 
+SECRET_MASK = "[REDACTED_SECRET]"
+
+# Config keys holding a credential. Their values are matched literally in a
+# command line, because a key reaches an argv in whatever shape the tool wants
+# it -- a flag, a query parameter, a path segment.
+_SECRET_CONFIG_KEY_PARTS = ("api_key", "apikey", "token", "secret", "password", "passwd", "cx")
+_MIN_SECRET_LENGTH = 6
+
+# The two shapes a credential takes on a command line when it did not come
+# from this host's config: an option and a query parameter.
+_SECRET_OPTION_RE = re.compile(
+    r"(?i)(-{1,2}(?:api[-_]?key|apikey|key|token|auth|secret|password|passwd)(?:=|\s+))(\S+)"
+)
+_SECRET_QUERY_RE = re.compile(
+    r"(?i)([?&](?:api[-_]?key|apikey|key|token|access[-_]?token|auth|secret|password)=)([^&\s]+)"
+)
+
+# A tool run against many targets would otherwise put its whole dispatch log
+# into one panel.
+MAX_TOOL_RUNS_SHOWN = 25
+
+
+def _configured_secrets() -> set[str]:
+    """Every credential value this host's configuration holds."""
+    found: set[str] = set()
+
+    def walk(node: object) -> None:
+        if isinstance(node, dict):
+            for key, value in node.items():
+                if (isinstance(value, str) and len(value) >= _MIN_SECRET_LENGTH
+                        and any(part in str(key).lower() for part in _SECRET_CONFIG_KEY_PARTS)):
+                    found.add(value)
+                else:
+                    walk(value)
+        elif isinstance(node, list):
+            for item in node:
+                walk(item)
+
+    try:
+        walk(get_config().config)
+    except Exception as exc:
+        logger.debug("Could not read configured secrets: %s", exc)
+    return found
+
+
+def mask_secrets(text: str) -> str:
+    """Replace any credential in a command line or tool output with a mask.
+
+    A report is shared; the key that produced a finding is not part of it, and
+    an argv is the one place it reliably ends up in full.
+    """
+    if not text:
+        return text
+    masked = text
+    for secret in _configured_secrets():
+        masked = masked.replace(secret, SECRET_MASK)
+    masked = _SECRET_OPTION_RE.sub(lambda m: m.group(1) + SECRET_MASK, masked)
+    return _SECRET_QUERY_RE.sub(lambda m: m.group(1) + SECRET_MASK, masked)
+
+
+def _tool_run_detail(run: dict, budget: Optional[int], redact: bool,
+                     include_log: bool) -> dict:
+    """One recorded run of a tool, as the report shows it.
+
+    Under redaction the command, the target and the captured output are
+    dropped rather than hidden: the shareable copy carries no personal data,
+    while the timing, the exit status and the digest stay legible.
+    """
+    detail = {
+        "command": None,
+        "target": None,
+        "timeout_seconds": budget,
+        "duration_seconds": run.get("duration_seconds"),
+        "exit_status": run.get("exit_status") or "unknown",
+        "captured_at": run.get("captured_at") or "",
+        "sha256": run.get("sha256") or "",
+        "byte_size": run.get("byte_size") or 0,
+        "truncated": bool(run.get("truncated")),
+        "log": None,
+        "log_clipped": False,
+        "log_note": "",
+    }
+    if redact:
+        detail["log_note"] = "withheld from the redacted copy"
+        return detail
+
+    detail["command"] = mask_secrets(str(run.get("command") or "")) or None
+    detail["target"] = run.get("target")
+    if not include_log:
+        return detail
+
+    excerpt = evidence_store.read_capture(run.get("stored_path"))
+    if excerpt is None:
+        detail["log_note"] = "capture file is no longer readable"
+    elif not excerpt.text.strip():
+        detail["log_note"] = "the tool produced no output"
+    else:
+        detail["log"] = mask_secrets(excerpt.text)
+        detail["log_clipped"] = excerpt.clipped
+    return detail
+
+
+def _tool_run_details(tool: str, runs: list[dict], redact: bool,
+                      include_logs: bool) -> list[dict]:
+    ordered = sorted(runs, key=lambda run: run.get("captured_at") or "")
+    budget = tool_timeout(tool)
+    return [_tool_run_detail(run, budget, redact, include_logs)
+            for run in ordered[:MAX_TOOL_RUNS_SHOWN]]
+
+
 def enrich_tool_status(tool_metrics: dict, artifacts: list | None = None,
-                       evidence_runs: list | None = None) -> dict:
+                       evidence_runs: list | None = None,
+                       redact: bool = False,
+                       include_logs: bool = True) -> dict:
     """Annotate silent tools with host availability and why they were silent.
 
     Tools that are not installed are listed by name rather than given a row:
     a table of absent binaries says nothing about this investigation.
+
+    Each row also carries the runs recorded for that tool -- the command as it
+    was executed, how long it took against its configured budget, and the
+    output it produced -- so a reader can see what a tool did rather than only
+    what it concluded. The JSON export sets ``include_logs`` false: it already
+    names the stored capture file, so inlining its bytes only duplicates it.
     """
     metrics = dict(tool_metrics)
     silent = list(metrics.get("silent_tools") or [])
@@ -1018,6 +1137,8 @@ def enrich_tool_status(tool_metrics: dict, artifacts: list | None = None,
                     "available": available,
                     "state": "produced_output",
                     "reason": "",
+                    "runs": _tool_run_details(
+                        tool, runs_by_tool.get(tool, []), redact, include_logs),
                 })
             elif not available:
                 not_installed.append(tool)
@@ -1029,6 +1150,8 @@ def enrich_tool_status(tool_metrics: dict, artifacts: list | None = None,
                     "reason": _silence_reason(
                         tool, runs_by_tool.get(tool, []), artifact_types
                     ),
+                    "runs": _tool_run_details(
+                        tool, runs_by_tool.get(tool, []), redact, include_logs),
                 })
     except Exception as exc:
         logger.debug("Tool status enrichment skipped: %s", exc)
@@ -1040,6 +1163,8 @@ def enrich_tool_status(tool_metrics: dict, artifacts: list | None = None,
                 "reason": _silence_reason(
                     tool, runs_by_tool.get(tool, []), artifact_types
                 ),
+                "runs": _tool_run_details(
+                    tool, runs_by_tool.get(tool, []), redact, include_logs),
             })
     metrics["tool_status"] = status_rows
     metrics["not_installed"] = not_installed

@@ -33,6 +33,9 @@ DEFAULT_EVIDENCE_DIR = Path.home() / ".ghost_hunter" / "evidence"
 MAX_CAPTURE_BYTES = 2 * 1024 * 1024
 TRUNCATION_NOTICE = "\n\n[capture truncated at {limit} bytes]\n"
 
+# How much of a capture a report may inline per run.
+REPORT_EXCERPT_BYTES = 16 * 1024
+
 # A capture holds the rawest material in the case -- whois registrants, page
 # bodies, breach-adjacent output -- so it is readable by its owner only, rather
 # than by whatever the process umask happens to allow.
@@ -245,6 +248,42 @@ def flush(conn) -> int:
         except Exception as exc:
             logger.warning("Could not record evidence for %s: %s", capture.tool, exc)
     return stored
+
+
+@dataclass
+class CaptureExcerpt:
+    """As much of a stored capture as a report is willing to inline."""
+
+    text: str
+    shown_bytes: int
+    total_bytes: int
+    clipped: bool
+
+
+def read_capture(stored_path: Optional[str],
+                 limit: int = REPORT_EXCERPT_BYTES) -> Optional[CaptureExcerpt]:
+    """Read the head of a stored capture, or None when it is unreadable.
+
+    A report embeds the excerpt in the page, so the read is bounded here
+    rather than at the template: one runaway capture would otherwise weigh
+    more than the rest of the report together.
+    """
+    if not stored_path:
+        return None
+    path = Path(stored_path)
+    try:
+        total = path.stat().st_size
+        with path.open("rb") as handle:
+            payload = handle.read(max(limit, 0))
+    except OSError as exc:
+        logger.debug("Could not read capture %s: %s", stored_path, exc)
+        return None
+    return CaptureExcerpt(
+        text=payload.decode("utf-8", "replace"),
+        shown_bytes=len(payload),
+        total_bytes=total,
+        clipped=total > len(payload),
+    )
 
 
 def verify(rows: list[dict]) -> list[dict]:
