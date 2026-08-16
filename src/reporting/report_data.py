@@ -13,8 +13,8 @@ from typing import Any, Optional
 from src.config.loader import get_config
 from src.correlation.linker import IDENTITY_ARTIFACT_TYPES
 from src.modules.external_tools import (
-    STATUS_NO_RECORD,
-    STATUS_REPORTED,
+    ANSWERED_STATUSES,
+    STATUS_UNPARSABLE,
     TOOL_ARTIFACT_TYPES,
     TOOL_INPUT_TYPES,
     tool_enabled,
@@ -22,6 +22,7 @@ from src.modules.external_tools import (
 )
 from src.storage import database as db
 from src.storage import evidence as evidence_store
+from src.utils.text import escape_control_characters
 
 logger = logging.getLogger(__name__)
 
@@ -956,11 +957,6 @@ def build_highlights(
     }
 
 
-# A run that answered, whatever it exited with: some tools report their result
-# and then exit non-zero, and the integration records what actually happened.
-ANSWERED_STATUSES = {"exit 0", STATUS_NO_RECORD, STATUS_REPORTED}
-
-
 def _silence_reason(tool: str, runs: list[dict], artifact_types: set[str]) -> str:
     """Say why an installed tool contributed nothing.
 
@@ -972,6 +968,8 @@ def _silence_reason(tool: str, runs: list[dict], artifact_types: set[str]) -> st
         statuses = {(run.get("exit_status") or "unknown") for run in runs}
         if "timeout" in statuses:
             return "ran but timed out before returning"
+        if STATUS_UNPARSABLE in statuses:
+            return "ran but returned unparsable output"
         if statuses <= ANSWERED_STATUSES:
             return f"ran on {len(runs)} target(s) and found nothing"
         failures = sorted(statuses - ANSWERED_STATUSES)
@@ -1083,7 +1081,9 @@ def _tool_run_detail(run: dict, budget: Optional[int], redact: bool,
     elif not excerpt.text.strip():
         detail["log_note"] = "the tool produced no output"
     else:
-        detail["log"] = mask_secrets(excerpt.text)
+        # A capture is preserved verbatim, but a report is read: raw control
+        # bytes inlined here travel into the HTML as unreadable garbage.
+        detail["log"] = mask_secrets(escape_control_characters(excerpt.text))
         detail["log_clipped"] = excerpt.clipped
     return detail
 

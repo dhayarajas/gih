@@ -1852,6 +1852,14 @@ _PLATFORM_SUFFIXED_SOURCES = (
 
 _CAMEL_BOUNDARY = re.compile(r"(?<=[a-z0-9])(?=[A-Z])|(?<=[A-Z])(?=[A-Z][a-z])")
 
+# A plugin class camel-cases the tool's own spelling (`WhatWebPlugin` for
+# `whatweb`), which splitting on camel boundaries alone turns into a second
+# name for the same tool -- and the report then credits `what_web` with
+# artifacts while calling `whatweb` silent.
+_TOOLS_BY_SQUASHED_NAME = {
+    name.replace("_", ""): name for name in TOOL_ARTIFACT_TYPES
+}
+
 # Human-readable labels for report tiles / charts (raw source keys stay in `tool`).
 _TOOL_LABELS = {
     "profile_image": "Profile images",
@@ -1903,7 +1911,8 @@ def _normalize_tool_source(source: Optional[str]) -> Optional[str]:
 
     if name.startswith("plugin:"):
         class_name = name[len("plugin:"):].removesuffix("Plugin")
-        return _CAMEL_BOUNDARY.sub("_", class_name).lower()
+        split = _CAMEL_BOUNDARY.sub("_", class_name).lower()
+        return _TOOLS_BY_SQUASHED_NAME.get(split.replace("_", ""), split)
 
     for prefix in _PLATFORM_SUFFIXED_SOURCES:
         if name.startswith(prefix + "_"):

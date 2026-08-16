@@ -85,6 +85,7 @@ from src.storage import database as db
 from src.storage import evidence
 from src.utils.tool_checker import get_tool_checker, check_tool_availability
 from src.utils.matching import MatchPolicy, get_match_policy, filter_full_matches
+from src.utils.text import has_control_characters
 from src.modules.external_tools import (
     run_tool_analysis,
     get_tool_integrations,
@@ -653,6 +654,15 @@ def _run_investigation(
                 continue
 
             for artifact in res.discovered:
+                if has_control_characters(str(artifact.get("value") or "")):
+                    # Whatever produced this read bytes as text; the value is
+                    # not a finding and would corrupt every later reader of it.
+                    logger.warning(
+                        "Discarding %s artifact from %s: value is not text",
+                        artifact.get("type"), artifact.get("source"),
+                    )
+                    continue
+
                 key = f"{artifact['type']}:{artifact['value']}"
                 existing_id = seen.get(key)
                 if existing_id is not None:
