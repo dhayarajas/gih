@@ -54,6 +54,15 @@ class PluginManager:
             return plugin_name
         return key
 
+    def is_plugin_enabled(self, plugin_name: str) -> bool:
+        """Whether config.yaml leaves this plugin switched on.
+
+        Takes a registry name (`SherlockPlugin`) and resolves it to the
+        `plugins:` key that configures it.
+        """
+        plugin_config = self.config.get_plugin_config(self._config_key(plugin_name))
+        return bool(plugin_config.get("enabled", True))
+
     def execute_plugin(
         self,
         plugin_name: str,
@@ -73,7 +82,7 @@ class PluginManager:
         """
         # Check if plugin is enabled in configuration
         plugin_config = self.config.get_plugin_config(self._config_key(plugin_name))
-        if not plugin_config.get("enabled", True):
+        if not self.is_plugin_enabled(plugin_name):
             logger.debug(f"Plugin '{plugin_name}' is disabled in configuration")
             return PluginResult(
                 plugin_name=plugin_name,
