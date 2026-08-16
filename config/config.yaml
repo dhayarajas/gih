@@ -323,7 +323,11 @@ evidence:
 
 # Database Settings
 database:
-  path: "./investigations.db"
+  # Where the SQLite file lives. Precedence, highest first: the --db CLI option,
+  # then this key, then the default ~/.ghost_hunter/investigations.db (used when
+  # this is null or absent). ~ and $VARS are expanded; a relative path resolves
+  # against the directory holding config/, not the current working directory.
+  path: null
   backup_enabled: true
   backup_interval_hours: 24
 

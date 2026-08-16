@@ -1,4 +1,4 @@
-sqlite3 ~/.ghost_hunter/investigations.db        # default; flag is --db, not --db-path
+sqlite3 ~/.ghost_hunter/investigations.db        # default; overridden by database.path in config/config.yaml, and by --db (not --db-path)
 .tables
 sqlite3 -header -column ~/.ghost_hunter/investigations.db "SELECT investigation_id, title, created_at FROM investigations ORDER BY created_at DESC LIMIT 5;"
 sqlite3 -header -column ~/.ghost_hunter/investigations.db "SELECT artifact_type, value, source, confidence FROM artifacts WHERE investigation_id='INV-ba0f318d';"

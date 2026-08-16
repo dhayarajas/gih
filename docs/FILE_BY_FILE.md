@@ -179,7 +179,8 @@ Package docstring only.
 
 | Function | Role |
 | --- | --- |
-| `get_connection` | WAL + FKs + schema init; default `~/.ghost_hunter/investigations.db` (see [SQLITE_QUERIES.md](SQLITE_QUERIES.md) for reading it directly; the `database.path` config key is not read by anything) |
+| `get_connection` | WAL + FKs + schema init; location from `resolve_db_path` (see [SQLITE_QUERIES.md](SQLITE_QUERIES.md) for reading it directly) |
+| `resolve_db_path` | `--db` beats `database.path` from config (`~`/`$VARS` expanded, relative to the project directory) beats `~/.ghost_hunter/investigations.db` |
 | `create_investigation` / `complete_investigation` / `get_investigation` / `list_investigations` | Investigation lifecycle |
 | `add_artifact` / `add_artifacts_bulk` / `get_artifacts` | Dedupe on `(investigation_id, type, value)` |
 | `add_link` / `get_links` | Dedupe on source/target pair |

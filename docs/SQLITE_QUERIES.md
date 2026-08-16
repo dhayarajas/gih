@@ -5,16 +5,21 @@ view over it; this is how to read the same data directly.
 
 ## Where the file is
 
-`~/.ghost_hunter/investigations.db` (`DEFAULT_DB_PATH` in
-`src/storage/database.py`), unless you passed `--db`:
+`resolve_db_path` in `src/storage/database.py` decides it, highest precedence
+first:
 
-```bash
-python3 -m src.cli --db /tmp/case.db investigate --username octocat
-sqlite3 /tmp/case.db
-```
+1. the `--db` option:
 
-The `database.path` key in `config/config.yaml` is **not** read by anything —
-`--db` and the default above are what decide the location.
+   ```bash
+   python3 -m src.cli --db /tmp/case.db investigate --username octocat
+   sqlite3 /tmp/case.db
+   ```
+
+2. `database.path` in `config/config.yaml`. `~` and environment variables are
+   expanded, and a relative path resolves against the directory holding
+   `config/` — so `investigations.db` is the same file wherever you run from.
+3. `~/.ghost_hunter/investigations.db` (`DEFAULT_DB_PATH`), used when
+   `database.path` is null or the `database:` section is absent.
 
 ## Getting in and out
 
