@@ -181,6 +181,60 @@ class TestContext:
         assert "ghost@example.com" in inv["title"]
 
 
+class TestIdentityCard:
+    """Values the card composes into a sentence are masked like artifact rows."""
+
+    def _investigation(self, conn):
+        inv = db.create_investigation(conn, title="EXIF case")
+        image = db.add_artifact(conn, inv, "image", "/tmp/photo.jpg",
+                                source="seed", confidence=1.0)
+        for artifact_type, value in (
+            ("gps_coordinates",
+             "37 deg 46' 29.64\" N, 122 deg 25' 9.84\" W, 37.774900,-122.419400"),
+            ("location", "San Francisco, California"),
+        ):
+            found = db.add_artifact(conn, inv, artifact_type, value,
+                                    source="exiftool", confidence=0.9, depth=1)
+            db.add_link(conn, inv, image, found, "extracted_from")
+        return inv
+
+    def test_coordinates_never_reach_the_redacted_source(self, conn, tmp_path):
+        inv = self._investigation(conn)
+        html = Path(generate_html_report(
+            conn, inv, str(tmp_path / "r.html"), redact=True
+        )).read_text()
+
+        for secret in ("37.774900", "37.7749", "122.419400", "122.4194",
+                       "46' 29.64", "25' 9.84"):
+            assert secret not in html
+
+    def test_a_place_name_on_the_card_is_masked_too(self, conn, tmp_path):
+        inv = self._investigation(conn)
+        html = Path(generate_html_report(
+            conn, inv, str(tmp_path / "r.html"), redact=True
+        )).read_text()
+
+        assert "San Francisco" not in html
+
+    def test_the_unredacted_card_still_shows_them(self, conn, tmp_path):
+        inv = self._investigation(conn)
+        html = Path(generate_html_report(
+            conn, inv, str(tmp_path / "plain.html")
+        )).read_text()
+
+        assert "37.774900,-122.419400" in html
+        assert "San Francisco, California" in html
+
+    def test_the_redacted_json_payload_has_no_coordinates(self, conn, tmp_path):
+        inv = self._investigation(conn)
+        payload = Path(generate_json_report(
+            conn, inv, str(tmp_path / "r.json"), redact=True
+        )).read_text()
+
+        assert "37.774900" not in payload
+        assert "San Francisco" not in payload
+
+
 class TestCrossInvestigation:
     def test_a_match_in_another_case_is_reported_without_its_value(
         self, conn, investigation

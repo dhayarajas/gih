@@ -11,7 +11,7 @@ from copy import deepcopy
 from typing import Any, Optional
 
 from src.config.loader import get_config
-from src.correlation.linker import IDENTITY_ARTIFACT_TYPES
+from src.correlation.linker import IDENTITY_ARTIFACT_TYPES, TOOL_ARTIFACT_FIELDS
 from src.modules.external_tools import (
     ANSWERED_STATUSES,
     STATUS_UNPARSABLE,
@@ -1579,6 +1579,31 @@ def redact_context(investigation, audit_trail: list, comments: list,
     return inv, trail, notes
 
 
+def _is_redactable_type(artifact_type: str) -> bool:
+    """Whether a value of this artifact type is masked in a redacted report."""
+    return (artifact_type in REDACT_TYPES
+            or artifact_type in REDACT_URL_TYPES
+            or artifact_type == LEAK_ARTIFACT_TYPE)
+
+
+def _identity_field_mask_types() -> dict[str, str]:
+    """The artifact type each tool-populated identity field is masked as.
+
+    The identity card composes these fields into display strings instead of
+    emitting artifact rows, so a field inherits the masking of the sensitive
+    type feeding it -- a coordinate pair is as private on the card as it is in
+    the artifact table.
+    """
+    mask_types: dict[str, str] = {}
+    for artifact_type, field_name in TOOL_ARTIFACT_FIELDS.items():
+        if field_name not in mask_types or _is_redactable_type(artifact_type):
+            mask_types[field_name] = artifact_type
+    return mask_types
+
+
+IDENTITY_FIELD_MASK_TYPES = _identity_field_mask_types()
+
+
 def redact_payload(
     artifacts: list,
     links: list,
@@ -1626,6 +1651,11 @@ def redact_payload(
         identity.emails = [_mask(v, "email") for v in identity.emails]
         identity.usernames = [_mask(v, "username") for v in identity.usernames]
         identity.images = ["[REDACTED_IMAGE]" for _ in identity.images]
+        fields = vars(identity)
+        for field_name, mask_type in IDENTITY_FIELD_MASK_TYPES.items():
+            values = fields.get(field_name)
+            if isinstance(values, list):
+                fields[field_name] = [_mask(str(v), mask_type) for v in values]
         for platform in identity.platforms or []:
             if isinstance(platform, dict):
                 if platform.get("username"):
