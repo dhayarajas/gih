@@ -1317,11 +1317,13 @@ def _process_external_tools(
                     _tool_task("osrframework", "username_search", "OSRFramework"),
                 ))
 
-            if check_google_dorks_availability(config.google_api_key):
+            if (check_google_dorks_availability(config.google_api_key)
+                    and tool_enabled("google_dorks")):
                 tasks.append(("google_dorks", _google_dorks_task(value)))
 
         elif artifact_type == "fullname":
-            if check_google_dorks_availability(config.google_api_key):
+            if (check_google_dorks_availability(config.google_api_key)
+                    and tool_enabled("google_dorks")):
                 tasks.append(("google_dorks", _google_dorks_task(value)))
 
         elif artifact_type in ("domain", "subdomain"):

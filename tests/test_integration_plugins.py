@@ -309,6 +309,37 @@ class TestConfigIsActuallyApplied:
         assert "disabled" in result.error_message
 
 
+class TestEmptyPluginsSection:
+    """`plugins:` written with no children parses to None, and a manager that
+    iterates it dies before an investigation can start."""
+
+    def _loader(self, tmp_path, body):
+        from src.config.loader import ConfigLoader
+
+        path = tmp_path / "config.yaml"
+        path.write_text(body)
+        return ConfigLoader(str(path))
+
+    @pytest.mark.parametrize("body", ["plugins:\n", "investigation:\n  max_depth: 1\n"])
+    def test_list_plugins_never_returns_none(self, tmp_path, body):
+        assert self._loader(tmp_path, body).list_plugins() == {}
+
+    @pytest.mark.parametrize("body", ["plugins:\n", "investigation:\n  max_depth: 1\n"])
+    def test_manager_starts(self, tmp_path, monkeypatch, body):
+        from src.plugins import manager as manager_module
+
+        loader = self._loader(tmp_path, body)
+        monkeypatch.setattr(manager_module, "get_config", lambda: loader)
+
+        assert manager_module.PluginManager()._config_key("WhatWebPlugin") == "WhatWebPlugin"
+
+    def test_plugin_entry_without_settings_is_not_enabled(self, tmp_path):
+        loader = self._loader(tmp_path, "plugins:\n  whatweb:\n")
+
+        assert loader.get_enabled_plugins() == []
+        assert loader.get_disabled_plugins() == ["whatweb"]
+
+
 class TestUsufyParser:
     """usufy reports attributes as tagged entities rather than named fields."""
 

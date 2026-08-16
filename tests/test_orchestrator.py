@@ -307,6 +307,65 @@ class TestArtifactDispatch:
         assert "Unknown artifact type: banana" in caplog.text
 
 
+class TestGoogleDorksEnablement:
+    """Google Dorks is dispatched by the orchestrator directly rather than
+    through run_tool_analysis, so its `enabled` switch has to hold here too."""
+
+    @pytest.fixture
+    def dorks_disabled(self, monkeypatch):
+        from src.modules import external_tools
+
+        monkeypatch.setattr(
+            external_tools, "get_config",
+            lambda: type("C", (), {"get": staticmethod(
+                lambda key, default=None: {"google_dorks": {"enabled": False}}
+                if key == "plugins" else default
+            )})(),
+        )
+        monkeypatch.setattr(orchestrator, "check_tool_availability", lambda tool: False)
+        monkeypatch.setattr(orchestrator, "check_google_dorks_availability", lambda key: True)
+        monkeypatch.setattr(
+            orchestrator, "run_google_dorks_search",
+            lambda **kwargs: pytest.fail("disabled Google Dorks must not run"),
+        )
+
+    @pytest.mark.parametrize(
+        "artifact_type,value",
+        [("username", "ghosthunter"), ("fullname", "Ada Lovelace")],
+    )
+    def test_disabled_dorks_is_not_dispatched(self, dorks_disabled, artifact_type, value):
+        config = InvestigationConfig(check_external_tools=True)
+
+        discovered = orchestrator._process_external_tools(
+            "INV-1", {"type": artifact_type, "value": value}, config
+        )
+
+        assert discovered == []
+
+    def test_enabled_dorks_still_runs(self, monkeypatch):
+        calls: list[str] = []
+        monkeypatch.setattr(orchestrator, "check_tool_availability", lambda tool: False)
+        monkeypatch.setattr(orchestrator, "check_google_dorks_availability", lambda key: True)
+        monkeypatch.setattr(
+            orchestrator, "run_google_dorks_search",
+            lambda **kwargs: calls.append(kwargs["username"]) or [],
+        )
+
+        orchestrator._process_external_tools(
+            "INV-1", {"type": "username", "value": "ghosthunter"},
+            InvestigationConfig(check_external_tools=True),
+        )
+
+        assert calls == ["ghosthunter"]
+
+    def test_report_says_it_was_disabled(self, dorks_disabled):
+        from src.reporting.report_data import _silence_reason
+
+        reason = _silence_reason("google_dorks", [], {"username"})
+
+        assert reason == "not dispatched — disabled in configuration"
+
+
 class TestRediscoveryLinking:
     """An artifact discovered a second time must still be linked to its finder."""
 
