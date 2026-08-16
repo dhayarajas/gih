@@ -57,6 +57,41 @@ def _capped(artifacts: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     return artifacts[:MAX_ARTIFACTS_PER_TOOL]
 
 
+def _at_domain(address: str, domain: str) -> bool:
+    """True when ``address`` is a mailbox at ``domain`` or a subdomain of it."""
+    local, separator, host = address.rpartition("@")
+    if not local or not separator:
+        return False
+    host = host.lower().strip(".")
+    root = domain.lower().strip(".")
+    return bool(root) and (host == root or host.endswith("." + root))
+
+
+def _domain_emails(addresses: Iterable[str], domain: str,
+                   tool_name: str) -> List[str]:
+    """The addresses of a domain search that are actually at that domain.
+
+    A tool prints more than its findings: theHarvester's banner carries its
+    author's address, and an email regex over the output claims it as the
+    target's. An address a domain search may attribute to the domain is one
+    the domain hosts, so anything else is another party's mailbox.
+    """
+    kept: List[str] = []
+    dropped: List[str] = []
+    for address in addresses:
+        address = str(address).strip()
+        if not address:
+            continue
+        (kept if _at_domain(address, domain) else dropped).append(address)
+
+    if dropped:
+        logger.info(
+            "%s: dropped %d email(s) not at %s (%s)",
+            tool_name, len(dropped), domain, ", ".join(dropped[:5]),
+        )
+    return kept
+
+
 # --------------------------------------------------------------------------
 # username tools
 # --------------------------------------------------------------------------
@@ -303,7 +338,7 @@ def parse_theharvester_json(report: str, domain: str) -> List[Dict[str, Any]]:
             "confidence": confidence, **extra,
         })
 
-    for email in data.get("emails") or []:
+    for email in _domain_emails(data.get("emails") or [], domain, "theharvester"):
         add("email", email, 0.8, domain=domain)
 
     for host in data.get("hosts") or []:
@@ -910,10 +945,14 @@ def parse_wayback_cdx(rows: Iterable[Any], domain: str) -> List[Dict[str, Any]]:
 
 def parse_emails(output: str, domain: str, tool_name: str,
                  confidence: float = 0.8) -> List[Dict[str, Any]]:
-    """Email addresses mentioned in a tool's text output."""
+    """Email addresses at ``domain`` mentioned in a tool's text output.
+
+    Scoped to the domain searched: the output also holds the tool's own banner
+    and documentation, whose addresses belong to its authors, not the target.
+    """
     artifacts: List[Dict[str, Any]] = []
     seen = set()
-    for address in _EMAIL_RE.findall(output):
+    for address in _domain_emails(_EMAIL_RE.findall(output), domain, tool_name):
         lowered = address.lower()
         if lowered in seen:
             continue
