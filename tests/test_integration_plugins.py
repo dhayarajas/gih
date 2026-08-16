@@ -339,6 +339,21 @@ class TestEmptyPluginsSection:
         assert loader.get_enabled_plugins() == []
         assert loader.get_disabled_plugins() == ["whatweb"]
 
+    def test_plugin_entry_without_settings_falls_back_to_defaults(self, tmp_path):
+        loader = self._loader(tmp_path, "plugins:\n  whatweb:\nplugin_settings:\n")
+
+        assert loader.get_plugin_config("whatweb") == {
+            "enabled": True, "timeout": 30, "max_retries": 3,
+        }
+
+    @pytest.mark.parametrize("body", ["plugins:\n", "plugins:\n  whatweb:\n"])
+    def test_writing_a_setting_replaces_the_empty_node(self, tmp_path, body):
+        loader = self._loader(tmp_path, body)
+
+        loader.set_plugin_enabled("whatweb", False)
+
+        assert loader.get_plugin_config("whatweb")["enabled"] is False
+
 
 class TestUsufyParser:
     """usufy reports attributes as tagged entities rather than named fields."""
