@@ -912,24 +912,31 @@
             </div>
             {% endif %}
 
-            {% if 'geo' in sections and (geographic_data.points or geographic_data.unplotted) %}
+            {% if 'geo' in sections and (geographic_data.points or geographic_data.claims or geographic_data.unplotted) %}
             <div class="chart-card chart-wide">
-                <h3>Where the subject appears</h3>
+                <h3>Places named by these sources</h3>
+                {# The map is a list of places the sources named, in map form. It
+                   is not a location history and not a last-known position: no
+                   source here pairs a place with a time. #}
+                <p class="subsection-blurb">Every place the collected sources named, plotted where it could be resolved. This is not a movement history and not a last-known position &mdash; nothing here says when the subject was at any of these places.</p>
                 {# No map at all when nothing could be placed: an empty frame
                    would report a network failure over having nothing to draw. #}
                 {% if geographic_data.points %}
-                <p class="subsection-blurb">{{ geographic_data.points | length }} plotted location signal(s). A solid marker is a coordinate read from an artifact (EXIF GPS); a hollow one is a named place resolved to the centre of the area it covers, so it is indicative only.</p>
+                <p class="subsection-blurb">{{ geographic_data.points | length }} plotted place(s). A solid marker is a coordinate measured from an artifact (EXIF GPS); a hollow one is a name resolved to the centre of the area it covers, so it is indicative only. Each marker names the source that asserted it.</p>
                 <!-- Single-quoted: tojson escapes ' but leaves " as JSON needs it. -->
                 <div id="gih-map" class="map-frame" data-points='{{ geographic_data.points | tojson }}'></div>
                 <p class="empty-note" id="gih-map-fallback" hidden>Map tiles could not be loaded (the report is open without network access).</p>
                 <ul class="map-list">
                 {% for point in geographic_data.points %}
-                    <li><strong>{{ point.label }}</strong> <span class="summary-meta">{{ "%.4f" | format(point.lat) }}, {{ "%.4f" | format(point.lon) }} &middot; {{ point.source }}{% if not point.precise %} &middot; approximate{% endif %}</span></li>
+                    <li><strong>{{ point.label }}</strong> <span class="summary-meta">{{ "%.4f" | format(point.lat) }}, {{ "%.4f" | format(point.lon) }} &middot; {{ point.basis_label }} &middot; named by {{ point.sources | join(', ') }}{% if not point.precise %} &middot; approximate{% endif %}</span></li>
                 {% endfor %}
                 </ul>
                 {% endif %}
+                {% if geographic_data.claims %}
+                <p class="empty-note">Self-declared, unverified &mdash; not plotted ({{ geographic_data.claims | length }}): {% for claim in geographic_data.claims %}{{ claim.value }} <span class="summary-meta">(named only by {{ claim.sources | join(', ') }})</span>{% if not loop.last %}, {% endif %}{% endfor %}. A place the subject wrote in their own profile or bio is a claim, so it is named here instead of being marked on the map; corroboration by another source, or a record the subject does not write, would plot it.</p>
+                {% endif %}
                 {% if geographic_data.unplotted %}
-                {% if not geographic_data.points %}<p class="subsection-blurb">No location signal could be placed on a map: none carried coordinates and none of the named places resolved.</p>{% endif %}
+                {% if not geographic_data.points %}<p class="subsection-blurb">No place could be put on a map: none carried coordinates and none of the named places resolved.</p>{% endif %}
                 <p class="empty-note">Not plottable ({{ geographic_data.unplotted | length }}): {% for loc in geographic_data.unplotted %}{{ loc.value }} <span class="summary-meta">({{ loc.source }})</span>{% if not loop.last %}, {% endif %}{% endfor %}</p>
                 {% endif %}
             </div>
@@ -1892,8 +1899,9 @@
                         var node = event.popup.getElement();
                         node.querySelector('.map-point-label').textContent = point.label;
                         node.querySelector('.map-point-meta').textContent =
-                            point.type + ' · ' + point.source + ' · '
-                            + point.lat.toFixed(4) + ', ' + point.lon.toFixed(4)
+                            point.type + ' · ' + point.basis_label
+                            + ' · named by ' + (point.sources || [point.source]).join(', ')
+                            + ' · ' + point.lat.toFixed(4) + ', ' + point.lon.toFixed(4)
                             + (point.precise ? '' : ' (approximate)');
                     });
                     bounds.push([point.lat, point.lon]);
