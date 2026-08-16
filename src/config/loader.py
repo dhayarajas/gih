@@ -162,7 +162,7 @@ class ConfigLoader:
             Dictionary of plugin names to their configurations
         """
         plugins = self.get("plugins", {})
-        return plugins
+        return plugins or {}
     
     def get_enabled_plugins(self) -> list[str]:
         """
@@ -175,7 +175,7 @@ class ConfigLoader:
         enabled = []
         
         for plugin_name, config in plugins.items():
-            if config.get("enabled", False):
+            if (config or {}).get("enabled", False):
                 enabled.append(plugin_name)
         
         return enabled
@@ -191,7 +191,7 @@ class ConfigLoader:
         disabled = []
         
         for plugin_name, config in plugins.items():
-            if not config.get("enabled", False):
+            if not (config or {}).get("enabled", False):
                 disabled.append(plugin_name)
         
         return disabled
