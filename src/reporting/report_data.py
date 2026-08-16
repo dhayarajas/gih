@@ -994,6 +994,16 @@ SECRET_MASK = "[REDACTED_SECRET]"
 _SECRET_CONFIG_KEY_PARTS = ("api_key", "apikey", "token", "secret", "password", "passwd", "cx")
 _MIN_SECRET_LENGTH = 6
 
+# A credential slot left at its shipped placeholder holds an ordinary word, and
+# striking every occurrence of "password" out of a breach tool's output would
+# damage the report to protect nothing.
+_PLACEHOLDER_SECRETS = frozenset({
+    "password", "passwd", "changeme", "secret", "token", "apikey", "api_key",
+    "your_api_key", "your-api-key", "placeholder", "example", "disabled",
+    "none", "null",
+})
+_WORDLIKE_RE = re.compile(r"^[A-Za-z]{1,11}$")
+
 # The two shapes a credential takes on a command line when it did not come
 # from this host's config: an option and a query parameter.
 _SECRET_OPTION_RE = re.compile(
@@ -1008,6 +1018,19 @@ _SECRET_QUERY_RE = re.compile(
 MAX_TOOL_RUNS_SHOWN = 25
 
 
+def _looks_like_credential(value: str) -> bool:
+    """Whether a configured value is worth striking out of a shared report.
+
+    Short runs of letters are words before they are keys: a real credential
+    carries digits, punctuation or length.
+    """
+    if len(value) < _MIN_SECRET_LENGTH:
+        return False
+    if value.strip().lower() in _PLACEHOLDER_SECRETS:
+        return False
+    return _WORDLIKE_RE.match(value) is None
+
+
 def _configured_secrets() -> set[str]:
     """Every credential value this host's configuration holds."""
     found: set[str] = set()
@@ -1015,7 +1038,7 @@ def _configured_secrets() -> set[str]:
     def walk(node: object) -> None:
         if isinstance(node, dict):
             for key, value in node.items():
-                if (isinstance(value, str) and len(value) >= _MIN_SECRET_LENGTH
+                if (isinstance(value, str) and _looks_like_credential(value)
                         and any(part in str(key).lower() for part in _SECRET_CONFIG_KEY_PARTS)):
                     found.add(value)
                 else:

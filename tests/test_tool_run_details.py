@@ -223,6 +223,25 @@ class TestSecretMasking:
     def test_an_ordinary_command_is_left_alone(self):
         assert mask_secrets("nmap -F 93.184.216.34") == "nmap -F 93.184.216.34"
 
+    def test_a_placeholder_credential_does_not_censor_the_word_it_spells(self):
+        from src.config import loader
+        from src.reporting.report_data import _configured_secrets
+
+        loader._global_config = None
+        assert "password" not in _configured_secrets()
+        assert mask_secrets("holehe found a password reset form") == (
+            "holehe found a password reset form"
+        )
+
+    def test_a_shipped_placeholder_is_not_taken_for_a_credential(self):
+        from src.reporting.report_data import _looks_like_credential
+
+        assert not _looks_like_credential("password")
+        assert not _looks_like_credential("changeme")
+        assert not _looks_like_credential("secret")
+        assert _looks_like_credential("8810459628:BDW8tFR3")
+        assert _looks_like_credential("0000000000000000")
+
 
 class TestRenderedPanel:
     def test_the_panel_reaches_the_report_collapsed(self, conn, tmp_path):
