@@ -75,6 +75,28 @@ THEHARVESTER_JSON = json.dumps({
     "shodan": {},
 })
 
+# theHarvester's banner and its trailing summary, as printed by a real run.
+# The banner names the tool's author, whose address is not a finding.
+THEHARVESTER_BANNER = """*******************************************************************
+*  _   _                                            _             *
+* | |_| |__   ___    /\\  /\\__ _ _ ____   _____  ___| |_ ___ _ __  *
+* | __|  _ \\ / _ \\  / /_/ / _` | '__\\ \\ / / _ \\/ __| __/ _ \\ '__| *
+* | |_| | | |  __/ / __  / (_| | |   \\ V /  __/\\__ \\ ||  __/ |    *
+*  \\__|_| |_|\\___| \\/ /_/ \\__,_|_|    \\_/ \\___||___/\\__\\___|_|    *
+*                                                                 *
+* theHarvester 4.6.0                                              *
+* Coded by Christian Martorella                                   *
+* Edge-Security Research                                          *
+* cmartorella@edge-security.com                                   *
+*******************************************************************
+
+[*] Target: tesla.com
+
+[*] Emails found: 1
+------------------
+someone@tesla.com
+"""
+
 SUBFINDER_JSON = """{"host":"www.example.com","input":"example.com","source":"hackertarget"}
 {"host":"www.example.com","input":"example.com","source":"crtsh"}
 {"host":"example.com","input":"example.com","source":"alienvault"}
@@ -280,6 +302,24 @@ class TestTheHarvester:
         assert len([a for a in artifacts if a["type"] == "email"]) == \
             tool_parsers.MAX_ARTIFACTS_PER_TOOL
 
+    def test_the_tool_s_own_author_is_not_a_finding(self):
+        """theHarvester prints its author's address in every banner."""
+        artifacts = tool_parsers.parse_emails(
+            THEHARVESTER_BANNER, "tesla.com", "theharvester")
+        assert [a["value"] for a in artifacts] == ["someone@tesla.com"]
+
+    def test_the_report_only_claims_addresses_at_the_domain(self):
+        report = json.dumps({"emails": [
+            "press@tesla.com",
+            "careers@jobs.tesla.com",
+            "cmartorella@edge-security.com",
+            "press@nottesla.com",
+        ]})
+        artifacts = tool_parsers.parse_theharvester_json(report, "tesla.com")
+        assert [a["value"] for a in artifacts if a["type"] == "email"] == [
+            "press@tesla.com", "careers@jobs.tesla.com",
+        ]
+
 
 class TestSubfinder:
 
@@ -322,6 +362,16 @@ class TestWhois:
         assert emails == ["registrant@example.com"]
         assert record["abuse_email"] == "abuse@example.com"
         assert any(a["type"] == "fullname" and a["value"] == "Octo Cat" for a in artifacts)
+
+    def test_an_off_domain_registrant_is_still_reported(self):
+        """A registrant's mailbox is often at a proxy, and is still the subject."""
+        output = WHOIS_OUTPUT.replace(
+            "Registrant Email: registrant@example.com",
+            "Registrant Email: owner@withheldforprivacy.com",
+        )
+        _, artifacts = tool_parsers.parse_whois(output, "example.com")
+        emails = [a["value"] for a in artifacts if a["type"] == "email"]
+        assert emails == ["owner@withheldforprivacy.com"]
 
     def test_comment_lines_are_not_fields(self):
         record, _ = tool_parsers.parse_whois(WHOIS_OUTPUT, "example.com")
