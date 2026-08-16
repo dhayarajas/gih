@@ -929,6 +929,7 @@ class WaybackMachineIntegration(ExternalToolsIntegration):
         url = ""
         exit_status = "unknown"
         started = time.monotonic()
+        budget = _get_tool_timeout("wayback_machine")
 
         try:
             # Use Wayback Machine CDX API
@@ -938,7 +939,7 @@ class WaybackMachineIntegration(ExternalToolsIntegration):
                 f"&limit={MAX_ARTIFACTS_PER_TOOL}"
             )
             with io_slot():
-                response = requests.get(url, timeout=30)
+                response = requests.get(url, timeout=budget)
             
             exit_status = f"HTTP {response.status_code}"
             result.output = response.text
@@ -960,7 +961,7 @@ class WaybackMachineIntegration(ExternalToolsIntegration):
         except requests.Timeout:
             # The CDX index for a busy host can take minutes; "failed" would
             # read as the archive being broken rather than us not waiting.
-            result.error_message = "Wayback Machine CDX query timed out after 30s"
+            result.error_message = f"Wayback Machine CDX query timed out after {budget}s"
             exit_status = "timeout"
             logger.warning("Wayback Machine timed out for %s", domain)
         except Exception as e:

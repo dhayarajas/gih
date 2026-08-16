@@ -506,6 +506,32 @@ class TestAnExitCodeIsNotTheResult:
         assert "timed out" in result.error_message
         assert recorded["exit_status"] == "timeout"
 
+    def test_the_archive_waits_as_long_as_its_configured_budget(self, monkeypatch):
+        """The report labels the wait with the configured budget; honour it."""
+        import requests
+
+        from src.modules.external_tools import WaybackMachineIntegration, tool_timeout
+
+        seen = {}
+
+        class FakeResponse:
+            status_code = 500
+            text = ""
+
+        def fake_get(url, timeout=None):
+            seen["timeout"] = timeout
+            return FakeResponse()
+
+        monkeypatch.setattr(requests, "get", fake_get)
+        monkeypatch.setattr(
+            "src.modules.external_tools.evidence.record",
+            lambda *args, **kwargs: None,
+        )
+
+        WaybackMachineIntegration().get_historical_urls("example.com")
+
+        assert seen["timeout"] == tool_timeout("wayback_machine")
+
 
 class TestTheReportReadsThePreservedRun:
     """Correcting only the result object leaves the report saying "failed"."""
