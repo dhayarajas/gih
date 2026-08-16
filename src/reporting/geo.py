@@ -93,7 +93,11 @@ BASIS_LABELS = {
 # else -- every profile field, every bio, every source this list has not been
 # taught about -- is treated as the subject's own claim, which is the safe way
 # round for a marker that reads as a finding.
-RECORDED_SOURCES = ("whois", "shodan", "exiftool", "nmap", "phone_osint")
+# Substrings, so a tool reached through a plugin wrapper is matched under
+# whatever name the wrapper reports it as.
+RECORDED_SOURCES = (
+    "whois", "shodan", "exif", "nmap", "phone_osint", "phonevalidation",
+)
 # A number's region comes from its numbering plan, not from a profile field.
 RECORDED_TYPES = {"phone_region"}
 

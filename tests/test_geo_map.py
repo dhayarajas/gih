@@ -213,10 +213,21 @@ class TestBuildMapPoints:
         assert points[0]["basis"] == geo.BASIS_MEASURED
         assert points[0]["authoritative"] is True
 
+    @pytest.mark.parametrize("source", ["exiftool", "image_exif_gps"])
+    def test_every_exif_extractor_yields_a_measured_coordinate(self, conn, source):
+        """The native extractor's name differs from exiftool's; the GPS does not."""
+        points = build_map_points(
+            conn, [{"type": "location", "value": "37.802139,-122.405833", "source": source}],
+            geocode=False,
+        )
+        assert points[0]["basis"] == geo.BASIS_MEASURED
+        assert points[0]["authoritative"] is True
+
     @pytest.mark.parametrize("source,loc_type", [
         ("whois", "location"),
         ("shodan", "city"),
         ("phone_osint", "phone_region"),
+        ("PhoneValidationPlugin", "location"),
     ])
     def test_a_place_from_a_record_the_subject_does_not_write_is_plotted(
         self, conn, monkeypatch, source, loc_type
@@ -344,6 +355,27 @@ class TestMapInReport:
         assert 'id="gih-map"' not in html
         assert "Self-declared, unverified &mdash; not plotted (1)" in html
         assert "named only by maigret" in html
+
+    def test_a_withheld_claim_is_not_reported_as_a_geocoding_failure(
+        self, conn, monkeypatch, tmp_path
+    ):
+        """A resolved-but-withheld place did resolve, whatever the map shows."""
+        monkeypatch.setattr(
+            geo, "_geocode",
+            lambda place: (45.02, 4.32, "Mars, France") if place == "Mars" else None,
+        )
+        inv = db.create_investigation(conn, title="Claimed and unplottable")
+        db.add_artifact(conn, inv, "username", "someone", source="seed", confidence=1.0)
+        db.add_artifact(conn, inv, "location", "Mars", source="maigret",
+                        confidence=0.5, depth=1)
+        db.add_artifact(conn, inv, "location", "Nowhere in particular", source="maigret",
+                        confidence=0.5, depth=1)
+        html = Path(generate_html_report(
+            conn, inv, str(tmp_path / "r.html"), template_type="standard"
+        )).read_text()
+
+        assert "Not plottable (1)" in html
+        assert "No place could be put on a map" not in html
 
     def test_a_plotted_place_names_the_source_that_asserted_it(
         self, conn, monkeypatch, tmp_path

@@ -936,7 +936,7 @@
                 <p class="empty-note">Self-declared, unverified &mdash; not plotted ({{ geographic_data.claims | length }}): {% for claim in geographic_data.claims %}{{ claim.value }} <span class="summary-meta">(named only by {{ claim.sources | join(', ') }})</span>{% if not loop.last %}, {% endif %}{% endfor %}. A place the subject wrote in their own profile or bio is a claim, so it is named here instead of being marked on the map; corroboration by another source, or a record the subject does not write, would plot it.</p>
                 {% endif %}
                 {% if geographic_data.unplotted %}
-                {% if not geographic_data.points %}<p class="subsection-blurb">No place could be put on a map: none carried coordinates and none of the named places resolved.</p>{% endif %}
+                {% if not geographic_data.points and not geographic_data.claims %}<p class="subsection-blurb">No place could be put on a map: none carried coordinates and none of the named places resolved.</p>{% endif %}
                 <p class="empty-note">Not plottable ({{ geographic_data.unplotted | length }}): {% for loc in geographic_data.unplotted %}{{ loc.value }} <span class="summary-meta">({{ loc.source }})</span>{% if not loop.last %}, {% endif %}{% endfor %}</p>
                 {% endif %}
             </div>
