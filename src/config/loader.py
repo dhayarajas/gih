@@ -110,7 +110,7 @@ class ConfigLoader:
         config = self.config
         
         for k in keys[:-1]:
-            if k not in config:
+            if not isinstance(config.get(k), dict):
                 config[k] = {}
             config = config[k]
         
@@ -126,9 +126,9 @@ class ConfigLoader:
         Returns:
             Plugin configuration dictionary
         """
-        plugin_config = self.get(f"plugins.{plugin_name}", {})
+        plugin_config = self.get(f"plugins.{plugin_name}", {}) or {}
         
-        global_settings = self.get("plugin_settings", {})
+        global_settings = self.get("plugin_settings", {}) or {}
         
         # The defaults are deliberately not read from plugin_settings: its
         # `parallel_execution` and `rate_limit_seconds` describe how plugins are
