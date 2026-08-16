@@ -326,7 +326,8 @@ database:
   # Where the SQLite file lives. Precedence, highest first: the --db CLI option,
   # then this key, then the default ~/.ghost_hunter/investigations.db (used when
   # this is null or absent). ~ and $VARS are expanded; a relative path resolves
-  # against the directory holding config/, not the current working directory.
+  # against the directory holding config/. This file is only discovered when the
+  # CLI runs from the project root, so run it from there or pass --db.
   path: null
   backup_enabled: true
   backup_interval_hours: 24

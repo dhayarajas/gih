@@ -17,7 +17,10 @@ first:
 
 2. `database.path` in `config/config.yaml`. `~` and environment variables are
    expanded, and a relative path resolves against the directory holding
-   `config/` — so `investigations.db` is the same file wherever you run from.
+   `config/`, not the shell's directory. `ConfigLoader` only finds the file when
+   the CLI runs from the project root, though: started from a subdirectory it
+   logs `No configuration file found, using defaults` and this key — even an
+   absolute one — has no effect, so run from the project root or pass `--db`.
 3. `~/.ghost_hunter/investigations.db` (`DEFAULT_DB_PATH`), used when
    `database.path` is null or the `database:` section is absent.
 

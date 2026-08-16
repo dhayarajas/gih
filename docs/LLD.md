@@ -519,7 +519,7 @@ File: `src/storage/database.py`. Full ER diagram in [ARCHITECTURE.md §5](ARCHIT
 
 `get_connection(db_path=None)`:
 
-- Path from `resolve_db_path(db_path)`: the explicit `--db` path, else `database.path` from config (`~` and environment variables expanded, a relative path anchored to the project directory holding `config/`), else `~/.ghost_hunter/investigations.db`; parent directories are created.
+- Path from `resolve_db_path(db_path)`: the explicit `--db` path, else `database.path` from config (`~` and environment variables expanded, a relative path anchored to the project directory holding `config/`), else `~/.ghost_hunter/investigations.db`; parent directories are created. `ConfigLoader` discovery is CWD-bound, so `database.path` only takes effect when the CLI runs from the project root.
 - `sqlite3.connect(..., check_same_thread=False)` with `row_factory = sqlite3.Row`.
 - `PRAGMA journal_mode=WAL`, `PRAGMA foreign_keys=ON`.
 - Calls `_init_schema(conn)` on every connection (`CREATE TABLE IF NOT EXISTS` + indexes), so the schema is self-healing.
