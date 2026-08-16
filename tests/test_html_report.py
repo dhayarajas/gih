@@ -888,7 +888,7 @@ class TestWhatTheStandardReportNoLongerCarries:
                         source="plugin:MaigretPlugin", confidence=0.6)
         html = render(conn, inv_id, tmp_path)
         assert "Geographic / Location Signals" not in html
-        assert "Where the subject appears" in html
+        assert "Places named by these sources" in html
 
 
 class TestEvidenceChainLayout:
@@ -967,8 +967,8 @@ class TestAMapWithNothingToPlot:
                         source="plugin:MaigretPlugin", confidence=0.5)
         html = render(conn, inv_id, tmp_path)
 
-        assert "Where the subject appears" in html
+        assert "Places named by these sources" in html
         assert "Map tiles could not be loaded" not in html
         assert 'id="gih-map"' not in html
-        assert "No location signal could be placed on a map" in html
+        assert "No place could be put on a map" in html
         assert "Nowhere in particular" in html

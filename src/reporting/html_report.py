@@ -893,16 +893,21 @@ def generate_html_report(
     # Redaction masks the location values themselves, so plotting them would
     # hand back what the masking removed.
     if not redact:
-        geographic_data["points"] = build_map_points(
+        resolved_places = build_map_points(
             conn, geographic_data["locations"],
             geocode=reporting_cfg.get("geocode_locations", True),
         )
+        # A place only the subject named is a claim about where they are, so it
+        # is named with its source instead of becoming a marker among the
+        # measured and recorded ones.
+        geographic_data["points"] = [p for p in resolved_places if p["authoritative"]]
+        geographic_data["claims"] = [p for p in resolved_places if not p["authoritative"]]
         # A signal that could not be placed on the map is still a signal, and
         # there is no longer a section further down that would have listed it.
-        plotted = {point["value"] for point in geographic_data["points"]}
+        resolved = {point["value"] for point in resolved_places}
         geographic_data["unplotted"] = [
             loc for loc in geographic_data["locations"]
-            if loc.get("value") and loc["value"] not in plotted
+            if loc.get("value") and loc["value"] not in resolved
         ]
     platform_heatmap = _generate_platform_heatmap(presences)
     correlation_strength = _generate_correlation_strength(links)
@@ -1382,6 +1387,7 @@ def _generate_geographic_data(artifacts: list, presences: list) -> dict:
         # Filled in by the caller, which has the database the geocode cache
         # lives in and knows whether the report is redacted.
         "points": [],
+        "claims": [],
         "unplotted": [],
     }
 

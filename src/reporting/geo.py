@@ -12,6 +12,8 @@ FUNCTIONALITY:
 - Parses coordinates already carried by an artifact (EXIF GPS, decimal pairs)
 - Resolves place names (phone regions, profile locations) through Nominatim,
   caching every answer -- including a miss -- in the database
+- Records who asserted each place, so a string the subject wrote about
+  themselves is not plotted with the authority of a measured coordinate
 - Degrades to the coordinates it could parse when the geocoder is unreachable,
   so an offline report still has a map
 
@@ -66,6 +68,44 @@ _DMS = re.compile(
 # located bio was found on -- geocoding "GitHub" plants a marker on whatever
 # Nominatim makes of the word and spends a lookup that a real place needed.
 PLACE_NAME_TYPES = {"location", "phone_region", "address", "city", "country"}
+
+# Who asserted a place, which is the whole of what the report knows about how
+# far to trust it. A coordinate read out of a file was measured; a registrant
+# record, a host lookup or a number's region was written by someone other than
+# the subject; a profile field or a bio is whatever the subject typed there,
+# and "Mars" geocodes as readily as a real village does.
+BASIS_MEASURED = "measured"
+BASIS_RECORDED = "recorded"
+BASIS_CORROBORATED = "corroborated"
+BASIS_SELF_DECLARED = "self_declared"
+
+# Weakest first: a place inherits the strongest basis any source gave it.
+_BASIS_ORDER = [BASIS_SELF_DECLARED, BASIS_CORROBORATED, BASIS_RECORDED, BASIS_MEASURED]
+
+BASIS_LABELS = {
+    BASIS_MEASURED: "measured coordinate",
+    BASIS_RECORDED: "third-party record",
+    BASIS_CORROBORATED: "named by more than one source",
+    BASIS_SELF_DECLARED: "self-declared, unverified",
+}
+
+# Tools that report a place from a record the subject does not write. Anything
+# else -- every profile field, every bio, every source this list has not been
+# taught about -- is treated as the subject's own claim, which is the safe way
+# round for a marker that reads as a finding.
+RECORDED_SOURCES = ("whois", "shodan", "exiftool", "nmap", "phone_osint")
+# A number's region comes from its numbering plan, not from a profile field.
+RECORDED_TYPES = {"phone_region"}
+
+
+def assertion_basis(source: str, loc_type: str) -> str:
+    """Whether a named place was recorded about the subject or claimed by them."""
+    if loc_type in RECORDED_TYPES:
+        return BASIS_RECORDED
+    name = (source or "").lower()
+    if any(tool in name for tool in RECORDED_SOURCES):
+        return BASIS_RECORDED
+    return BASIS_SELF_DECLARED
 
 
 def _dms_to_decimal(degrees: str, minutes: str, seconds: str | None, hemisphere: str) -> float:
@@ -185,8 +225,7 @@ def build_map_points(conn: sqlite3.Connection, locations: list[dict],
     the geocoder, so generating a report stays a local operation in all but
     the first run for a place.
     """
-    points: list[dict] = []
-    seen: set[tuple] = set()
+    grouped: dict[tuple, dict] = {}
     lookups = 0
     last_call = 0.0
 
@@ -225,19 +264,51 @@ def build_map_points(conn: sqlite3.Connection, locations: list[dict],
             else:
                 continue
 
+        source = loc.get("source") or "unknown"
+        loc_type = loc.get("type") or "location"
+        basis = assertion_basis(source, loc_type)
+        # A coordinate pair is a measurement only when something other than the
+        # subject wrote it down: a profile field holding one is still a claim.
+        if precise and basis == BASIS_RECORDED:
+            basis = BASIS_MEASURED
+
         key = (round(coords[0], 4), round(coords[1], 4))
-        if key in seen:
-            continue
-        seen.add(key)
-        points.append({
-            "lat": coords[0],
-            "lon": coords[1],
-            "label": label,
-            "value": value,
-            "source": loc.get("source") or "unknown",
-            "type": loc.get("type") or "location",
-            # A parsed coordinate is where the subject was; a geocoded name is
-            # only the middle of whatever area the name covers.
-            "precise": precise,
-        })
-    return points
+        entry = grouped.get(key)
+        if entry is None:
+            entry = grouped[key] = {
+                "lat": coords[0],
+                "lon": coords[1],
+                "label": label,
+                "value": value,
+                "source": source,
+                "type": loc_type,
+                # A parsed coordinate is where the subject was; a geocoded name
+                # is only the middle of whatever area the name covers.
+                "precise": precise,
+                "sources": [],
+                "basis": basis,
+            }
+        if source not in entry["sources"]:
+            entry["sources"].append(source)
+        if _BASIS_ORDER.index(basis) > _BASIS_ORDER.index(entry["basis"]):
+            entry["basis"] = basis
+            entry["label"] = label
+            entry["source"] = source
+            entry["type"] = loc_type
+        entry["precise"] = entry["precise"] or precise
+
+    return [_finalise(entry) for entry in grouped.values()]
+
+
+def _finalise(entry: dict) -> dict:
+    """Settle a place's basis once every source that named it is known.
+
+    Two sources naming the same place corroborate each other, which is the only
+    way a string the subject wrote about themselves earns a marker; on its own
+    it stays a claim, plotted as one or not at all.
+    """
+    if entry["basis"] == BASIS_SELF_DECLARED and len(entry["sources"]) > 1:
+        entry["basis"] = BASIS_CORROBORATED
+    entry["basis_label"] = BASIS_LABELS[entry["basis"]]
+    entry["authoritative"] = entry["basis"] != BASIS_SELF_DECLARED
+    return entry
