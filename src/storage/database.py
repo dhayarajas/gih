@@ -66,19 +66,58 @@ VERSION:
 2.0 - Production Ready Implementation
 """
 
+import logging
+import os
 import sqlite3
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Union
 
+logger = logging.getLogger(__name__)
 
 DEFAULT_DB_PATH = Path.home() / ".ghost_hunter" / "investigations.db"
 
 
-def get_connection(db_path: Optional[Path] = None) -> sqlite3.Connection:
+def _config_base_dir(config_path: Path) -> Path:
+    """Directory a relative configured path is anchored to.
+
+    The project root when the config lives in a ``config/`` subdirectory,
+    otherwise the directory holding the config file.
+    """
+    parent = config_path.expanduser().absolute().parent
+    return parent.parent if parent.name == "config" else parent
+
+
+def resolve_db_path(db_path: Optional[Union[str, Path]] = None) -> Path:
+    """Resolve the database location.
+
+    Precedence: an explicit path (the ``--db`` option), then ``database.path``
+    from the loaded configuration, then :data:`DEFAULT_DB_PATH`. A configured
+    path is expanded for ``~`` and environment variables; a relative one is
+    anchored to the config file's project directory, not the process CWD.
+    """
+    if db_path:
+        return Path(os.path.expandvars(str(db_path))).expanduser()
+
+    try:
+        from src.config.loader import get_config
+        config = get_config()
+        configured = (config.get("database") or {}).get("path")
+        if configured:
+            path = Path(os.path.expandvars(str(configured))).expanduser()
+            if not path.is_absolute():
+                path = _config_base_dir(config.config_path) / path
+            return path
+    except Exception as exc:
+        logger.debug("Could not read database.path from config: %s", exc)
+
+    return DEFAULT_DB_PATH
+
+
+def get_connection(db_path: Optional[Union[str, Path]] = None) -> sqlite3.Connection:
     """Get a database connection, creating the DB file and schema if needed."""
-    path = db_path or DEFAULT_DB_PATH
+    path = resolve_db_path(db_path)
     path.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(str(path))
     conn.row_factory = sqlite3.Row

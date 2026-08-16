@@ -519,7 +519,7 @@ File: `src/storage/database.py`. Full ER diagram in [ARCHITECTURE.md §5](ARCHIT
 
 `get_connection(db_path=None)`:
 
-- Default path `~/.ghost_hunter/investigations.db`; parent directories are created.
+- Path from `resolve_db_path(db_path)`: the explicit `--db` path, else `database.path` from config (`~` and environment variables expanded, a relative path anchored to the project directory holding `config/`), else `~/.ghost_hunter/investigations.db`; parent directories are created.
 - `sqlite3.connect(..., check_same_thread=False)` with `row_factory = sqlite3.Row`.
 - `PRAGMA journal_mode=WAL`, `PRAGMA foreign_keys=ON`.
 - Calls `_init_schema(conn)` on every connection (`CREATE TABLE IF NOT EXISTS` + indexes), so the schema is self-healing.
