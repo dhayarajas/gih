@@ -9,9 +9,10 @@ into the log file, corrupting every reader downstream.
 
 import logging
 
-# Whitespace a tool legitimately prints. Every other C0/C1 code point is a byte
-# that escaped a binary stream rather than something a tool meant to say.
-ALLOWED_WHITESPACE = frozenset("\t\n\r\f\v")
+# Whitespace a tool legitimately prints, and a reader can see. Vertical tab and
+# form feed are not among them: they render as nothing, so they read as bytes
+# that escaped a binary stream rather than as something a tool meant to say.
+ALLOWED_WHITESPACE = frozenset("\t\n\r")
 
 CONTROL_CHARACTERS = frozenset(
     chr(code) for code in (*range(0x20), *range(0x7F, 0xA0))

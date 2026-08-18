@@ -212,3 +212,44 @@ non-resolvable `avatar_url` (the template's `onerror` should hide the img).
   `external_tools` alias has no effect).
 - `run_tool_analysis` memoizes on `(tool, analysis, target)` for the whole
   process; call `clear_tool_analysis_cache()` between assertions in one script.
+
+## Testing binary / unparsable tool output (control-byte safety)
+
+`whatweb` is often **missing** even though the blueprint installs it; the cheapest way to
+exercise the unparsable-output path is a stub first on PATH:
+
+```bash
+mkdir -p /tmp/bin-bin && cat > /tmp/bin-bin/whatweb <<'EOF'
+#!/bin/bash
+case "$1" in --version) echo "WhatWeb version 0.5.5"; exit 0;; esac
+head -c 4096 /dev/urandom
+printf '\x1f\x8b\x08\x00'
+printf 'http://example.com [200 OK] IP[93.184.216.34], Country[X\x00Y], Title[Bad\x1b\x07]\n'
+EOF
+chmod +x /tmp/bin-bin/whatweb
+```
+
+Useful stub variants: fully readable summary + a `--log-json` file whose values contain NUL
+(partial rejection path), and a realistic JSON log with two U+FFFD chars in `Title`
+(must NOT be rejected — `is_textual` allows up to 10% unreadable chars).
+
+Gotchas:
+- **`--depth 0` never persists tool artifacts.** `src/orchestrator.py` skips the whole
+  discovered-artifact write phase when `current_depth >= config.max_depth`, so
+  "no bad rows in SQLite" is vacuously true at depth 0. Use `--depth 1`.
+- Byte-scan generated files instead of eyeballing them; raw control bytes are invisible in
+  Chrome. Count bytes `< 0x20` excluding `\t\n\r`, plus `0x7f`, in `report.html`,
+  `report_redacted.html`, the JSON/CSV exports and the newest `logs/*.log`.
+- Known leak sites (may still be unfixed): the **tool-log excerpt** escapes only part of the
+  control range — `\v` (0x0b) and `\f` (0x0c) are in `ALLOWED_WHITESPACE`
+  (`src/utils/text.py`) so they survive into HTML; and **artifact metadata / parsed_data
+  values** (e.g. a whatweb `title`) are not escaped at all, so a readable capture with one
+  poisoned field leaks raw NUL into both the full and the `_redacted` HTML.
+- Evidence-status check: query the evidence/capture rows for `exit_status` —
+  `unparsable output` for a rejected capture, `exit 0` for an accepted one — and cross-check
+  against the report's "Tool Run Status" reason and the "Artifacts per Tool" chart; the two
+  must agree.
+- The artifacts table column is `artifact_type`, not `type`. There is no `sqlite3` CLI on
+  some boxes — use Python's `sqlite3` module.
+- `evidence` has no `--verify` flag; use `evidence --id INV-xxxx --show-path` (it recomputes
+  digests and reports verified/modified/missing).
