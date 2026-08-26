@@ -6,6 +6,7 @@ control bytes into the HTML, and left the Tool Run Status row claiming the tool
 "found nothing" while the artifact chart credited it with four findings.
 """
 
+import json
 import logging
 import tempfile
 from pathlib import Path
@@ -17,11 +18,16 @@ from src import orchestrator
 from src.modules import external_tools
 from src.modules.external_tools import STATUS_UNPARSABLE, ToolResult
 from src.orchestrator import ArtifactProcessResult, InvestigationConfig, run_investigation
-from src.reporting.html_report import _generate_tool_metrics
+from src.reporting.html_report import _build_artifact_views, _generate_tool_metrics
 from src.reporting.report_data import enrich_tool_status
 from src.storage import database as db
 from src.storage.evidence import EvidenceCapture
-from src.utils.text import ControlSafeFormatter, has_control_characters, is_textual
+from src.utils.text import (
+    ControlSafeFormatter,
+    escape_control_characters,
+    has_control_characters,
+    is_textual,
+)
 
 # What a lenient decode makes of a binary stream: control bytes plus the
 # replacement character where a byte was not valid UTF-8.
@@ -234,6 +240,46 @@ class TestStatusAgreesWithTheChart:
 
         assert row["reason"] == "ran but returned unparsable output"
         assert not [t for t in tool_metrics["tools"] if t["tool"] == "whatweb"]
+
+
+class TestRenderedMetadata:
+    """A finding is rejected; the metadata a tool parsed beside it is kept.
+
+    A whatweb run whose capture is readable but whose JSON log holds a NUL in a
+    page title had that title rendered raw into the HTML, including the copy
+    marked safe to share.
+    """
+
+    def test_a_metadata_value_reaches_the_report_escaped(self):
+        views = _build_artifact_views(
+            [{
+                "artifact_id": "ART-1",
+                "artifact_type": "domain",
+                "value": "example.com",
+                "source": "plugin:WhatWebPlugin",
+                "metadata": json.dumps({
+                    "title": "Corrupt \x00\x01 title",
+                    "servers": ["nginx\x0b1.18.0"],
+                    "records": [{"page\x0c": "home\x00"}],
+                }),
+            }],
+            links=[], correlation=SimpleNamespace(identities=[]),
+        )
+        items = views[0]["metadata_items"]
+        rendered = "".join(
+            item["key"] + item["value"] + json.dumps(item["table"] or {})
+            for item in items
+        )
+
+        assert not has_control_characters(rendered)
+        assert "Corrupt \\x00\\x01 title" in rendered
+
+    def test_vertical_whitespace_is_not_mistaken_for_whitespace(self):
+        # A form feed and a vertical tab render as nothing, so they read as
+        # bytes that escaped a binary stream.
+        assert has_control_characters("page\x0ctitle\x0b")
+        assert not has_control_characters("first line\nsecond\tcolumn\r\n")
+        assert escape_control_characters("a\x0bb\x0cc") == "a\\x0bb\\x0cc"
 
 
 class TestLogFile:

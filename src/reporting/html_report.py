@@ -90,6 +90,7 @@ from src.correlation.scorer import (
 )
 from src.modules.external_tools import TOOL_ARTIFACT_TYPES
 from src.storage import database as db
+from src.utils.text import escape_control_characters
 
 logger = logging.getLogger(__name__)
 
@@ -630,7 +631,15 @@ def _format_metadata_value(value) -> str:
     Tool metadata is arbitrary JSON, so containers are unwrapped rather than
     dumped verbatim: an empty one carries no information and a flat list reads
     better as a comma-separated line than as a JSON array.
+
+    A value a tool parsed out of a binary response reaches here carrying the
+    bytes it was made of, so it is escaped: an artifact value with control
+    characters is never stored, but a metadata field holding one is.
     """
+    return escape_control_characters(_metadata_text(value))
+
+
+def _metadata_text(value) -> str:
     if value is None or value == '' or value == [] or value == {}:
         return '-'
     if isinstance(value, float):
@@ -668,7 +677,7 @@ def _metadata_table(value) -> Optional[dict]:
     for item in value:
         for key in item:
             if key not in columns:
-                columns.append(str(key))
+                columns.append(escape_control_characters(str(key)))
     columns = [
         column for column in columns
         if any(item.get(column) not in (None, '', [], {}) for item in value)
@@ -731,7 +740,7 @@ def _build_artifact_views(artifacts: list, links: list, correlation,
             'metadata_parsed': metadata,
             'metadata_items': [
                 {
-                    'key': str(key),
+                    'key': escape_control_characters(str(key)),
                     'value': _format_metadata_value(value),
                     'table': _metadata_table(value),
                 }

@@ -1415,7 +1415,9 @@ def _short(value, limit: int = 80, redact: bool = False) -> str:
     """Render a metadata value compactly enough for a diff row."""
     if redact:
         return "[REDACTED]"
-    text = json.dumps(value, sort_keys=True) if isinstance(value, (dict, list)) else str(value)
+    text = escape_control_characters(
+        json.dumps(value, sort_keys=True) if isinstance(value, (dict, list)) else str(value)
+    )
     return text if len(text) <= limit else text[: limit - 1] + "…"
 
 
